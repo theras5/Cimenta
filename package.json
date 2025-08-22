@@ -1,0 +1,21 @@
+{
+  "name": "cimenta",
+  "private": true,
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev:server": "npm run dev --workspace=server",
+    "build:server": "npm run build --workspace=server",
+    "start:server": "npm run start --workspace=server",
+    "dev:app": "npm run android --workspace=apps/expo-app"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "workspaces": [
+    "apps/*",
+    "server",
+    "packages/*"
+  ]
+}
