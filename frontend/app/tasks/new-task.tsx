@@ -331,6 +331,7 @@ export default function NewTask() {
                   onChange={handleStartDateChange}
                   minimumDate={new Date()}
                   style={{ width: "100%", height: 200 }}
+                  themeVariant="light"
                 />
               </View>
             </View>
@@ -384,6 +385,7 @@ export default function NewTask() {
                   onChange={handleEndDateChange}
                   minimumDate={startDate}
                   style={{ width: "100%", height: 200 }}
+                  themeVariant="light"
                 />
               </View>
             </View>

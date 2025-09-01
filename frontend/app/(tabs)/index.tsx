@@ -84,8 +84,8 @@ export default function HomeScreen({ navigation }: Props) {
     </ScrollView>
   );*/
   return (
-    <ScrollView className="flex-1 bg-white px-6 pt-20">
-      <Text className="text-2xl font-bold text-center mb-6">Inicio</Text>
+    <ScrollView className="flex-1 bg-gray-50 px-6 pt-20">
+      <Text className="text-2xl font-bold text-left mb-6">Inicio</Text>
       <Text className="text-lg font-bold mb-2">Tableros</Text>
       <View>
         {/* Tablero de tareas */}

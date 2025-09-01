@@ -1,12 +1,15 @@
-import { View, Text } from 'react-native'
 import React from 'react'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { Stack } from 'expo-router'
 
 const _Layout = () => {
   return (
-    <SafeAreaView>
-      <Text>Auth Layout</Text>
-    </SafeAreaView>
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: 'white' },
+        animation: 'slide_from_right',
+      }}
+    />
   )
 }
 
