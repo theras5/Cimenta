@@ -60,7 +60,7 @@ export default function TabLayout() {
         options={{
           title: "Tasks",
           tabBarIcon: ({ focused }) => (
-            <TabBarIcon title="Tasks" icon={images.task} focused={focused} />
+            <TabBarIcon title="Tasks" icon={images.tasks} focused={focused} />
           ),
         }}
       />

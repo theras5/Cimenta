@@ -109,7 +109,7 @@ export default function Tasks() {
       {/* Header */}
       <View className="flex-row items-center justify-between px-4 py-2 mb-4">
         <View className="flex-row items-center">
-          <TouchableOpacity className="mr-4">
+          <TouchableOpacity className="mr-4" onPress={() => router.back()}>
             <Ionicons name="chevron-back" size={24} color="#374151" />
           </TouchableOpacity>
           <Text className="text-gray-800 font-bold text-2xl">Tareas</Text>
