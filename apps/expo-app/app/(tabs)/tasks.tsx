@@ -32,7 +32,7 @@ export default function Tasks() {
 
   // Agrupar tareas por estado
   const pendingTasks = tasks.filter((task) => task.status === "pending");
-  const inProgressTasks = tasks.filter((task) => task.status === "in-progress");
+  const inProgressTasks = tasks.filter((task) => task.status === "in_progress");
   const completedTasks = tasks.filter((task) => task.status === "completed");
   const blockedTasks = tasks.filter((task) => task.status === "blocked");
 

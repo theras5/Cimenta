@@ -136,6 +136,35 @@ app.put("/task/:id", async (req, res, next) => {
   }
 });
 
+// 4. Implementa la ruta DELETE
+app.delete("/task/:id", async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id);
+
+    if (isNaN(id)) {
+      return res
+        .status(400)
+        .json({ message: "El ID proporcionado no es un número." });
+    }
+
+    // Eliminar la tarea con el ID especificado
+    const { error } = await supabase
+      .from("tasks")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      // Si hay un error en la consulta, lo pasamos al middleware de errores
+      return next(error);
+    }
+
+    // Para operaciones DELETE exitosas, es común devolver un 204 (sin contenido)
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.use(errorMiddleware); // esto tiene que ir siempre al final
 
 export default app;

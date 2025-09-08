@@ -10,7 +10,7 @@ export interface Task {
   description: string;
   category: string;
   categoryColor?: string;
-  status: 'pending' | 'in-progress' | 'completed' | 'blocked';
+  status: 'pending' | 'in_progress' | 'completed' | 'blocked';
   startDate: string;
   endDate: string;
   assignedMembers: string[];

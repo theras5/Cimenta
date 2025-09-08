@@ -16,7 +16,7 @@ const getStatusBgColor = (status: Task["status"]) => {
   switch (status) {
     case "pending":
       return "bg-yellow-100";
-    case "in-progress":
+    case "in_progress":
       return "bg-blue-100";
     case "completed":
       return "bg-green-100";

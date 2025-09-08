@@ -138,11 +138,31 @@ export function useTask(id: string | undefined) {
     }
   };
 
+  const deleteTask = async (): Promise<boolean> => {
+    if (!id) return false;
+    
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Asumiendo que tienes un método deleteTask en tu servicio
+      const success = await TaskService.deleteTask(id);
+      return success;
+    } catch (err: any) {
+      console.error('Error deleting task:', err);
+      setError(err.message || 'No se pudo eliminar la tarea');
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return {
     task,
     isLoading,
     error,
     refetch: fetchTask,
     updateTask,
+    deleteTask
   };
 }

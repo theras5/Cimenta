@@ -69,7 +69,7 @@ const mockTasks = [
     endDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
     assignedMembers: ["2", "6"],
     mediaFiles: [],
-    status: "in-progress",
+    status: "in_progress",
   },
   // Add more mock tasks as needed
 ];
@@ -80,7 +80,13 @@ export default function TaskDetail() {
   const [task, setTask] = useState<any>(null);
 
   // Usa el hook useTask para cargar la tarea desde el backend
-  const { task: taskData, isLoading, error, updateTask } = useTask(id);
+  const {
+    task: taskData,
+    isLoading,
+    error,
+    updateTask,
+    deleteTask,
+  } = useTask(id);
 
   // Form states
   const [title, setTitle] = useState("");
@@ -93,6 +99,9 @@ export default function TaskDetail() {
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [tempStartDate, setTempStartDate] = useState(new Date());
   const [tempEndDate, setTempEndDate] = useState(new Date());
+  const [selectedStatus, setSelectedStatus] = useState<
+    "pending" | "in_progress" | "completed" | "blocked"
+  >("pending");
 
   // Load task data
   useEffect(() => {
@@ -102,6 +111,7 @@ export default function TaskDetail() {
       setTitle(taskData.title);
       setDescription(taskData.description || "");
       setCategory(taskData.category);
+      setSelectedStatus(taskData.status);
 
       // Usar el nombre correcto según tu API (camelCase o snake_case)
       const startDateValue = taskData.startDate;
@@ -183,7 +193,7 @@ export default function TaskDetail() {
 
   // Format date function
   const formatDate = (date: Date | null) => {
-    if (!date) return undefined;
+    if (!date) return "No definida";
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const day = String(date.getDate()).padStart(2, "0");
@@ -259,6 +269,7 @@ export default function TaskDetail() {
         category,
         startDate: formatDate(startDate),
         endDate: formatDate(endDate),
+        status: selectedStatus,
       };
 
       console.log("Datos a enviar:", updatedData);
@@ -278,6 +289,37 @@ export default function TaskDetail() {
       console.error("Error al guardar los cambios:", error);
       Alert.alert("Error", "No se pudo actualizar la tarea");
     }
+  };
+
+  const handleDelete = () => {
+    Alert.alert(
+      "Eliminar tarea",
+      "¿Estás seguro de que quieres eliminar esta tarea? Esta acción no se puede deshacer.",
+      [
+        {
+          text: "Cancelar",
+          style: "cancel",
+        },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const success = await deleteTask();
+              if (success) {
+                Alert.alert("Éxito", "La tarea ha sido eliminada");
+                router.back();
+              } else {
+                throw new Error("No se pudo eliminar la tarea");
+              }
+            } catch (error) {
+              console.error("Error al eliminar la tarea:", error);
+              Alert.alert("Error", "No se pudo eliminar la tarea");
+            }
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -320,7 +362,7 @@ export default function TaskDetail() {
             className={`px-3 py-1 rounded-full ${
               task.status === "pending"
                 ? "bg-yellow-500"
-                : task.status === "in-progress"
+                : task.status === "in_progress"
                   ? "bg-blue-500"
                   : task.status === "blocked"
                     ? "bg-red-500"
@@ -330,7 +372,7 @@ export default function TaskDetail() {
             <Text className="text-white text-sm font-medium">
               {task.status === "pending"
                 ? "Pendiente"
-                : task.status === "in-progress"
+                : task.status === "in_progress"
                   ? "En progreso"
                   : task.status === "blocked"
                     ? "Bloqueado"
@@ -338,6 +380,72 @@ export default function TaskDetail() {
             </Text>
           </View>
         </View>
+
+        {/* Estado (solo en modo edición) */}
+        {isEditing && (
+          <View className="mb-4">
+            <Text className="text-gray-700 font-medium mb-2">Estado</Text>
+            <View className="flex-row flex-wrap gap-2">
+              <TouchableOpacity
+                onPress={() => setSelectedStatus("pending")}
+                className={`px-3 py-2 rounded-full ${
+                  selectedStatus === "pending"
+                    ? "bg-yellow-500"
+                    : "bg-yellow-100"
+                }`}
+              >
+                <Text
+                  className={`${selectedStatus === "pending" ? "text-white" : "text-yellow-800"}`}
+                >
+                  Pendiente
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => setSelectedStatus("in_progress")}
+                className={`px-3 py-2 rounded-full ${
+                  selectedStatus === "in_progress"
+                    ? "bg-blue-500"
+                    : "bg-blue-100"
+                }`}
+              >
+                <Text
+                  className={`${selectedStatus === "in_progress" ? "text-white" : "text-blue-800"}`}
+                >
+                  En progreso
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => setSelectedStatus("completed")}
+                className={`px-3 py-2 rounded-full ${
+                  selectedStatus === "completed"
+                    ? "bg-green-500"
+                    : "bg-green-100"
+                }`}
+              >
+                <Text
+                  className={`${selectedStatus === "completed" ? "text-white" : "text-green-800"}`}
+                >
+                  Completado
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => setSelectedStatus("blocked")}
+                className={`px-3 py-2 rounded-full ${
+                  selectedStatus === "blocked" ? "bg-red-500" : "bg-red-100"
+                }`}
+              >
+                <Text
+                  className={`${selectedStatus === "blocked" ? "text-white" : "text-red-800"}`}
+                >
+                  Bloqueado
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         {/* Título */}
         <View className="mb-4">
@@ -538,7 +646,7 @@ export default function TaskDetail() {
         </View>
 
         {/* Miembros asignados */}
-        <View className="mb-4">
+        {/* <View className="mb-4">
           <Text className="text-gray-700 font-medium mb-2">
             Miembros asignados ({selectedMembers.length})
           </Text>
@@ -558,6 +666,19 @@ export default function TaskDetail() {
               </View>
             ))}
           </View>
+        </View> */}
+
+        {/* Botón de eliminación */}
+        <View className="mb-8 mt-6 px-4">
+          <TouchableOpacity
+            onPress={handleDelete}
+            className="bg-red-500 py-4 rounded-xl items-center flex-row justify-center"
+          >
+            <Ionicons name="trash-outline" size={20} color="white" />
+            <Text className="text-white font-medium text-base ml-2">
+              Eliminar tarea
+            </Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>
