@@ -17,5 +17,12 @@
     "apps/*",
     "server",
     "packages/*"
-  ]
+  ],
+  "dependencies": {
+    "@esbuild/darwin-arm64": "^0.25.9",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19"
+  }
 }

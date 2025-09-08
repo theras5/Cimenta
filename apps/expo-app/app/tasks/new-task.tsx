@@ -22,11 +22,11 @@ import * as ImagePicker from "expo-image-picker";
 /* ========= MOCKDATA ========== */
 
 /* mock data for categories */
-const electricidad: Category = { name: "ELECTRICIDAD", color: "bg-blue-500" };
-const plomeria: Category = { name: "PLOMERIA", color: "bg-orange-500" };
-const construccion: Category = { name: "CONSTRUCCIÓN", color: "bg-gray-500" };
-const pintura: Category = { name: "PINTURA", color: "bg-pink-500" };
-const categories: Category[] = [electricidad, plomeria, construccion, pintura];
+const Electricidad: Category = { name: "Electricidad", color: "bg-blue-500" };
+const Plomeria: Category = { name: "Plomeria", color: "bg-orange-500" };
+const Construccion: Category = { name: "Construccion", color: "bg-gray-500" };
+const Pintura: Category = { name: "Pintura", color: "bg-pink-500" };
+const categories: Category[] = [Electricidad, Plomeria, Construccion, Pintura];
 
 // Mock data para miembros del equipo
 interface TeamMember {
@@ -199,19 +199,42 @@ export default function NewTask() {
     }
   };
 
-  const handleSave = () => {
-    console.log("Guardando tarea:", {
-      title,
-      description,
-      category,
-      startDate,
-      endDate,
-      mediaFiles,
-      assignedMembers: selectedMembers,
-    });
-    // Aquí implementarías la lógica para guardar la tarea
-    router.back();
+  const handleSave = async () => {
+  const nuevaTarea = {
+    title,
+    description,
+    category,
+    status: "pending",
+    is_urgent: false,
+    user_id: "ad4d74ba-beac-4741-9ec1-978d564a971c",
+  
+    // Si tienes campos de fecha en la base, agrégalos aquí
+    start_date: startDate.toISOString(),
+    end_date: endDate.toISOString(),
   };
+
+  // Muestra en consola lo que se envía
+  console.log("Enviando al backend:", nuevaTarea);
+
+  try {
+    const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/task`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(nuevaTarea),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Respuesta del backend:", errorText);
+      throw new Error("Error al crear la tarea");
+    }
+
+    router.back();
+  } catch (error) {
+    alert("No se pudo guardar la tarea");
+    console.error(error);
+  }
+};
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50">

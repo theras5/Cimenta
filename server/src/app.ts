@@ -1,11 +1,13 @@
 import express from "express";
-import dotenv from 'dotenv';
+import dotenv from "dotenv";
+
+// server/src/app.ts
+import cors from "cors";
 
 dotenv.config();
 
 import { supabase } from "./config/supabase";
 import errorMiddleware from "./middlewares/errorMiddleware";
-import { nextTick } from "process";
 /*
 
 GET /tasks/ (te trae todas las tasks creadas)
@@ -17,53 +19,55 @@ DELETE /task:id (elimina un task con el id indicado)
 */
 
 interface Task {
-    id: number;
-    user_id: string; // o el tipo que corresponda
-    created_at: string;
-    title: string;
-    description?: string;
-    is_urgent: boolean;
-    status: 'pending' | 'in-progress' | 'done';
+  id: number;
+  user_id: string; // o el tipo que corresponda
+  created_at: string;
+  title: string;
+  description?: string;
+  is_urgent: boolean;
+  status: "pending" | "in-progress" | "done";
+  start_date?: string;
+  end_date?: string;
 }
 
 const app = express();
 
 app.use(express.json());
 
+app.use(cors());
+
 app.get("/tasks", async (req, res, next) => {
-    try {
-        // Usamos .from('tasks') para la tabla y .select('*') para obtener todos los registros
-        const { data, error } = await supabase
-            .from('tasks')
-            .select('*');
+  try {
+    // Usamos .from('tasks') para la tabla y .select('*') para obtener todos los registros
+    const { data, error } = await supabase.from("tasks").select("*");
 
-        if (error) {
-            // Si hay un error, lo pasamos al middleware de errores
-            return next(error);
-        }
-
-        res.json(data);
-    } catch (err) {
-        next(err);
+    if (error) {
+      // Si hay un error, lo pasamos al middleware de errores
+      return next(error);
     }
+
+    res.json(data);
+  } catch (err) {
+    next(err);
+  }
 });
 
 app.get("/task/:id", async (req, res, next) => {
-    try {
-        const id = parseInt(req.params.id);
+  try {
+    const id = parseInt(req.params.id);
 
-        const { data, error } = await supabase
-            .from('tasks')
-            .select('*')
-            .eq('id', id)
-            .single();
+    const { data, error } = await supabase
+      .from("tasks")
+      .select("*")
+      .eq("id", id)
+      .single();
 
-        if (error) return res.status(404).json({ error: error.message });
-        res.json(data);
-    } catch (err) {
-        next(err);
-    }
-})
+    if (error) return res.status(404).json({ error: error.message });
+    res.json(data);
+  } catch (err) {
+    next(err);
+  }
+});
 
 // tenemos que tener definido un TaskT
 app.post("/task", async (req, res, next) => {
@@ -91,42 +95,45 @@ app.post("/task", async (req, res, next) => {
     } catch (error) {
         next(error);
     }
-})
+});
 
 // 3. Implementa la ruta PUT
 app.put("/task/:id", async (req, res, next) => {
-    try {
-        const id = parseInt(req.params.id);
-        // Los datos a actualizar. Partial<Task> hace que todas las propiedades sean opcionales.
-        const taskToUpdate: Partial<Task> = req.body;
+  try {
+    const id = parseInt(req.params.id);
+    // Los datos a actualizar. Partial<Task> hace que todas las propiedades sean opcionales.
+    const taskToUpdate: Partial<Task> = req.body;
 
-        if (isNaN(id)) {
-            return res.status(400).json({ message: "El ID proporcionado no es un número." });
-        }
-
-        // El método .select() al final hace que Supabase devuelva el registro actualizado.
-        const { data, error } = await supabase
-            .from('tasks') // Asegúrate que 'task' es el nombre correcto de tu tabla
-            .update(taskToUpdate)
-            .eq('id', id)
-            .select()
-            .single(); // .single() para que devuelva un solo objeto y no un array
-
-        if (error) {
-            // Si hay un error en la consulta, lo pasamos al middleware de errores
-            return next(error);
-        }
-
-        if (!data) {
-            // Si no se encontró la tarea, data será null
-            return res.status(404).json({ message: `No se encontró la tarea con el id ${id}` });
-        }
-
-        res.status(200).json(data);
-
-    } catch (error) {
-        next(error);
+    if (isNaN(id)) {
+      return res
+        .status(400)
+        .json({ message: "El ID proporcionado no es un número." });
     }
+
+    // El método .select() al final hace que Supabase devuelva el registro actualizado.
+    const { data, error } = await supabase
+      .from("tasks") // Asegúrate que 'task' es el nombre correcto de tu tabla
+      .update(taskToUpdate)
+      .eq("id", id)
+      .select()
+      .single(); // .single() para que devuelva un solo objeto y no un array
+
+    if (error) {
+      // Si hay un error en la consulta, lo pasamos al middleware de errores
+      return next(error);
+    }
+
+    if (!data) {
+      // Si no se encontró la tarea, data será null
+      return res
+        .status(404)
+        .json({ message: `No se encontró la tarea con el id ${id}` });
+    }
+
+    res.status(200).json(data);
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.use(errorMiddleware); // esto tiene que ir siempre al final
