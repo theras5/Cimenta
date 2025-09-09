@@ -20,10 +20,10 @@ import DateTimePicker, {
 import { useTask } from "@/hooks/useTasks";
 
 // Reuse the mock data from new-task.tsx
-const electricidad: Category = { name: "ELECTRICIDAD", color: "bg-blue-500" };
-const plomeria: Category = { name: "PLOMERIA", color: "bg-orange-500" };
-const construccion: Category = { name: "CONSTRUCCION", color: "bg-gray-500" };
-const pintura: Category = { name: "PINTURA", color: "bg-pink-500" };
+const electricidad: Category = { name: "Electricidad", color: "bg-blue-500" };
+const plomeria: Category = { name: "Plomeria", color: "bg-orange-500" };
+const construccion: Category = { name: "Construccion", color: "bg-gray-500" };
+const pintura: Category = { name: "Pintura", color: "bg-pink-500" };
 const categories: Category[] = [electricidad, plomeria, construccion, pintura];
 
 // Mock data for team members
@@ -248,7 +248,7 @@ export default function TaskDetail() {
   // Helper para obtener el color de la categoría
   const getCategoryColor = (categoryName: string) => {
     const normalizedCategory = categoryName?.toUpperCase();
-    const category = categories.find((cat) => cat.name === normalizedCategory);
+    const category = categories.find((cat) => cat.name.toUpperCase() === normalizedCategory);
     return category?.color || "bg-gray-500";
   };
 
@@ -492,7 +492,7 @@ export default function TaskDetail() {
                   key={cat.name}
                   onPress={() => setCategory(cat.name)}
                   className={`px-3 py-2 rounded-full ${
-                    category?.toUpperCase() === cat.name
+                    category === cat.name
                       ? getCategoryColor(category)
                       : "bg-gray-200"
                   }`}

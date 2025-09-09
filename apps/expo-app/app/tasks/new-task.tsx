@@ -204,47 +204,6 @@ export default function NewTask() {
     }
   };
 
-  const RequiredTextField = ({
-    label,
-    value,
-    setValue,
-    error,
-    setError,
-    placeholder,
-  }: {
-    label: string;
-    value: string;
-    setValue: (text: string) => void;
-    error: string | null;
-    setError: (error: string | null) => void;
-    placeholder?: string;
-  }) => {
-    return (
-      <View className="mb-4">
-        <Text className="text-gray-700 font-medium mb-2">
-          {label} <Text className="text-red-500">*</Text>
-        </Text>
-        <TextInput
-          value={value}
-          onChangeText={(text) => {
-            setValue(text);
-            if (hasAttemptedSubmit) {
-              setError(text.trim() ? null : `${label} es obligatorio`);
-            }
-          }}
-          onBlur={() => {
-            setError(value.trim() ? null : `${label} es obligatorio`);
-          }}
-          placeholder={placeholder}
-          className={`bg-white p-4 rounded-xl border ${
-            error ? "border-red-500" : "border-gray-200"
-          }`}
-        />
-        {error && <Text className="text-red-500 text-sm mt-1">{error}</Text>}
-      </View>
-    );
-  };
-
   const handleSave = async () => {
     // Validación completa antes de enviar
     setHasAttemptedSubmit(true);
@@ -343,15 +302,30 @@ export default function NewTask() {
       <ScrollView className="flex-1 px-4">
         {/* Título */}
         <View className="mb-4">
-          <Text className="text-gray-700 font-medium mb-2">Título</Text>
-          <RequiredTextField
-            label="Título"
+          <Text className="text-gray-700 font-medium mb-2">
+            Título <Text className="text-red-500">*</Text>
+          </Text>
+          <TextInput
             value={title}
-            setValue={setTitle}
-            error={titleError}
-            setError={setTitleError}
+            onChangeText={(text) => {
+              setTitle(text);
+              if (hasAttemptedSubmit && titleError) {
+                setTitleError(text.trim() ? null : "El título es obligatorio");
+              }
+            }}
+            onBlur={() => {
+              if (hasAttemptedSubmit) {
+                setTitleError(title.trim() ? null : "El título es obligatorio");
+              }
+            }}
             placeholder="Ej: Instalar cableado"
+            className={`bg-white p-4 rounded-xl border ${
+              titleError ? "border-red-500" : "border-gray-200"
+            }`}
           />
+          {titleError && (
+            <Text className="text-red-500 text-sm mt-1">{titleError}</Text>
+          )}
         </View>
 
         {/* Descripción */}

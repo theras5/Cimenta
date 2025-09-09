@@ -1,7 +1,7 @@
 import { Alert } from 'react-native';
 
 // URL base de la API - actualiza esto según tu configuración
-const API_URL = `http://192.168.0.191:3000`; // Usa tu IP local para desarrollo
+const API_URL = `http://10.9.71.41:3000`; // Usa tu IP local para desarrollo
 
 // Interfaces para los datos
 export interface Task {
