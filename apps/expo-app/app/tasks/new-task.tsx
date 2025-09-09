@@ -55,10 +55,15 @@ interface MediaFile {
 export default function NewTask() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("ELECTRICIDAD");
+  const [category, setCategory] = useState("");
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
   const [selectedMembers, setSelectedMembers] = useState<TeamMember[]>([]);
   const [showMemberModal, setShowMemberModal] = useState(false);
+
+  //Errores
+  const [titleError, setTitleError] = useState<string | null>(null);
+  const [categoryError, setCategoryError] = useState<string | null>(null);
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   // Estados para las fechas
   const [startDate, setStartDate] = useState(new Date());
@@ -199,42 +204,112 @@ export default function NewTask() {
     }
   };
 
-  const handleSave = async () => {
-  const nuevaTarea = {
-    title,
-    description,
-    category,
-    status: "pending",
-    is_urgent: false,
-    user_id: "ad4d74ba-beac-4741-9ec1-978d564a971c",
-  
-    // Si tienes campos de fecha en la base, agrégalos aquí
-    start_date: startDate.toISOString(),
-    end_date: endDate.toISOString(),
+  const RequiredTextField = ({
+    label,
+    value,
+    setValue,
+    error,
+    setError,
+    placeholder,
+  }: {
+    label: string;
+    value: string;
+    setValue: (text: string) => void;
+    error: string | null;
+    setError: (error: string | null) => void;
+    placeholder?: string;
+  }) => {
+    return (
+      <View className="mb-4">
+        <Text className="text-gray-700 font-medium mb-2">
+          {label} <Text className="text-red-500">*</Text>
+        </Text>
+        <TextInput
+          value={value}
+          onChangeText={(text) => {
+            setValue(text);
+            if (hasAttemptedSubmit) {
+              setError(text.trim() ? null : `${label} es obligatorio`);
+            }
+          }}
+          onBlur={() => {
+            setError(value.trim() ? null : `${label} es obligatorio`);
+          }}
+          placeholder={placeholder}
+          className={`bg-white p-4 rounded-xl border ${
+            error ? "border-red-500" : "border-gray-200"
+          }`}
+        />
+        {error && <Text className="text-red-500 text-sm mt-1">{error}</Text>}
+      </View>
+    );
   };
 
-  // Muestra en consola lo que se envía
-  console.log("Enviando al backend:", nuevaTarea);
+  const handleSave = async () => {
+    // Validación completa antes de enviar
+    setHasAttemptedSubmit(true);
 
-  try {
-    const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/task`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(nuevaTarea),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Respuesta del backend:", errorText);
-      throw new Error("Error al crear la tarea");
+    //Validar título
+    const isTitleValid = title.trim() !== "";
+    if (!isTitleValid) {
+      setTitleError("El título es obligatorio");
     }
 
-    router.back();
-  } catch (error) {
-    alert("No se pudo guardar la tarea");
-    console.error(error);
-  }
-};
+    // Validar categoría
+    const isCategoryValid = category && category.trim() !== "";
+    if (!isCategoryValid) {
+      setCategoryError("Selecciona una categoría");
+    }
+
+    // Si hay errores, no continuar
+    if (!isTitleValid || !isCategoryValid) {
+      alert("Por favor completa todos los campos obligatorios");
+      return;
+    }
+
+    const formatDate = (date: Date | null) => {
+      if (!date) return undefined;
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    };
+
+    const nuevaTarea = {
+      title,
+      description,
+      category,
+      status: "pending",
+      is_urgent: false,
+      user_id: "ad4d74ba-beac-4741-9ec1-978d564a971c",
+
+      // Si tienes campos de fecha en la base, agrégalos aquí
+      startDate: formatDate(startDate),
+      endDate: formatDate(endDate),
+    };
+
+    // Muestra en consola lo que se envía
+    console.log("Enviando al backend:", nuevaTarea);
+
+    try {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/task`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(nuevaTarea),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Respuesta del backend:", errorText);
+        throw new Error("Error al crear la tarea");
+      }
+
+      router.back();
+    } catch (error) {
+      alert("No se pudo guardar la tarea");
+      console.error(error);
+    }
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
@@ -269,11 +344,13 @@ export default function NewTask() {
         {/* Título */}
         <View className="mb-4">
           <Text className="text-gray-700 font-medium mb-2">Título</Text>
-          <TextInput
+          <RequiredTextField
+            label="Título"
             value={title}
-            onChangeText={setTitle}
+            setValue={setTitle}
+            error={titleError}
+            setError={setTitleError}
             placeholder="Ej: Instalar cableado"
-            className="bg-white p-4 rounded-xl border border-gray-200"
           />
         </View>
 
@@ -293,12 +370,17 @@ export default function NewTask() {
 
         {/* Categoría */}
         <View className="mb-4">
-          <Text className="text-gray-700 font-medium mb-2">Categoría</Text>
+          <Text className="text-gray-700 font-medium mb-2">
+            Categoría <Text className="text-red-500">*</Text>
+          </Text>
           <View className="flex-row flex-wrap gap-2">
             {categories.map((cat) => (
               <TouchableOpacity
                 key={cat.name}
-                onPress={() => setCategory(cat.name)}
+                onPress={() => {
+                  setCategory(cat.name);
+                  setCategoryError(null); // Limpia el error al seleccionar
+                }}
                 className={`px-3 py-2 rounded-full ${
                   category === cat.name ? cat.color : "bg-gray-200"
                 }`}
@@ -313,6 +395,9 @@ export default function NewTask() {
               </TouchableOpacity>
             ))}
           </View>
+          {categoryError && (
+            <Text className="text-red-500 text-sm mt-1">{categoryError}</Text>
+          )}
         </View>
 
         {/* Fecha de inicio */}
@@ -529,67 +614,67 @@ export default function NewTask() {
       </ScrollView>
 
       {/* Modal para seleccionar miembros */}
-        <Modal
-          visible={showMemberModal}
-          animationType="slide"
-          presentationStyle="pageSheet"
-        >
-          <SafeAreaView className="flex-1 bg-gray-50">
-            <View className="flex-row items-center justify-between px-4 py-2 mb-4 border-b border-gray-200">
-              <TouchableOpacity onPress={() => setShowMemberModal(false)}>
-                <Text className="text-red-500 font-medium">Cancelar</Text>
-              </TouchableOpacity>
-              <Text className="text-gray-800 font-bold text-lg">
-                Seleccionar Miembros
-              </Text>
-              <TouchableOpacity onPress={() => setShowMemberModal(false)}>
-                <Text className="text-blue-500 font-medium">OK</Text>
-              </TouchableOpacity>
-            </View>
+      <Modal
+        visible={showMemberModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <SafeAreaView className="flex-1 bg-gray-50">
+          <View className="flex-row items-center justify-between px-4 py-2 mb-4 border-b border-gray-200">
+            <TouchableOpacity onPress={() => setShowMemberModal(false)}>
+              <Text className="text-red-500 font-medium">Cancelar</Text>
+            </TouchableOpacity>
+            <Text className="text-gray-800 font-bold text-lg">
+              Seleccionar Miembros
+            </Text>
+            <TouchableOpacity onPress={() => setShowMemberModal(false)}>
+              <Text className="text-blue-500 font-medium">OK</Text>
+            </TouchableOpacity>
+          </View>
 
-            <ScrollView className="flex-1 px-4">
-              {teamMembers.map((member) => {
-                const isSelected = selectedMembers.some(
-                  (m) => m.id === member.id
-                );
-                return (
-                  <TouchableOpacity
-                    key={member.id}
-                    onPress={() => toggleMemberSelection(member)}
-                    className={`flex-row items-center justify-between p-4 mb-2 rounded-xl border ${
+          <ScrollView className="flex-1 px-4">
+            {teamMembers.map((member) => {
+              const isSelected = selectedMembers.some(
+                (m) => m.id === member.id
+              );
+              return (
+                <TouchableOpacity
+                  key={member.id}
+                  onPress={() => toggleMemberSelection(member)}
+                  className={`flex-row items-center justify-between p-4 mb-2 rounded-xl border ${
+                    isSelected
+                      ? "bg-blue-50 border-blue-200"
+                      : "bg-white border-gray-200"
+                  }`}
+                >
+                  <View className="flex-row items-center">
+                    <Text className="text-3xl mr-3">{member.avatar}</Text>
+                    <View>
+                      <Text className="text-gray-800 font-medium">
+                        {member.name}
+                      </Text>
+                      <Text className="text-gray-500 text-sm">
+                        {member.role}
+                      </Text>
+                    </View>
+                  </View>
+                  <View
+                    className={`w-6 h-6 rounded-full border-2 items-center justify-center ${
                       isSelected
-                        ? "bg-blue-50 border-blue-200"
-                        : "bg-white border-gray-200"
+                        ? "bg-blue-500 border-blue-500"
+                        : "border-gray-300"
                     }`}
                   >
-                    <View className="flex-row items-center">
-                      <Text className="text-3xl mr-3">{member.avatar}</Text>
-                      <View>
-                        <Text className="text-gray-800 font-medium">
-                          {member.name}
-                        </Text>
-                        <Text className="text-gray-500 text-sm">
-                          {member.role}
-                        </Text>
-                      </View>
-                    </View>
-                    <View
-                      className={`w-6 h-6 rounded-full border-2 items-center justify-center ${
-                        isSelected
-                          ? "bg-blue-500 border-blue-500"
-                          : "border-gray-300"
-                      }`}
-                    >
-                      {isSelected && (
-                        <Ionicons name="checkmark" size={16} color="white" />
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </SafeAreaView>
-        </Modal>
+                    {isSelected && (
+                      <Ionicons name="checkmark" size={16} color="white" />
+                    )}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }

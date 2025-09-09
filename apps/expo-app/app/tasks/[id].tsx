@@ -22,7 +22,7 @@ import { useTask } from "@/hooks/useTasks";
 // Reuse the mock data from new-task.tsx
 const electricidad: Category = { name: "ELECTRICIDAD", color: "bg-blue-500" };
 const plomeria: Category = { name: "PLOMERIA", color: "bg-orange-500" };
-const construccion: Category = { name: "CONSTRUCCIÓN", color: "bg-gray-500" };
+const construccion: Category = { name: "CONSTRUCCION", color: "bg-gray-500" };
 const pintura: Category = { name: "PINTURA", color: "bg-pink-500" };
 const categories: Category[] = [electricidad, plomeria, construccion, pintura];
 
@@ -492,12 +492,16 @@ export default function TaskDetail() {
                   key={cat.name}
                   onPress={() => setCategory(cat.name)}
                   className={`px-3 py-2 rounded-full ${
-                    category === cat.name ? cat.color : "bg-gray-200"
+                    category?.toUpperCase() === cat.name
+                      ? getCategoryColor(category)
+                      : "bg-gray-200"
                   }`}
                 >
                   <Text
                     className={`text-xs font-medium ${
-                      category === cat.name ? "text-white" : "text-gray-800"
+                      category?.toUpperCase() === cat.name
+                        ? "text-white"
+                        : "text-gray-800"
                     }`}
                   >
                     {cat.name}
