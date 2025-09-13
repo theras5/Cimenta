@@ -6,116 +6,74 @@ import {
   Text,
   TouchableOpacity,
   View,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import TaskSection from "../../components/TaskSection";
-import { type Task } from "../../components/TaskCard";
+import TaskCard from "@/components/TaskCard";
+import { useTasks } from "@/hooks/useTasks";
 import { router } from "expo-router";
-
-// Mock data for tasks
-const pendingTasks: Task[] = [
-  {
-    id: 1,
-    title: "Instalar cableado",
-    description: "Faltan todavía 10 metros de cable de cobre",
-    category: "ELECTRICIDAD",
-    categoryColor: "bg-blue-500",
-    bgColor: "bg-blue-100",
-    avatars: ["👨‍🔧", "👷‍♂️", "👨‍💼"],
-  },
-  {
-    id: 2,
-    title: "Tubería cocina",
-    description: "Definir planos con la arquitecta",
-    category: "PLOMERÍA",
-    categoryColor: "bg-orange-500",
-    bgColor: "bg-orange-100",
-    avatars: ["👨‍🔧", "👷‍♀️", "👨‍💼"],
-  },
-];
-
-const inProgressTasks: Task[] = [
-  {
-    id: 3,
-    title: "Revoque paredes",
-    description: "Faltan las paredes de cocina y baño",
-    category: "PINTURA",
-    categoryColor: "bg-pink-500",
-    bgColor: "bg-pink-100",
-    avatars: ["👨‍🎨", "👷‍♂️", "👨‍💼"],
-  },
-  {
-    id: 4,
-    title: "Tablero eléctrico",
-    description: "Ver el de la cocina y comedor",
-    category: "ELECTRICISTA",
-    categoryColor: "bg-blue-500",
-    bgColor: "bg-blue-100",
-    avatars: ["👨‍🔧", "👷‍♀️", "👨‍💼"],
-  },
-];
-
-const blockedTasks: Task[] = [
-  {
-    id: 5,
-    title: "Revoque paredes",
-    description: "Faltan las paredes de cocina y baño",
-    category: "PINTURA",
-    categoryColor: "bg-pink-500",
-    bgColor: "bg-pink-100",
-    avatars: ["👨‍🎨", "👷‍♂️", "👨‍💼"],
-  },
-  {
-    id: 6,
-    title: "Tablero eléctrico",
-    description: "Ver el de la cocina y comedor",
-    category: "ELECTRICISTA",
-    categoryColor: "bg-blue-500",
-    bgColor: "bg-blue-100",
-    avatars: ["👨‍🔧", "👷‍♀️", "👨‍💼"],
-  },
-];
-
-const doneTasks: Task[] = [
-  {
-    id: 7,
-    title: "Tubería baño",
-    description: "Romper caños previos y rearmar",
-    category: "PLOMERÍA",
-    categoryColor: "bg-orange-500",
-    bgColor: "bg-orange-100",
-    avatars: ["👨‍🔧", "👷‍♀️", "👨‍💼"],
-  },
-  {
-    id: 8,
-    title: "Durlock de living",
-    description: "Falta la pared de atrás del sillón",
-    category: "CONSTRUCCIÓN",
-    categoryColor: "bg-gray-500",
-    bgColor: "bg-gray-100",
-    avatars: ["👷‍♂️", "👨‍💼", "👷‍♀️"],
-  },
-];
+import { useEffect, useState } from "react";
 
 const handleAddTask = () => {
   router.push("/tasks/new-task");
 };
 
 export default function Tasks() {
+  const { tasks, isLoading, error, fetchTasks } = useTasks();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchTasks();
+    setRefreshing(false);
+  };
+
+  // Agrupar tareas por estado
+  const pendingTasks = tasks.filter((task) => task.status === "pending");
+  const inProgressTasks = tasks.filter((task) => task.status === "in_progress");
+  const completedTasks = tasks.filter((task) => task.status === "completed");
+  const blockedTasks = tasks.filter((task) => task.status === "blocked");
+
+  if (isLoading && !refreshing) {
+    return (
+      <SafeAreaView className="flex-1 bg-gray-50 justify-center items-center">
+        <ActivityIndicator size="large" color="#3B82F6" />
+        <Text className="text-gray-600 mt-4">Cargando tareas...</Text>
+      </SafeAreaView>
+    );
+  }
+
+  if (error && tasks.length === 0) {
+    return (
+      <SafeAreaView className="flex-1 bg-gray-50 justify-center items-center px-4">
+        <Ionicons name="alert-circle-outline" size={64} color="#EF4444" />
+        <Text className="text-red-600 text-lg font-medium mt-4 text-center">
+          Error al cargar las tareas
+        </Text>
+        <Text className="text-gray-600 mt-2 text-center mb-4">{error}</Text>
+        <TouchableOpacity
+          onPress={fetchTasks}
+          className="bg-blue-600 px-6 py-3 rounded-xl"
+        >
+          <Text className="text-white font-medium">Intentar de nuevo</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
       <StatusBar barStyle="dark-content" />
 
       {/* Header */}
-      <View className="flex-row items-center justify-between px-4 py-2 mb-4">
-        <View className="flex-row items-center">
-          <Text className="text-gray-800 font-bold text-2xl">Tareas</Text>
-        </View>
-
-        {/* Floating Action Button */}
+      <View className="flex-row items-center justify-between px-6 py-4">
+        <Text className="text-gray-800 font-bold text-2xl">Tareas</Text>
+        {/* Floating action button */}
         <TouchableOpacity
-          onPress={handleAddTask}
-          className="bg-blue-500 w-10 h-10 rounded-full items-center justify-center"
+          onPress={() => router.push("/tasks/new-task")}
+          className="bg-blue-600 w-12 h-12 rounded-full items-center justify-center"
           style={{
             shadowColor: "#000",
             shadowOffset: { width: 0, height: 2 },
@@ -124,39 +82,67 @@ export default function Tasks() {
             elevation: 5,
           }}
         >
-          <Ionicons name="add" size={28} color="white" />
+          <Ionicons name="add" size={24} color="white" />
         </TouchableOpacity>
       </View>
 
       {/* Tareas */}
       <ScrollView
         className="flex-1"
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 120 }}
+        contentContainerStyle={{ paddingBottom: 40 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       >
-        <TaskSection
-          title="Pendiente"
-          tasks={pendingTasks}
-          onSeeAll={() => console.log("Ver todos pendientes")}
-        />
+        {tasks.length === 0 ? (
+          <View className="flex-1 justify-center items-center py-20">
+            <Ionicons name="clipboard-outline" size={64} color="#9CA3AF" />
+            <Text className="text-gray-500 text-lg font-medium mt-4">
+              No hay tareas aún
+            </Text>
+            <Text className="text-gray-400 mt-2 text-center px-6">
+              Crea tu primera tarea usando el botón +
+            </Text>
+          </View>
+        ) : (
+          <View className="px-6 pb-6">
+            {/* Pendientes */}
+            {pendingTasks.length > 0 && (
+              <TaskSection
+                title="Pendientes"
+                tasks={pendingTasks}
+                onSeeAll={() => console.log("Ver todos pendientes")}
+              />
+            )}
 
-        <TaskSection
-          title="En progreso"
-          tasks={inProgressTasks}
-          onSeeAll={() => console.log("Ver todos en progreso")}
-        />
+            {/* En Progreso */}
+            {inProgressTasks.length > 0 && (
+              <TaskSection
+                title="En progreso"
+                tasks={inProgressTasks}
+                onSeeAll={() => console.log("Ver todos en progreso")}
+              />
+            )}
 
-        <TaskSection
-          title="Bloqueado"
-          tasks={blockedTasks}
-          onSeeAll={() => console.log("Ver todos bloqueados")}
-        />
+            {/* Bloqueadas */}
+            {blockedTasks.length > 0 && (
+              <TaskSection
+                title="Bloqueado"
+                tasks={blockedTasks}
+                onSeeAll={() => console.log("Ver todos bloqueados")}
+              />
+            )}
 
-        <TaskSection
-          title="Hecho"
-          tasks={doneTasks}
-          onSeeAll={() => console.log("Ver todos hechos")}
-        />
+            {/* Completadas */}
+            {completedTasks.length > 0 && (
+              <TaskSection
+                title="Completadas"
+                tasks={completedTasks}
+                onSeeAll={() => console.log("Ver todos hechos")}
+              />
+            )}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );

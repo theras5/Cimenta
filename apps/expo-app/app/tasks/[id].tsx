@@ -3,6 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState, useEffect } from "react";
 import {
+  Alert,
   Image,
   Platform,
   ScrollView,
@@ -16,12 +17,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
+import { useTask } from "@/hooks/useTasks";
 
 // Reuse the mock data from new-task.tsx
-const electricidad: Category = { name: "ELECTRICIDAD", color: "bg-blue-500" };
-const plomeria: Category = { name: "PLOMERIA", color: "bg-orange-500" };
-const construccion: Category = { name: "CONSTRUCCIÓN", color: "bg-gray-500" };
-const pintura: Category = { name: "PINTURA", color: "bg-pink-500" };
+const electricidad: Category = { name: "Electricidad", color: "bg-blue-500" };
+const plomeria: Category = { name: "Plomeria", color: "bg-orange-500" };
+const construccion: Category = { name: "Construccion", color: "bg-gray-500" };
+const pintura: Category = { name: "Pintura", color: "bg-pink-500" };
 const categories: Category[] = [electricidad, plomeria, construccion, pintura];
 
 // Mock data for team members
@@ -54,7 +56,7 @@ const mockTasks = [
     endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     assignedMembers: ["1", "3", "5"], // IDs of team members
     mediaFiles: [],
-    status: "pending"
+    status: "pending",
   },
   {
     id: "2",
@@ -67,7 +69,7 @@ const mockTasks = [
     endDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
     assignedMembers: ["2", "6"],
     mediaFiles: [],
-    status: "in-progress"
+    status: "in_progress",
   },
   // Add more mock tasks as needed
 ];
@@ -76,42 +78,91 @@ export default function TaskDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [isEditing, setIsEditing] = useState(false);
   const [task, setTask] = useState<any>(null);
-  
+
+  // Usa el hook useTask para cargar la tarea desde el backend
+  const {
+    task: taskData,
+    isLoading,
+    error,
+    updateTask,
+    deleteTask,
+  } = useTask(id);
+
   // Form states
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
-  const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(new Date());
+  const [startDate, setStartDate] = useState<Date | null>(new Date());
+  const [endDate, setEndDate] = useState<Date | null>(new Date());
   const [selectedMembers, setSelectedMembers] = useState<TeamMember[]>([]);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [tempStartDate, setTempStartDate] = useState(new Date());
   const [tempEndDate, setTempEndDate] = useState(new Date());
-  
+  const [selectedStatus, setSelectedStatus] = useState<
+    "pending" | "in_progress" | "completed" | "blocked"
+  >("pending");
+
   // Load task data
   useEffect(() => {
-    // In a real app, fetch from API or local storage
-    const foundTask = mockTasks.find(task => task.id === id);
-    
-    if (foundTask) {
-      setTask(foundTask);
-      setTitle(foundTask.title);
-      setDescription(foundTask.description);
-      setCategory(foundTask.category);
-      setStartDate(new Date(foundTask.startDate));
-      setEndDate(new Date(foundTask.endDate));
-      
-      // Find team members
-      const members = foundTask.assignedMembers.map(
-        memberId => teamMembers.find(member => member.id === memberId)
-      ).filter(Boolean) as TeamMember[];
-      
-      setSelectedMembers(members);
-    }
-  }, [id]);
+    if (taskData) {
+      console.log("Datos recibidos:", taskData); // Para depurar
+      setTask(taskData);
+      setTitle(taskData.title);
+      setDescription(taskData.description || "");
+      setCategory(taskData.category);
+      setSelectedStatus(taskData.status);
 
-  if (!task) {
+      // Usar el nombre correcto según tu API (camelCase o snake_case)
+      const startDateValue = taskData.startDate;
+      const endDateValue = taskData.endDate;
+
+      // Manejar fecha de inicio
+      if (startDateValue) {
+        try {
+          const parsedStartDate = new Date(startDateValue);
+          if (!isNaN(parsedStartDate.getTime())) {
+            setStartDate(parsedStartDate);
+            setTempStartDate(parsedStartDate);
+          } else {
+            // Fecha inválida - usar null
+            setStartDate(null);
+            setTempStartDate(new Date());
+          }
+        } catch (error) {
+          console.error("Error al parsear fecha de inicio:", error);
+          setStartDate(null);
+        }
+      } else {
+        // No hay fecha definida
+        setStartDate(null);
+      }
+
+      // Manejar fecha de fin
+      if (endDateValue) {
+        try {
+          const parsedEndDate = new Date(endDateValue);
+          if (!isNaN(parsedEndDate.getTime())) {
+            setEndDate(parsedEndDate);
+            setTempEndDate(parsedEndDate);
+          } else {
+            // Fecha inválida - usar null
+            setEndDate(null);
+            setTempEndDate(new Date());
+          }
+        } catch (error) {
+          console.error("Error al parsear fecha de fin:", error);
+          setEndDate(null);
+        }
+      } else {
+        // No hay fecha definida
+        setEndDate(null);
+      }
+    }
+  }, [taskData]);
+
+  // Muestra un indicador de carga mientras se obtienen los datos
+  if (isLoading) {
     return (
       <SafeAreaView className="flex-1 bg-gray-50 items-center justify-center">
         <Text>Cargando tarea...</Text>
@@ -119,13 +170,34 @@ export default function TaskDetail() {
     );
   }
 
+  // Muestra un mensaje de error si hay problemas al cargar la tarea
+  if (error || !task) {
+    return (
+      <SafeAreaView className="flex-1 bg-gray-50 items-center justify-center px-4">
+        <Ionicons name="alert-circle-outline" size={48} color="#ef4444" />
+        <Text className="text-red-500 text-lg font-medium mt-4 text-center">
+          Error al cargar la tarea
+        </Text>
+        <Text className="text-gray-500 text-center mt-2 mb-4">
+          {error || "No se pudo encontrar la tarea solicitada"}
+        </Text>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          className="bg-blue-500 px-6 py-3 rounded-lg"
+        >
+          <Text className="text-white font-medium">Volver</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
+
   // Format date function
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString("es-ES", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
+  const formatDate = (date: Date | null) => {
+    if (!date) return "No definida";
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
   };
 
   // Date picker handlers
@@ -173,21 +245,81 @@ export default function TaskDetail() {
     }
   };
 
-  const handleSaveChanges = () => {
-    // In a real app, update the task in your storage or backend
-    const updatedTask = {
-      ...task,
-      title,
-      description,
-      category,
-      startDate,
-      endDate,
-      assignedMembers: selectedMembers.map(member => member.id)
-    };
-    
-    console.log("Guardando cambios:", updatedTask);
-    setTask(updatedTask);
-    setIsEditing(false);
+  // Helper para obtener el color de la categoría
+  const getCategoryColor = (categoryName: string) => {
+    const normalizedCategory = categoryName?.toUpperCase();
+    const category = categories.find((cat) => cat.name.toUpperCase() === normalizedCategory);
+    return category?.color || "bg-gray-500";
+  };
+
+  const handleSaveChanges = async () => {
+    try {
+      // Función para formatear fechas correctamente
+      const formatDate = (date: Date | null) => {
+        if (!date) return undefined;
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+      };
+
+      const updatedData = {
+        title,
+        description,
+        category,
+        startDate: formatDate(startDate),
+        endDate: formatDate(endDate),
+        status: selectedStatus,
+      };
+
+      console.log("Datos a enviar:", updatedData);
+
+      // Llama al método updateTask
+      const result = await updateTask(updatedData);
+
+      if (result) {
+        // Actualiza el estado local con los datos actualizados
+        setTask(result);
+        setIsEditing(false);
+        Alert.alert("Éxito", "Tarea actualizada correctamente");
+      } else {
+        throw new Error("Error al actualizar la tarea");
+      }
+    } catch (error) {
+      console.error("Error al guardar los cambios:", error);
+      Alert.alert("Error", "No se pudo actualizar la tarea");
+    }
+  };
+
+  const handleDelete = () => {
+    Alert.alert(
+      "Eliminar tarea",
+      "¿Estás seguro de que quieres eliminar esta tarea? Esta acción no se puede deshacer.",
+      [
+        {
+          text: "Cancelar",
+          style: "cancel",
+        },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const success = await deleteTask();
+              if (success) {
+                Alert.alert("Éxito", "La tarea ha sido eliminada");
+                router.back();
+              } else {
+                throw new Error("No se pudo eliminar la tarea");
+              }
+            } catch (error) {
+              console.error("Error al eliminar la tarea:", error);
+              Alert.alert("Error", "No se pudo eliminar la tarea");
+            }
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -226,20 +358,94 @@ export default function TaskDetail() {
       <ScrollView className="flex-1 px-4">
         {/* Status Badge */}
         <View className="mb-4 flex-row justify-center">
-          <View 
+          <View
             className={`px-3 py-1 rounded-full ${
-              task.status === 'pending' ? 'bg-yellow-500' : 
-              task.status === 'in-progress' ? 'bg-blue-500' :
-              task.status === 'blocked' ? 'bg-red-500' : 'bg-green-500'
+              task.status === "pending"
+                ? "bg-yellow-500"
+                : task.status === "in_progress"
+                  ? "bg-blue-500"
+                  : task.status === "blocked"
+                    ? "bg-red-500"
+                    : "bg-green-500"
             }`}
           >
             <Text className="text-white text-sm font-medium">
-              {task.status === 'pending' ? 'Pendiente' : 
-               task.status === 'in-progress' ? 'En progreso' :
-               task.status === 'blocked' ? 'Bloqueado' : 'Completado'}
+              {task.status === "pending"
+                ? "Pendiente"
+                : task.status === "in_progress"
+                  ? "En progreso"
+                  : task.status === "blocked"
+                    ? "Bloqueado"
+                    : "Completado"}
             </Text>
           </View>
         </View>
+
+        {/* Estado (solo en modo edición) */}
+        {isEditing && (
+          <View className="mb-4">
+            <Text className="text-gray-700 font-medium mb-2">Estado</Text>
+            <View className="flex-row flex-wrap gap-2">
+              <TouchableOpacity
+                onPress={() => setSelectedStatus("pending")}
+                className={`px-3 py-2 rounded-full ${
+                  selectedStatus === "pending"
+                    ? "bg-yellow-500"
+                    : "bg-yellow-100"
+                }`}
+              >
+                <Text
+                  className={`${selectedStatus === "pending" ? "text-white" : "text-yellow-800"}`}
+                >
+                  Pendiente
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => setSelectedStatus("in_progress")}
+                className={`px-3 py-2 rounded-full ${
+                  selectedStatus === "in_progress"
+                    ? "bg-blue-500"
+                    : "bg-blue-100"
+                }`}
+              >
+                <Text
+                  className={`${selectedStatus === "in_progress" ? "text-white" : "text-blue-800"}`}
+                >
+                  En progreso
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => setSelectedStatus("completed")}
+                className={`px-3 py-2 rounded-full ${
+                  selectedStatus === "completed"
+                    ? "bg-green-500"
+                    : "bg-green-100"
+                }`}
+              >
+                <Text
+                  className={`${selectedStatus === "completed" ? "text-white" : "text-green-800"}`}
+                >
+                  Completado
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => setSelectedStatus("blocked")}
+                className={`px-3 py-2 rounded-full ${
+                  selectedStatus === "blocked" ? "bg-red-500" : "bg-red-100"
+                }`}
+              >
+                <Text
+                  className={`${selectedStatus === "blocked" ? "text-white" : "text-red-800"}`}
+                >
+                  Bloqueado
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         {/* Título */}
         <View className="mb-4">
@@ -286,12 +492,16 @@ export default function TaskDetail() {
                   key={cat.name}
                   onPress={() => setCategory(cat.name)}
                   className={`px-3 py-2 rounded-full ${
-                    category === cat.name ? cat.color : "bg-gray-200"
+                    category === cat.name
+                      ? getCategoryColor(category)
+                      : "bg-gray-200"
                   }`}
                 >
                   <Text
                     className={`text-xs font-medium ${
-                      category === cat.name ? "text-white" : "text-gray-800"
+                      category?.toUpperCase() === cat.name
+                        ? "text-white"
+                        : "text-gray-800"
                     }`}
                   >
                     {cat.name}
@@ -301,8 +511,12 @@ export default function TaskDetail() {
             </View>
           ) : (
             <View className="flex-row">
-              <View className={`${task.categoryColor} px-3 py-2 rounded-full`}>
-                <Text className="text-white text-xs font-medium">{category}</Text>
+              <View
+                className={`${getCategoryColor(category)} px-3 py-2 rounded-full`}
+              >
+                <Text className="text-white text-xs font-medium">
+                  {category}
+                </Text>
               </View>
             </View>
           )}
@@ -310,13 +524,15 @@ export default function TaskDetail() {
 
         {/* Fechas */}
         <View className="mb-4">
-          <Text className="text-gray-700 font-medium mb-2">Fecha de inicio</Text>
+          <Text className="text-gray-700 font-medium mb-2">
+            Fecha de inicio
+          </Text>
           {isEditing ? (
             <>
               <TouchableOpacity
                 onPress={() => {
                   if (Platform.OS === "ios") {
-                    setTempStartDate(startDate);
+                    setTempStartDate(startDate || new Date());
                   }
                   setShowStartDatePicker(true);
                 }}
@@ -351,7 +567,7 @@ export default function TaskDetail() {
 
               {Platform.OS === "android" && showStartDatePicker && (
                 <DateTimePicker
-                  value={startDate}
+                  value={startDate || new Date()}
                   mode="date"
                   display="default"
                   onChange={handleStartDateChange}
@@ -361,7 +577,11 @@ export default function TaskDetail() {
             </>
           ) : (
             <View className="bg-white p-4 rounded-xl border border-gray-200">
-              <Text className="text-gray-800">{formatDate(startDate)}</Text>
+              <Text
+                className={`${!startDate ? "text-gray-400 italic" : "text-gray-800"}`}
+              >
+                {formatDate(startDate)}
+              </Text>
             </View>
           )}
         </View>
@@ -373,7 +593,7 @@ export default function TaskDetail() {
               <TouchableOpacity
                 onPress={() => {
                   if (Platform.OS === "ios") {
-                    setTempEndDate(endDate);
+                    setTempEndDate(endDate || new Date());
                   }
                   setShowEndDatePicker(true);
                 }}
@@ -386,7 +606,9 @@ export default function TaskDetail() {
               {Platform.OS === "ios" && showEndDatePicker ? (
                 <View className="bg-white mt-2 rounded-xl border border-gray-200 overflow-hidden">
                   <View className="flex-row justify-between items-center border-b border-gray-200 px-4 py-2">
-                    <TouchableOpacity onPress={() => cancelDateSelection(false)}>
+                    <TouchableOpacity
+                      onPress={() => cancelDateSelection(false)}
+                    >
                       <Text className="text-red-500 font-medium">Cancelar</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={confirmEndDate}>
@@ -399,7 +621,7 @@ export default function TaskDetail() {
                       mode="date"
                       display="inline"
                       onChange={handleEndDateChange}
-                      minimumDate={startDate}
+                      minimumDate={startDate || undefined}
                       style={{ width: "100%", height: 200 }}
                     />
                   </View>
@@ -408,23 +630,27 @@ export default function TaskDetail() {
 
               {Platform.OS === "android" && showEndDatePicker && (
                 <DateTimePicker
-                  value={endDate}
+                  value={endDate || new Date()}
                   mode="date"
                   display="default"
                   onChange={handleEndDateChange}
-                  minimumDate={startDate}
+                  minimumDate={startDate || undefined}
                 />
               )}
             </>
           ) : (
             <View className="bg-white p-4 rounded-xl border border-gray-200">
-              <Text className="text-gray-800">{formatDate(endDate)}</Text>
+              <Text
+                className={`${!endDate ? "text-gray-400 italic" : "text-gray-800"}`}
+              >
+                {formatDate(endDate)}
+              </Text>
             </View>
           )}
         </View>
 
         {/* Miembros asignados */}
-        <View className="mb-4">
+{/*         <View className="mb-4">
           <Text className="text-gray-700 font-medium mb-2">
             Miembros asignados ({selectedMembers.length})
           </Text>
@@ -436,12 +662,27 @@ export default function TaskDetail() {
               >
                 <Text className="text-2xl mr-3">{member.avatar}</Text>
                 <View>
-                  <Text className="text-gray-800 font-medium">{member.name}</Text>
+                  <Text className="text-gray-800 font-medium">
+                    {member.name}
+                  </Text>
                   <Text className="text-gray-500 text-sm">{member.role}</Text>
                 </View>
               </View>
             ))}
           </View>
+        </View> */}
+
+        {/* Botón de eliminación */}
+        <View className="mb-8 mt-6 px-4">
+          <TouchableOpacity
+            onPress={handleDelete}
+            className="bg-red-500 py-4 rounded-xl items-center flex-row justify-center"
+          >
+            <Ionicons name="trash-outline" size={20} color="white" />
+            <Text className="text-white font-medium text-base ml-2">
+              Eliminar tarea
+            </Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>
