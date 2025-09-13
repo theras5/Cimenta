@@ -1,8 +1,5 @@
 import { Alert } from 'react-native';
 
-// URL base de la API - actualiza esto según tu configuración
-const API_URL = `http://10.9.71.41:3000`; // Usa tu IP local para desarrollo
-
 // Interfaces para los datos
 export interface Task {
   id: string;
@@ -45,7 +42,7 @@ export const TaskService = {
   // Obtener todas las tareas
   async getTasks(): Promise<Task[]> {
     try {
-      const response = await fetch(`${API_URL}/tasks`);
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/tasks`); 
       
       if (!response.ok) {
         throw new Error(`Error ${response.status}: ${response.statusText}`);
@@ -60,7 +57,7 @@ export const TaskService = {
   // Obtener una tarea por ID
   async getTask(id: string): Promise<Task> {
     try {
-      const response = await fetch(`${API_URL}/task/${id}`);
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/task/${id}`);
       
       if (!response.ok) {
         throw new Error(`Error ${response.status}: ${response.statusText}`);
@@ -75,7 +72,7 @@ export const TaskService = {
   // Crear una nueva tarea
   async createTask(task: CreateTaskDTO): Promise<Task> {
     try {
-      const response = await fetch(`${API_URL}/task`, {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/task`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -96,7 +93,7 @@ export const TaskService = {
   // Actualizar una tarea
   async updateTask(id: string, task: Partial<CreateTaskDTO>): Promise<Task> {
     try {
-      const response = await fetch(`${API_URL}/task/${id}`, {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/task/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -117,7 +114,7 @@ export const TaskService = {
   // Eliminar una tarea
   async deleteTask(id: string): Promise<boolean> {
     try {
-      const response = await fetch(`${API_URL}/task/${id}`, {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/task/${id}`, {
         method: 'DELETE',
       });
       
@@ -134,7 +131,7 @@ export const TaskService = {
   // Actualizar estado de una tarea
   async updateTaskStatus(id: string, status: Task['status']): Promise<Task> {
     try {
-      const response = await fetch(`${API_URL}/task/${id}/status`, {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/task/${id}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

@@ -650,7 +650,7 @@ export default function TaskDetail() {
         </View>
 
         {/* Miembros asignados */}
-        {/* <View className="mb-4">
+{/*         <View className="mb-4">
           <Text className="text-gray-700 font-medium mb-2">
             Miembros asignados ({selectedMembers.length})
           </Text>

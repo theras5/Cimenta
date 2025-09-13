@@ -144,12 +144,6 @@ export default function Purchases() {
         />
 
         <TaskSection
-          title="Siendo comprado"
-          tasks={beingPurchasedItems}
-          onSeeAll={() => console.log("Ver todos siendo comprados")}
-        />
-
-        <TaskSection
           title="Comprado"
           tasks={purchasedItems}
           onSeeAll={() => console.log("Ver todos comprados")}
