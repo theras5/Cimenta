@@ -6,6 +6,7 @@ import tasks from "@/assets/icons/tasks.png";
 import task from "@/assets/icons/task.png";
 import shoppingCart from "@/assets/icons/shopping-cart.png";
 import change from "@/assets/icons/change.png";
+import avances from "@/assets/icons/avances.png";
 
 /* Images */
 import welcome from "@/assets/images/wolf-character/18.png";
@@ -22,5 +23,6 @@ export const images = {
     signUp,
     tasks,
     shoppingCart,
-    change
+    change, 
+    avances
 }

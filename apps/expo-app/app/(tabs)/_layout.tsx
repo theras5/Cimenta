@@ -61,6 +61,15 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="avances"
+        options={{
+          title: "Avances",
+          tabBarIcon: ({ focused }) => (
+            <TabBarIcon title="Avances" icon={images.avances} focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="teamCalendar"
         options={{
           title: "Calendar",
