@@ -177,7 +177,7 @@ const NewUpdate = () => {
             onChangeText={setTitle}
             required
             submitAttempted={undefined}
-            placeholder="Ej: Instalar cableado"
+            placeholder="Ej: Cableado instalado"
           />
         </View>
 
