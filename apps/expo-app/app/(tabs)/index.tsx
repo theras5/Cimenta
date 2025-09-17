@@ -38,9 +38,9 @@ export default function HomeScreen({ navigation }: Props) {
     router.push("/purchases/new-purchase");
   };
 
-  const navigateToNewChange = () => {
+  const navigateToNewUpdate = () => {
     // Asumiendo que crearás esta ruta en el futuro
-    router.push("/changes/new-change");
+    router.push("/updates/new-update");
   };
   /*return (
     <ScrollView className="flex-1 bg-white px-6 pt-20">
@@ -129,9 +129,9 @@ export default function HomeScreen({ navigation }: Props) {
           onPress={navigateToNewPurchase}
         />
         <ShortcutCard
-          icon={require('../../assets/icons/change-icon.png')}
-          label="Crear solicitud de cambio"
-          onPress={navigateToNewChange}
+          icon={require('../../assets/icons/update-icon.png')}
+          label="Agregar avance"
+          onPress={navigateToNewUpdate}
         />
       </View>
     </ScrollView>

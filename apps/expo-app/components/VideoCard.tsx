@@ -8,41 +8,45 @@ interface VideoCardProps {
   author: string
   timeAgo: string
   hasPlayButton?: boolean
+  onPress?: () => void
 }
 
-const VideoCard: React.FC<VideoCardProps> = ({ title, author, timeAgo, hasPlayButton = false }) => {
+const VideoCard: React.FC<VideoCardProps> = ({ title, author, timeAgo, hasPlayButton = false, onPress }) => {
   return (
-    <View style={styles.card}>
-      {/* Background with Blue Wave Pattern */}
-      <LinearGradient
-        colors={["#1e3a8a", "#3b82f6", "#06b6d4"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.backgroundContainer}
-      >
-        {hasPlayButton && (
-          <TouchableOpacity style={styles.playButton}>
-            <Ionicons name="play" size={24} color="white" style={styles.playIcon} />
-          </TouchableOpacity>
-        )}
-      </LinearGradient>
-
-      {/* Card Content */}
-      <View style={styles.content}>
-        <View style={styles.textContainer}>
-          <Text style={styles.title}>{title}</Text>
-          <Text style={styles.author}>por {author}</Text>
-        </View>
-        <Text style={styles.timeAgo}>{timeAgo}</Text>
+    <TouchableOpacity onPress={onPress} style={styles.shadowContainer}>
+      {/* Contenedor del gradiente con border radius */}
+      <View style={styles.gradientWrapper}>
+        <LinearGradient
+          colors={["#1e3a8a", "#3b82f6", "#06b6d4"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.backgroundContainer}
+        >
+          {hasPlayButton && (
+            <TouchableOpacity style={styles.playButton}>
+              <Ionicons name="play" size={24} color="white" style={styles.playIcon} />
+            </TouchableOpacity>
+          )}
+        </LinearGradient>
       </View>
-    </View>
+      
+      {/* Contenedor del contenido */}
+      <View style={styles.contentWrapper}>
+        <View style={styles.content}>
+          <View style={styles.textContainer}>
+            <Text style={styles.title}>{title}</Text>
+            <Text style={styles.author}>por {author}</Text>
+          </View>
+          <Text style={styles.timeAgo}>{timeAgo}</Text>
+        </View>
+      </View>
+    </TouchableOpacity>
   )
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: "white",
-    borderRadius: 16,
+  shadowContainer: {
+    // Contenedor principal que maneja la sombra
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
@@ -52,7 +56,13 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 8,
     marginBottom: 16,
-    overflow: "hidden",
+    borderRadius: 16,
+  },
+  gradientWrapper: {
+    // Wrapper para el gradiente con border radius superior
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    overflow: "hidden", // Solo afecta al gradiente
   },
   backgroundContainer: {
     height: 160,
@@ -72,6 +82,12 @@ const styles = StyleSheet.create({
   },
   playIcon: {
     marginLeft: 4,
+  },
+  contentWrapper: {
+    // Wrapper para el contenido con border radius inferior
+    backgroundColor: "white",
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
   },
   content: {
     padding: 16,
