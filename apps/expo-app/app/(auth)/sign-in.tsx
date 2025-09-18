@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { useAuth } from "@/context/AuthContext"; 
+
 
 import {
   View,
@@ -15,6 +17,7 @@ import { images } from "@/constants";
 import { Feather } from "@expo/vector-icons";
 
 const SignIn = () => {
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -84,11 +87,18 @@ const SignIn = () => {
 
       const data = await response.json();
 
-      Alert.alert("Éxito", "Login exitoso");
-      router.replace("/(tabs)");
+      // ✅ ESTA ES LA LÍNEA CRUCIAL QUE FALTA
+      console.log("Datos recibidos del backend:", data);
+      
+      if (data.user && data.token) {
+        await login(data.user, data.token);
+        console.log("✅ Sesión guardada, redirigiendo...");
+        router.replace("/(tabs)");
+      } else {
+        throw new Error("Datos de usuario incompletos");
+      }
 
-      // Login exitoso
-      router.replace("/(tabs)");
+
     } catch (error: any) {
       Alert.alert("Error", error.message || "No se pudo conectar con el servidor. Intenta nuevamente.");
     } finally {

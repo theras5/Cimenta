@@ -166,23 +166,6 @@ app.delete("/task/:id", async (req, res, next) => {
 });
 
 
-// app.post("/auth/register", async (req, res, next) => {
-//   try {
-//     const { email, password, name } = req.body;
-//     // Aquí usas el SDK de Supabase para crear el usuario
-//     const { data, error } = await supabase.auth.admin.createUser({
-//       email,
-//       password,
-//       user_metadata: { full_name: name },
-//     });
-//     if (error) return res.status(400).json({ error: error.message });
-//     res.status(201).json(data);
-//   } catch (error) {
-//     next(error);
-//   }
-// });
-
-
 app.post("/auth/register", async (req, res, next) => {
   try {
     const { email, password, name } = req.body;
@@ -227,22 +210,6 @@ app.post("/auth/register", async (req, res, next) => {
   }
 });
 
-
-// app.post("/auth/login", async (req, res, next) => {
-//   try {
-//     const { email, password } = req.body;
-//     const { data, error } = await supabase.auth.signInWithPassword({
-//       email,
-//       password,
-//     });
-//     if (error) return res.status(401).json({ error: error.message });
-//     res.status(200).json(data);
-//   } catch (error) {
-//     next(error);
-//   }
-// });
-
-
 app.post("/auth/login", async (req, res, next) => {
   try {
     const { email, password } = req.body;
@@ -264,7 +231,7 @@ app.post("/auth/login", async (req, res, next) => {
       });
     }
 
-    // ✅ DEVOLVER datos consistentes
+ 
     res.status(200).json({
       success: true,
       message: "Login exitoso",

@@ -1,4 +1,5 @@
 import { Category } from "@/components/TaskCard";
+import { useAuth } from "@/context/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useState, useEffect } from "react";
@@ -53,6 +54,7 @@ interface MediaFile {
 }
 
 export default function NewTask() {
+  const { user, token } = useAuth();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
@@ -234,13 +236,19 @@ export default function NewTask() {
       return `${year}-${month}-${day}`;
     };
 
+    if (!user) {
+      alert("Debes estar loggeado para crear una tarea");
+      router.push("/sign-in");
+      return;
+    }
+
     const nuevaTarea = {
       title,
       description,
       category,
       status: "pending",
       is_urgent: false,
-      user_id: "ad4d74ba-beac-4741-9ec1-978d564a971c",
+      user_id: user.id,
 
       // Si tienes campos de fecha en la base, agrégalos aquí
       startDate: formatDate(startDate),
@@ -253,7 +261,10 @@ export default function NewTask() {
     try {
       const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/task`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify(nuevaTarea),
       });
 
