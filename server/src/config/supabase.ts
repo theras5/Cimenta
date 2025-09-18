@@ -15,4 +15,3 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey);
-console.log("Cliente Supabase creado:", supabase ? "OK" : "Error");

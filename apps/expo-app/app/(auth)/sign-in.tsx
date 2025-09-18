@@ -45,30 +45,6 @@ const SignIn = () => {
     return isValid;
   };
 
-  // const handleSignIn = async () => {
-  //   if (!validateForm()) return;
-
-  //   setIsLoading(true);
-  //   try {
-  //     // Aquí iría la lógica de autenticación con tu backend
-  //     // Por ejemplo: await signIn(email, password);
-
-  //     // Simulando un delay para mostrar el loader
-  //     await new Promise((resolve) => setTimeout(resolve, 1000));
-
-  //     // Redireccionar al usuario a la página principal después del login exitoso
-  //     router.replace("/(tabs)");
-  //   } catch (error) {
-  //     Alert.alert(
-  //       "Error",
-  //       "No se pudo iniciar sesión. Por favor, intenta nuevamente."
-  //     );
-  //   } finally {
-  //     setIsLoading(false);
-  //   }
-  // };
-
-
   const handleSignIn = async () => {
     if (!validateForm()) return;
 
@@ -87,12 +63,9 @@ const SignIn = () => {
 
       const data = await response.json();
 
-      // ✅ ESTA ES LA LÍNEA CRUCIAL QUE FALTA
-      console.log("Datos recibidos del backend:", data);
       
       if (data.user && data.token) {
         await login(data.user, data.token);
-        console.log("✅ Sesión guardada, redirigiendo...");
         router.replace("/(tabs)");
       } else {
         throw new Error("Datos de usuario incompletos");

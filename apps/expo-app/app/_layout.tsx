@@ -13,7 +13,7 @@ import "./global.css";
 
 export default function RootLayout() {
   return (
-    <AuthProvider> {/* ✅ DEBE estar aquí */}
+    <AuthProvider>
       <Stack screenOptions={{ headerShown: false }} />
     </AuthProvider>
   );

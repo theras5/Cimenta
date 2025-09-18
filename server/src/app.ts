@@ -165,7 +165,6 @@ app.delete("/task/:id", async (req, res, next) => {
   }
 });
 
-
 app.post("/auth/register", async (req, res, next) => {
   try {
     const { email, password, name } = req.body;
@@ -231,7 +230,6 @@ app.post("/auth/login", async (req, res, next) => {
       });
     }
 
- 
     res.status(200).json({
       success: true,
       message: "Login exitoso",

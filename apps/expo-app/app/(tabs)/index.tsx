@@ -42,47 +42,7 @@ export default function HomeScreen({ navigation }: Props) {
     // Asumiendo que crearás esta ruta en el futuro
     router.push("/changes/new-change");
   };
-  /*return (
-    <ScrollView className="flex-1 bg-white px-6 pt-20">
-      <Text className="text-2xl font-bold text-center mb-6">Inicio</Text>
-      <Text className="text-lg font-bold mb-2">Tableros</Text>
-      <View>
-        <BoardCard
-          icon={require('../../assets/icons/task.png')}
-          title="Seguimiento de tareas"
-          subtitle="Abierto hace 2 días"
-        />
-        <BoardCard
-          icon={require('../../assets/icons/change.png')}
-          title="Solicitudes de cambios"
-          subtitle="Abierto hace 2 días"
-        />
-        <BoardCard
-          icon={require('../../assets/icons/shopping-cart.png')}
-          title="Seguimiento de compra"
-          subtitle="Abierto hace 2 días"
-        />
-      </View>
-      <Text className="text-lg font-bold mt-6 mb-2">Atajos</Text>
-      <View className="flex-row justify-around mb-8">
-        <ShortcutCard
-          icon={require('../../assets/icons/task-icon.png')}
-          label="Crear tarea"
-          onPress={() => navigation.navigate('tasks/new-task')}
-        />
-        <ShortcutCard
-          icon={require('../../assets/icons/shopping-cart-icon.png')}
-          label="Crear solicitud de compra"
-          onPress={() => {/* navegación a solicitud de compra }}
-        />
-        <ShortcutCard
-          icon={require('../../assets/icons/change-icon.png')}
-          label="Crear solicitud de cambio"
-          onPress={() => {/* navegación a solicitud de cambio }}
-        />
-      </View>
-    </ScrollView>
-  );*/
+
   return (
     <ScrollView className="flex-1 bg-gray-50 px-6 pt-20">
       <Text className="text-2xl font-bold text-left mb-6">Inicio</Text>
