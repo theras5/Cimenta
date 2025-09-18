@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+
 import {
   View,
   Text,
@@ -72,11 +73,17 @@ const SignUp = () => {
 
     setIsLoading(true);
     try {
-      // Aquí iría la lógica de registro con tu backend
-      // Por ejemplo: await registerUser(name, email, password);
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, name }),
+      });
+      const result = await response.json();
 
-      // Simulando un delay para mostrar el loader
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      if (!response.ok) {
+        Alert.alert("Error", result.error || "No se pudo completar el registro.");
+        return;
+      }
 
       Alert.alert(
         "Registro exitoso",
@@ -91,7 +98,7 @@ const SignUp = () => {
     } catch (error) {
       Alert.alert(
         "Error",
-        "No se pudo completar el registro. Por favor, intenta nuevamente."
+        "No se pudo conectar con el servidor. Vuelva a intentar en otro momento."
       );
     } finally {
       setIsLoading(false);
@@ -231,5 +238,6 @@ const SignUp = () => {
     </SafeAreaView>
   );
 };
+
 
 export default SignUp;

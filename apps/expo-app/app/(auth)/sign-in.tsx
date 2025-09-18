@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+
 import {
   View,
   Text,
@@ -41,28 +42,60 @@ const SignIn = () => {
     return isValid;
   };
 
+  // const handleSignIn = async () => {
+  //   if (!validateForm()) return;
+
+  //   setIsLoading(true);
+  //   try {
+  //     // Aquí iría la lógica de autenticación con tu backend
+  //     // Por ejemplo: await signIn(email, password);
+
+  //     // Simulando un delay para mostrar el loader
+  //     await new Promise((resolve) => setTimeout(resolve, 1000));
+
+  //     // Redireccionar al usuario a la página principal después del login exitoso
+  //     router.replace("/(tabs)");
+  //   } catch (error) {
+  //     Alert.alert(
+  //       "Error",
+  //       "No se pudo iniciar sesión. Por favor, intenta nuevamente."
+  //     );
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
+
+
   const handleSignIn = async () => {
     if (!validateForm()) return;
 
     setIsLoading(true);
     try {
-      // Aquí iría la lógica de autenticación con tu backend
-      // Por ejemplo: await signIn(email, password);
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+     
+      if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Error en el login");
+      }
 
-      // Simulando un delay para mostrar el loader
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const data = await response.json();
 
-      // Redireccionar al usuario a la página principal después del login exitoso
+      Alert.alert("Éxito", "Login exitoso");
       router.replace("/(tabs)");
-    } catch (error) {
-      Alert.alert(
-        "Error",
-        "No se pudo iniciar sesión. Por favor, intenta nuevamente."
-      );
+
+      // Login exitoso
+      router.replace("/(tabs)");
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "No se pudo conectar con el servidor. Intenta nuevamente.");
     } finally {
       setIsLoading(false);
     }
   };
+
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
