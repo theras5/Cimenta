@@ -1,5 +1,6 @@
 import express from "express";
 import dotenv from "dotenv";
+import updates from './routes/updates';
 
 // server/src/app.ts
 import cors from "cors";
@@ -164,6 +165,8 @@ app.delete("/task/:id", async (req, res, next) => {
     next(error);
   }
 });
+
+app.use(updates);
 
 app.use(errorMiddleware); // esto tiene que ir siempre al final
 

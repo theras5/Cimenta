@@ -8,10 +8,11 @@ interface VideoCardProps {
   author: string
   timeAgo: string
   hasPlayButton?: boolean
+  imageUrl: string
   onPress?: () => void
 }
 
-const VideoCard: React.FC<VideoCardProps> = ({ title, author, timeAgo, hasPlayButton = false, onPress }) => {
+const VideoCard: React.FC<VideoCardProps> = ({ title, author, timeAgo, hasPlayButton = false, onPress, imageUrl }) => {
   return (
     <TouchableOpacity onPress={onPress} style={styles.shadowContainer}>
       {/* Contenedor del gradiente con border radius */}

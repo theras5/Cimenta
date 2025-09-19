@@ -62,7 +62,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   backgroundContainer: {
-    height: 50,
+    height: 30,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -72,7 +72,7 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 16,
   },
   content: {
-    padding: 16,
+    padding: 14,
     flexDirection: "column", // Cambiar de "row" a "column"
   },
   headerRow: {
@@ -111,11 +111,8 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     opacity: 0.2,
   },
-  textContainer: {
-    flex: 1,
-  },
   title: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "600",
     color: "#1f2937",
     marginBottom: 4,
@@ -131,7 +128,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   timeAgo: {
-    fontSize: 12,
+    fontSize: 11,
     color: "#9ca3af",
   },
 });

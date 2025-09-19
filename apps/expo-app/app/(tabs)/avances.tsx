@@ -1,27 +1,21 @@
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView } from "react-native"
-import { Ionicons } from "@expo/vector-icons"
-import VideoCard from "@/components/VideoCard"
-import NotificationCard from "@/components/NotificationCard"
-import NoMediaCard from "@/components/NoMediaCard"
-import { router } from "expo-router"
-
-// Mock data para los avances
-const noMediaData = [
-  {
-    id: 1,
-    title: "Instalación de cableado",
-    description: "Se completó la instalación del cableado eléctrico en toda la planta baja. Se instalaron nuevos tomacorrientes y puntos de luz según el plano arquitectónico.",
-    author: "Carlos Rodríguez",
-    timeAgo: "Hace 2 horas"
-  },
-  {
-    id: 2,
-    title: "Acabado de paredes en baño",
-    description: "Se terminó el enlucido y pintado de las paredes del baño. Se aplicaron dos capas de pintura premium color blanco hueso.",
-    author: "María González",
-    timeAgo: "Hace 4 horas"
-  }
-];
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  RefreshControl,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import VideoCard from "@/components/VideoCard";
+import NotificationCard from "@/components/NotificationCard";
+import NoMediaCard from "@/components/NoMediaCard";
+import { router } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useUpdates } from "@/hooks/useUpdates";
+import { useState } from "react";
+import UpdateCard from "@/components/UpdateCard";
 
 const Avances = () => {
   const handleNoMediaPress = (id: number) => {
@@ -29,6 +23,56 @@ const Avances = () => {
     // Aquí puedes navegar a la pantalla de detalle del avance
     // router.push(`/updates/${id}`);
   };
+
+  // Helper para mostrar "Hace X"
+  const formatTime = (iso?: string) => {
+    if (!iso) return "Hace poco";
+    const d = new Date(iso);
+    const diff = Date.now() - d.getTime();
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 1) return "Hace un momento";
+    if (minutes < 60) return `Hace ${minutes} min`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `Hace ${hours} hora${hours > 1 ? "s" : ""}`;
+    const days = Math.floor(hours / 24);
+    return `Hace ${days} día${days > 1 ? "s" : ""}`;
+  };
+
+  const { updates, isLoading, error, fetchUpdates } = useUpdates();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchUpdates();
+    setRefreshing(false);
+  };
+
+  if (isLoading && !refreshing) {
+    return (
+      <SafeAreaView className="flex-1 bg-gray-50 justify-center items-center">
+        <ActivityIndicator size="large" color="#3B82F6" />
+        <Text className="text-gray-600 mt-4">Cargando avances...</Text>
+      </SafeAreaView>
+    );
+  }
+
+  if (error && updates.length === 0) {
+    return (
+      <SafeAreaView className="flex-1 bg-gray-50 justify-center items-center px-4">
+        <Ionicons name="alert-circle-outline" size={64} color="#EF4444" />
+        <Text className="text-red-600 text-lg font-medium mt-4 text-center">
+          Error al cargar las tareas
+        </Text>
+        <Text className="text-gray-600 mt-2 text-center mb-4">{error}</Text>
+        <TouchableOpacity
+          onPress={fetchUpdates}
+          className="bg-blue-600 px-6 py-3 rounded-xl"
+        >
+          <Text className="text-white font-medium">Intentar de nuevo</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -52,34 +96,44 @@ const Avances = () => {
       </View>
 
       {/* Content */}
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false} className="mb-20">
-        {/* No Media Cards - Nuevos componentes */}
-        {noMediaData.map((noMedia) => (
-          <NoMediaCard
-            key={noMedia.id}
-            title={noMedia.title}
-            description={noMedia.description}
-            author={noMedia.author}
-            timeAgo={noMedia.timeAgo}
-            onPress={() => handleNoMediaPress(noMedia.id)}
-          />
-        ))}
-
-        {/* Video Card with Play Button */}
-        <VideoCard title="Remodelacion en el comedor" author="Juan Doe" timeAgo="Hace 1 día" hasPlayButton={true} />
-
-        {/* Notification Card */}
-        <NotificationCard message="Se ha terminado" highlight="Instalación del aire" />
-
-        {/* Regular Video Card */}
-        <VideoCard title="Remodelacion en el comedor" author="Juan Doe" timeAgo="Hace 1 día" hasPlayButton={false} />
-
-        {/* Another Video Card with Play Button */}
-        <VideoCard title="Remodelacion en el comedor" author="Juan Doe" timeAgo="Hace 1 día" hasPlayButton={true} />
+      <ScrollView
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        className="mb-20"
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {updates.length === 0 ? (
+          <View className="flex-1 justify-center items-center py-20">
+            <Ionicons name="clipboard-outline" size={64} color="#9CA3AF" />
+            <Text className="text-gray-500 text-lg font-medium mt-4">
+              No hay avances aún
+            </Text>
+            <Text className="text-gray-400 mt-2 text-center px-6">
+              Crea tu primer avance usando el botón +
+            </Text>
+          </View>
+        ) : (
+          <View className="px-2 pb-6">
+            {updates.map((u) => (
+              <UpdateCard
+                key={u.id}
+                title={u.title}
+                description={u.description}
+                author="Usuario"
+                timeAgo={formatTime(u.created_at)}
+                imageUrl={u.image_url}
+                // hasPlayButton={!!u.image_url}
+                // onPress={() => router.push(`/updates/${u.id}`)}
+              />
+            ))}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
-  )
-}
+  );
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -128,6 +182,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 16,
   },
-})
+});
 
-export default Avances
+export default Avances;

@@ -1,10 +1,20 @@
-import { Image, View, Text, TouchableOpacity, ScrollView, TextInput, Modal, Alert } from 'react-native'
+import {
+  Image,
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  TextInput,
+  Modal,
+  Alert,
+} from "react-native";
 import React, { useState, useEffect } from "react";
-import { SafeAreaView } from 'react-native-safe-area-context'
-import { router } from 'expo-router'
-import { Ionicons } from '@expo/vector-icons'
-import RequiredTextInput from '@/components/RequiredTextInput'
+import { SafeAreaView } from "react-native-safe-area-context";
+import { router } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import RequiredTextInput from "@/components/RequiredTextInput";
 import * as ImagePicker from "expo-image-picker";
+import { useUpdates } from "@/hooks/useUpdates";
 
 interface MediaFile {
   uri: string;
@@ -18,15 +28,24 @@ const NewUpdate = () => {
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
   const [showCameraModal, setShowCameraModal] = useState(false);
   const [showGalleryModal, setShowGalleryModal] = useState(false);
-  
+  const { createUpdate } = useUpdates();
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+
   useEffect(() => {
     (async () => {
       // Solicitar permisos para galería y cámara
-      const libraryStatus = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const libraryStatus =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
       const cameraStatus = await ImagePicker.requestCameraPermissionsAsync();
-      
-      if (libraryStatus.status !== "granted" || cameraStatus.status !== "granted") {
-        Alert.alert("Permisos", "Se necesitan permisos para acceder a la galería y cámara");
+
+      if (
+        libraryStatus.status !== "granted" ||
+        cameraStatus.status !== "granted"
+      ) {
+        Alert.alert(
+          "Permisos",
+          "Se necesitan permisos para acceder a la galería y cámara"
+        );
       }
     })();
   }, []);
@@ -141,9 +160,36 @@ const NewUpdate = () => {
     updatedFiles.splice(index, 1);
     setMediaFiles(updatedFiles);
   };
-  
+
+  const handleSave = async () => {
+    // Validación completa antes de enviar
+    setHasAttemptedSubmit(true);
+
+    //Validar título
+    const isTitleValid = title.trim() !== "";
+
+    // Si hay errores, no continuar
+    if (!isTitleValid) {
+      Alert.alert("Por favor completa todos los campos obligatorios");
+      return;
+    }
+
+    const nuevoAvance = {
+      title,
+      description,
+      user_id: "ad4d74ba-beac-4741-9ec1-978d564a971c",
+    };
+
+    // Muestra en consola lo que se envía
+    console.log("Enviando al backend:", nuevoAvance);
+
+    createUpdate(nuevoAvance);
+
+    router.back();
+  };
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#ffffff' }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#ffffff" }}>
       {/* Header */}
       <View className="flex-row items-center justify-between px-4 py-2 mb-6">
         <View className="flex-row items-center">
@@ -154,7 +200,7 @@ const NewUpdate = () => {
         </View>
         {/* Save Button */}
         <TouchableOpacity
-          onPress={() => {console.log("Guardando avance")}}
+          onPress={handleSave}
           className="bg-blue-500 px-4 py-2 rounded-full"
           style={{
             shadowColor: "#000",
@@ -167,7 +213,7 @@ const NewUpdate = () => {
           <Text className="text-white font-medium">Guardar</Text>
         </TouchableOpacity>
       </View>
-      
+
       <ScrollView className="px-4">
         {/* Título */}
         <View>
@@ -176,7 +222,7 @@ const NewUpdate = () => {
             value={title}
             onChangeText={setTitle}
             required
-            submitAttempted={undefined}
+            submitAttempted={hasAttemptedSubmit}
             placeholder="Ej: Cableado instalado"
           />
         </View>
@@ -196,7 +242,7 @@ const NewUpdate = () => {
 
         <View className="mb-6">
           <Text className="text-gray-700 font-medium mb-2">Multimedia</Text>
-        
+
           {/* Botones para agregar contenido */}
           <View className="flex-row gap-2 mb-3">
             {/* Botón para cámara (foto/video) */}
@@ -240,16 +286,18 @@ const NewUpdate = () => {
                     ) : (
                       <View className="w-24 h-24 rounded-xl mt-2 bg-gray-200 items-center justify-center">
                         <Ionicons name="videocam" size={32} color="#6b7280" />
-                        <Text className="text-xs text-gray-500 mt-1">Video</Text>
+                        <Text className="text-xs text-gray-500 mt-1">
+                          Video
+                        </Text>
                       </View>
                     )}
-                    
+
                     {/* Indicador de tipo */}
                     <View className="absolute top-0 left-0 bg-black bg-opacity-50 rounded-tr-xl rounded-bl-xl px-2 py-1 mt-2">
-                      <Ionicons 
-                        name={file.type === "image" ? "image" : "videocam"} 
-                        size={12} 
-                        color="white" 
+                      <Ionicons
+                        name={file.type === "image" ? "image" : "videocam"}
+                        size={12}
+                        color="white"
                       />
                     </View>
 
@@ -275,19 +323,23 @@ const NewUpdate = () => {
         transparent={true}
         onRequestClose={() => setShowCameraModal(false)}
       >
-        <View style={{
-          flex: 1,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          justifyContent: 'flex-end',
-        }}>
-          <View style={{
-            backgroundColor: 'white',
-            borderTopLeftRadius: 20,
-            borderTopRightRadius: 20,
-            paddingTop: 20,
-            paddingBottom: 40,
-            paddingHorizontal: 20,
-          }}>
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            justifyContent: "flex-end",
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: "white",
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
+              paddingTop: 20,
+              paddingBottom: 40,
+              paddingHorizontal: 20,
+            }}
+          >
             {/* Header del modal */}
             <View className="items-center mb-6">
               <View className="w-12 h-1 bg-gray-300 rounded-full mb-4" />
@@ -369,19 +421,23 @@ const NewUpdate = () => {
         transparent={true}
         onRequestClose={() => setShowGalleryModal(false)}
       >
-        <View style={{
-          flex: 1,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          justifyContent: 'flex-end',
-        }}>
-          <View style={{
-            backgroundColor: 'white',
-            borderTopLeftRadius: 20,
-            borderTopRightRadius: 20,
-            paddingTop: 20,
-            paddingBottom: 40,
-            paddingHorizontal: 20,
-          }}>
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            justifyContent: "flex-end",
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: "white",
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
+              paddingTop: 20,
+              paddingBottom: 40,
+              paddingHorizontal: 20,
+            }}
+          >
             {/* Header del modal */}
             <View className="items-center mb-6">
               <View className="w-12 h-1 bg-gray-300 rounded-full mb-4" />
@@ -456,7 +512,7 @@ const NewUpdate = () => {
         </View>
       </Modal>
     </SafeAreaView>
-  )
-}
+  );
+};
 
-export default NewUpdate
+export default NewUpdate;
