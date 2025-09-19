@@ -275,8 +275,8 @@ export default function ChangeDetail() {
 
   const handleRejectChange = () => {
     Alert.alert(
-      "Rechazar cambio",
-      "¿Estás seguro de que quieres rechazar esta solicitud de cambio? Esta acción eliminará el cambio.",
+      "Rechazar tarea",
+      "¿Estás seguro de que quieres rechazar esta tarea? Esta acción no se puede deshacer.",
       [
         {
           text: "Cancelar",
@@ -287,33 +287,16 @@ export default function ChangeDetail() {
           style: "destructive",
           onPress: async () => {
             try {
-              setIsLoading(true);
-              console.log("Eliminando cambio rechazado...");
-              
-              if (id && deleteTask) {
-                // Eliminamos el cambio usando la función deleteTask del hook
-                const success = await deleteTask();
-                
-                if (success) {
-                  console.log("Cambio eliminado exitosamente");
-                  Alert.alert("Solicitud rechazada", "La solicitud de cambio ha sido rechazada y eliminada");
-                  router.back();
-                } else {
-                  throw new Error("No se pudo eliminar el cambio");
-                }
+              const success = await deleteTask();
+              if (success) {
+                Alert.alert("Éxito", "La tarea ha sido rechazada");
+                router.back();
               } else {
-                // Modo demo si no hay API
-                console.log("Modo demo: simulando eliminación de cambio");
-                setTimeout(() => {
-                  Alert.alert("Solicitud rechazada", "La solicitud de cambio ha sido rechazada y eliminada (modo demo)");
-                  router.back();
-                }, 1000);
+                throw new Error("No se pudo rechazar la tarea");
               }
             } catch (error) {
-              console.error("Error al rechazar el cambio:", error);
-              Alert.alert("Error", "No se pudo rechazar la solicitud");
-            } finally {
-              setIsLoading(false);
+              console.error("Error al rechazar la tarea:", error);
+              Alert.alert("Error", "No se pudo rechazar la tarea");
             }
           },
         },
@@ -570,8 +553,7 @@ export default function ChangeDetail() {
             </TouchableOpacity>
           </View>
         )}
-          </View>
-        </ScrollView>
+      </View>
       )}
     </SafeAreaView>
   );
