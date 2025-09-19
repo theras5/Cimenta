@@ -106,6 +106,17 @@ export default function Tasks() {
           </View>
         ) : (
           <View className="px-6 pb-6">
+
+            {/* Cambios */}
+            {pendingTasks.length > 0 && (
+              <TaskSection
+                title="Cambios"
+                tasks={pendingTasks}
+                onSeeAll={() => console.log("Ver todos cambios")}
+                changes={true}
+              />
+            )}
+
             {/* Pendientes */}
             {pendingTasks.length > 0 && (
               <TaskSection

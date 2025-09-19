@@ -7,12 +7,14 @@ interface TaskSectionProps {
   title: string;
   tasks: Task[];
   onSeeAll?: () => void;
+  changes?: boolean;
 }
 
 const TaskSection: React.FC<TaskSectionProps> = ({
   title,
   tasks,
   onSeeAll,
+  changes,
 }) => (
   <View className="mb-6">
     <View className="flex-row justify-between items-center mb-4 px-4">
@@ -28,7 +30,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({
       className="pl-4"
     >
       {tasks.map((task) => (
-        <TaskCard key={task.id} task={task} />
+        <TaskCard key={task.id} task={task} changes={changes} />
       ))}
     </ScrollView>
   </View>

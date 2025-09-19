@@ -10,6 +10,7 @@ export interface Category{
 
 interface TaskCardProps {
   task: Task;
+  changes?: boolean
 }
 
 const getStatusBgColor = (status: Task["status"]) => {
@@ -45,11 +46,11 @@ const getCategoryColor = (category: string) => {
   }
 };
 
-const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
+const TaskCard: React.FC<TaskCardProps> = ({ task, changes }) => {
   return (
     <TouchableOpacity
       className={`${getStatusBgColor(task.status)} rounded-2xl p-4 mb-3 mr-3 w-72`}
-      onPress={() => router.push(`/tasks/${task.id}`)}
+      onPress={changes ? () => router.push(`/changes/${task.id}`) : () => router.push(`/tasks/${task.id}`)}
     >
       <Text className="text-gray-800 font-semibold text-lg mb-1">
         {task.title}
