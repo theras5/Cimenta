@@ -7,7 +7,7 @@ export interface Task {
   description: string;
   category: string;
   categoryColor?: string;
-  status: 'pending' | 'in_progress' | 'completed' | 'blocked';
+  status: 'changes' | 'pending' | 'in_progress' | 'completed' | 'blocked';
   startDate: string;
   endDate: string;
   assignedMembers: string[];

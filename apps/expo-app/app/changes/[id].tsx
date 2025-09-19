@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from 'expo-image-picker';
+import { useTask } from "@/hooks/useTasks"; // Importamos el hook para obtener los datos reales
 
 // Reuse the same categories from task-detail.tsx
 const electricidad: Category = { name: "Electricidad", color: "bg-blue-500" };
@@ -51,6 +52,9 @@ export default function ChangeDetail() {
   const [isEditing, setIsEditing] = useState(false);
   const [changeRequest, setChangeRequest] = useState<ChangeRequest | null>(null);
 
+  // Usa el hook useTask para obtener los datos reales de la tarea/cambio
+  const { task, isLoading: taskLoading, error: taskError, updateTask, refetch: fetchTask, deleteTask } = useTask(id);
+
   // Form states
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -58,25 +62,45 @@ export default function ChangeDetail() {
   const [images, setImages] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Load change request data
+  // Carga los datos del cambio usando el hook useTask
   useEffect(() => {
-    // In a real app, you would fetch from your backend
-    // For now, using mock data
-    if (id) {
+    if (task) {
+      // Convertir el objeto task a nuestro formato ChangeRequest
+      const change: ChangeRequest = {
+        id: task.id,
+        title: task.title,
+        description: task.description || "",
+        category: task.category,
+        status: task.status as any,
+        images: task.mediaFiles || [],
+        createdAt: task.startDate ? new Date(task.startDate) : new Date(),
+        taskId: task.id || undefined  // Usamos el ID de la tarea actual como relación
+      };
+      
+      setChangeRequest(change);
+      setTitle(change.title);
+      setDescription(change.description);
+      setCategory(change.category);
+      setImages(change.images);
+    } else if (id && !taskLoading && !taskError) {
+      // Fallback a datos de ejemplo si no hay tarea pero tampoco hay error
       setChangeRequest(mockChangeRequest);
       setTitle(mockChangeRequest.title);
       setDescription(mockChangeRequest.description);
       setCategory(mockChangeRequest.category);
       setImages(mockChangeRequest.images);
-    } else {
-      // Creating new change request
+    } else if (id && !taskLoading && taskError) {
+      // Si hay error, mostrar alerta
+      Alert.alert("Error", "No se pudo cargar la solicitud de cambio");
+    } else if (!id) {
+      // Creando nueva solicitud de cambio
       setTitle("Ej: Cambio de materiales");
       setDescription("");
       setCategory("ELECTRICIDAD");
       setImages([]);
       setIsEditing(true);
     }
-  }, [id]);
+  }, [id, task, taskLoading, taskError]);
 
   // Helper para obtener el color de la categoría
   const getCategoryColor = (categoryName: string) => {
@@ -117,25 +141,75 @@ export default function ChangeDetail() {
     try {
       setIsLoading(true);
       
+      // Preparar datos para enviar al API en el formato que espera taskService
+      let taskStatus: "changes" | "pending" | "in_progress" | "completed" | "blocked";
+      
+      // Convertir el status de ChangeRequest al formato que espera Task
+      switch(changeRequest?.status) {
+        case 'approved': taskStatus = 'completed'; break;
+        case 'rejected': taskStatus = 'blocked'; break;
+        case 'pending': 
+        default: taskStatus = 'pending'; break;
+      }
+      
       const changeData = {
         title: title.trim(),
         description: description.trim(),
         category,
-        images,
+        mediaFiles: images,  // Usando mediaFiles para compatibilidad con la API de tareas
+        // Mantener otros campos que podrían ser requeridos por la API
+        status: taskStatus,
+        startDate: task?.startDate || new Date().toISOString(),
+        endDate: task?.endDate || new Date().toISOString(),
       };
 
       console.log("Datos del cambio a enviar:", changeData);
 
-      // Here you would call your API to save the change request
-      // const result = await saveChangeRequest(changeData);
-
-      // For demo purposes, simulate success
-      setTimeout(() => {
-        setIsLoading(false);
-        setIsEditing(false);
-        Alert.alert("Éxito", "Solicitud de cambio guardada correctamente");
-      }, 1000);
-
+      // Si tenemos acceso a la API y el hook updateTask, úsalo
+      if (id && updateTask) {
+        console.log("Intentando actualizar cambio con ID:", id);
+        // En useTasks.ts el método updateTask ya recibe el ID como argumento cuando se crea el hook
+        // Por eso aquí solo pasamos los datos a actualizar
+        const result = await updateTask(changeData);
+        
+        if (result) {
+          console.log("Actualización exitosa:", result);
+          
+          // Actualizar el estado local con los nuevos datos
+          setChangeRequest({
+            ...changeRequest!,
+            title: title.trim(),
+            description: description.trim(),
+            category,
+            images
+          });
+          
+          // Actualizar los datos obteniendo la versión más reciente de la API
+          console.log("Refrescando datos desde la API...");
+          await fetchTask();
+          console.log("Datos actualizados después de fetchTask:", task);
+          
+          setIsEditing(false);
+          Alert.alert("Éxito", "Solicitud de cambio guardada correctamente");
+        } else {
+          console.error("updateTask devolvió null o undefined");
+          throw new Error("No se pudo actualizar el cambio");
+        }
+      } else {
+        console.log("Modo demo: sin API o updateTask");
+        // Para demo si no hay API conectada
+        setTimeout(() => {
+          setChangeRequest({
+            ...changeRequest!,
+            title: title.trim(),
+            description: description.trim(),
+            category,
+            images
+          });
+          setIsEditing(false);
+          Alert.alert("Éxito", "Solicitud de cambio guardada correctamente (modo demo)");
+        }, 1000);
+      }
     } catch (error) {
       console.error("Error al guardar los cambios:", error);
       Alert.alert("Error", "No se pudo guardar la solicitud de cambio");
@@ -147,7 +221,7 @@ export default function ChangeDetail() {
   const handleApproveChange = () => {
     Alert.alert(
       "Aprobar cambio",
-      "¿Estás seguro de que quieres aprobar esta solicitud de cambio?",
+      "¿Estás seguro de que quieres aprobar esta solicitud de cambio? Se convertirá en una tarea pendiente.",
       [
         {
           text: "Cancelar",
@@ -158,11 +232,40 @@ export default function ChangeDetail() {
           style: "default",
           onPress: async () => {
             try {
-              // Here you would call your API to approve the change
-              Alert.alert("Éxito", "Solicitud de cambio aprobada");
-              router.back();
+              setIsLoading(true);
+              console.log("Convirtiendo cambio a tarea pendiente...");
+              
+              if (id && updateTask) {
+                // Cambiamos el estado del cambio a 'pending' para convertirlo en una tarea pendiente
+                const result = await updateTask({
+                  status: 'pending',
+                  // Conservamos los datos actuales
+                  title: title || changeRequest?.title,
+                  description: description || changeRequest?.description,
+                  category: category || changeRequest?.category,
+                  mediaFiles: images || changeRequest?.images,
+                });
+                
+                if (result) {
+                  console.log("Cambio convertido exitosamente a tarea:", result);
+                  Alert.alert("Éxito", "Solicitud de cambio aprobada y convertida a tarea pendiente");
+                  router.back();
+                } else {
+                  throw new Error("No se pudo convertir el cambio a tarea pendiente");
+                }
+              } else {
+                // Modo demo si no hay API
+                console.log("Modo demo: simulando conversión a tarea pendiente");
+                setTimeout(() => {
+                  Alert.alert("Éxito", "Solicitud de cambio aprobada y convertida a tarea pendiente (modo demo)");
+                  router.back();
+                }, 1000);
+              }
             } catch (error) {
-              Alert.alert("Error", "No se pudo aprobar la solicitud");
+              console.error("Error al aprobar el cambio:", error);
+              Alert.alert("Error", "No se pudo aprobar la solicitud de cambio");
+            } finally {
+              setIsLoading(false);
             }
           },
         },
@@ -173,7 +276,7 @@ export default function ChangeDetail() {
   const handleRejectChange = () => {
     Alert.alert(
       "Rechazar cambio",
-      "¿Estás seguro de que quieres rechazar esta solicitud de cambio?",
+      "¿Estás seguro de que quieres rechazar esta solicitud de cambio? Esta acción eliminará el cambio.",
       [
         {
           text: "Cancelar",
@@ -184,11 +287,33 @@ export default function ChangeDetail() {
           style: "destructive",
           onPress: async () => {
             try {
-              // Here you would call your API to reject the change
-              Alert.alert("Solicitud rechazada", "La solicitud de cambio ha sido rechazada");
-              router.back();
+              setIsLoading(true);
+              console.log("Eliminando cambio rechazado...");
+              
+              if (id && deleteTask) {
+                // Eliminamos el cambio usando la función deleteTask del hook
+                const success = await deleteTask();
+                
+                if (success) {
+                  console.log("Cambio eliminado exitosamente");
+                  Alert.alert("Solicitud rechazada", "La solicitud de cambio ha sido rechazada y eliminada");
+                  router.back();
+                } else {
+                  throw new Error("No se pudo eliminar el cambio");
+                }
+              } else {
+                // Modo demo si no hay API
+                console.log("Modo demo: simulando eliminación de cambio");
+                setTimeout(() => {
+                  Alert.alert("Solicitud rechazada", "La solicitud de cambio ha sido rechazada y eliminada (modo demo)");
+                  router.back();
+                }, 1000);
+              }
             } catch (error) {
+              console.error("Error al rechazar el cambio:", error);
               Alert.alert("Error", "No se pudo rechazar la solicitud");
+            } finally {
+              setIsLoading(false);
             }
           },
         },
@@ -196,6 +321,19 @@ export default function ChangeDetail() {
     );
   };
 
+  // Función para alternar entre modos de edición y vista
+  const toggleEditMode = () => {
+    // Si estamos saliendo del modo de edición, restaurar valores originales
+    if (isEditing && changeRequest) {
+      setTitle(changeRequest.title);
+      setDescription(changeRequest.description);
+      setCategory(changeRequest.category);
+      setImages(changeRequest.images);
+    }
+    setIsEditing(!isEditing);
+  };
+  
+  // Esta es la función que renderiza todo el componente
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
       <StatusBar barStyle="dark-content" />
@@ -207,28 +345,60 @@ export default function ChangeDetail() {
             <Ionicons name="chevron-back" size={24} color="#374151" />
           </TouchableOpacity>
           <Text className="text-gray-800 font-bold text-2xl">
-            Detalles de solicitud
+            Detalles de solicitud {id && `#${id}`}
           </Text>
         </View>
 
-        {/* Edit Button (only show if not creating new) */}
-        {id && (
+        {/* Edit Button (only show if not creating new and not loading) */}
+        {id && !taskLoading && (
           <TouchableOpacity
-            onPress={() => setIsEditing(!isEditing)}
+            onPress={toggleEditMode}
             className="bg-blue-500 px-4 py-2 rounded-full"
           >
             <Text className="text-white font-medium">
-              {isEditing ? "Ver" : "Editar"}
+              {isEditing ? "Cancelar" : "Editar"}
             </Text>
           </TouchableOpacity>
         )}
       </View>
-
-      <ScrollView className="flex-1 px-4">
+      
+      {/* Contenido principal - Renderizar según el estado */}
+      {taskLoading ? (
+        // Estado de carga
+        <View className="flex-1 justify-center items-center">
+          <Text className="text-gray-600 mb-4">Cargando datos del cambio...</Text>
+        </View>
+      ) : taskError ? (
+        // Error al cargar
+        <View className="flex-1 justify-center items-center px-4">
+          <Ionicons name="alert-circle-outline" size={48} color="#EF4444" />
+          <Text className="text-red-500 text-lg font-medium mt-2">Error al cargar los datos</Text>
+          <Text className="text-gray-600 text-center mt-2">{taskError}</Text>
+          <TouchableOpacity 
+            className="mt-4 bg-blue-500 px-4 py-2 rounded-full"
+            onPress={() => router.back()}
+          >
+            <Text className="text-white">Volver</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        // Contenido normal - datos cargados
+        <ScrollView className="flex-1 px-4">
         {/* Status Badge */}
         <View className="mb-4 flex-row justify-center">
-          <View className="bg-orange-500 px-3 py-1 rounded-full">
-            <Text className="text-white text-sm font-medium">Cambios</Text>
+          <View className={`${
+            task?.status === "changes" ? "bg-orange-500" : 
+            task?.status === "pending" ? "bg-yellow-500" : 
+            changeRequest?.status === "approved" ? "bg-green-500" :
+            changeRequest?.status === "rejected" ? "bg-red-500" :
+            "bg-gray-500"} px-3 py-1 rounded-full`}>
+            <Text className="text-white text-sm font-medium">
+              {task?.status === "changes" ? "Cambios" : 
+               task?.status === "pending" ? "Pendiente" : 
+               changeRequest?.status === "approved" ? "Aprobado" :
+               changeRequest?.status === "rejected" ? "Rechazado" :
+               "Estado Desconocido"}
+            </Text>
           </View>
         </View>
 
@@ -400,7 +570,9 @@ export default function ChangeDetail() {
             </TouchableOpacity>
           </View>
         )}
-      </View>
+          </View>
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }

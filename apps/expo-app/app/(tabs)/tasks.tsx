@@ -8,6 +8,8 @@ import {
   View,
   ActivityIndicator,
   RefreshControl,
+  Modal,
+  Pressable,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import TaskSection from "../../components/TaskSection";
@@ -23,6 +25,7 @@ const handleAddTask = () => {
 export default function Tasks() {
   const { tasks, isLoading, error, fetchTasks } = useTasks();
   const [refreshing, setRefreshing] = useState(false);
+  const [showModal, setShowModal] = useState(false);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -30,7 +33,18 @@ export default function Tasks() {
     setRefreshing(false);
   };
 
+  const handleCreateTask = () => {
+    setShowModal(false);
+    router.push("/tasks/new-task");
+  };
+
+  const handleCreateChange = () => {
+    setShowModal(false);
+    router.push("/changes/new-change");
+  };
+
   // Agrupar tareas por estado
+  const changes = tasks.filter((task) => task.status === "changes");
   const pendingTasks = tasks.filter((task) => task.status === "pending");
   const inProgressTasks = tasks.filter((task) => task.status === "in_progress");
   const completedTasks = tasks.filter((task) => task.status === "completed");
@@ -72,7 +86,7 @@ export default function Tasks() {
         <Text className="text-gray-800 font-bold text-2xl">Tareas</Text>
         {/* Floating action button */}
         <TouchableOpacity
-          onPress={() => router.push("/tasks/new-task")}
+          onPress={() => setShowModal(true)}
           className="bg-blue-600 w-12 h-12 rounded-full items-center justify-center"
           style={{
             shadowColor: "#000",
@@ -85,6 +99,68 @@ export default function Tasks() {
           <Ionicons name="add" size={24} color="white" />
         </TouchableOpacity>
       </View>
+
+      {/* Modal de selección */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={showModal}
+        onRequestClose={() => setShowModal(false)}
+      >
+        <View className="flex-1 bg-black/50 justify-center items-center px-4">
+          <Pressable 
+            className="flex-1 absolute inset-0"
+            onPress={() => setShowModal(false)}
+          />
+          <View className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-xl">
+            <Text className="text-gray-800 font-bold text-xl text-center mb-6">
+              ¿Qué quieres crear?
+            </Text>
+            
+            {/* Opción Tarea */}
+            <TouchableOpacity
+              onPress={handleCreateTask}
+              className="flex-row items-center p-4 bg-blue-50 rounded-xl mb-3"
+            >
+              <View className="bg-blue-500 p-3 rounded-full mr-4">
+                <Ionicons name="checkbox-outline" size={24} color="white" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-gray-800 font-semibold text-lg">Tarea</Text>
+                <Text className="text-gray-600 text-sm mt-1">
+                  Crear una nueva tarea para realizar
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Opción Cambio */}
+            <TouchableOpacity
+              onPress={handleCreateChange}
+              className="flex-row items-center p-4 bg-orange-50 rounded-xl mb-4"
+            >
+              <View className="bg-orange-500 p-3 rounded-full mr-4">
+                <Ionicons name="swap-horizontal-outline" size={24} color="white" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-gray-800 font-semibold text-lg">Cambio</Text>
+                <Text className="text-gray-600 text-sm mt-1">
+                  Solicitar un cambio en el proyecto
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Botón Cancelar */}
+            <TouchableOpacity
+              onPress={() => setShowModal(false)}
+              className="bg-gray-100 p-4 rounded-xl mt-2"
+            >
+              <Text className="text-gray-600 font-medium text-center text-base">
+                Cancelar
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Tareas */}
       <ScrollView
@@ -108,10 +184,10 @@ export default function Tasks() {
           <View className="px-6 pb-6">
 
             {/* Cambios */}
-            {pendingTasks.length > 0 && (
+            {changes.length > 0 && (
               <TaskSection
                 title="Cambios"
-                tasks={pendingTasks}
+                tasks={changes}
                 onSeeAll={() => console.log("Ver todos cambios")}
                 changes={true}
               />

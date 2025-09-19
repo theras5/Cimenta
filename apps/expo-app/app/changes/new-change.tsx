@@ -106,9 +106,8 @@ export default function NewRequest() {
       title,
       description,
       category,
-      status: "pending",
+      status: "changes",
       is_urgent: false,
-      type: "request", // Para diferenciar de las tareas
       user_id: "ad4d74ba-beac-4741-9ec1-978d564a971c",
     };
 
@@ -116,7 +115,7 @@ export default function NewRequest() {
     console.log("Enviando solicitud al backend:", nuevaSolicitud);
 
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/request`, {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/task`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(nuevaSolicitud),
