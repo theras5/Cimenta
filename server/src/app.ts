@@ -1,5 +1,6 @@
 import express from "express";
 import dotenv from "dotenv";
+import updates from './routes/updates';
 
 // server/src/app.ts
 import cors from "cors";
@@ -246,12 +247,7 @@ app.post("/auth/login", async (req, res, next) => {
   }
 });
 
-
-
-
-
-
-
+app.use(updates);
 
 app.use(errorMiddleware); // esto tiene que ir siempre al final
 
