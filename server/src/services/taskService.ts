@@ -17,7 +17,7 @@ export async function getAllTasksService() {
     const { data, error } = await supabase.from("tasks").select("*");
 
     if (error) {
-        return error;
+        throw new AppError(error.message, 500);
     }
     return data;
 }
@@ -30,7 +30,7 @@ export async function getTaskByIdService(taskId: number) {
         .single();
 
     if (error) {
-        return new AppError(error.message, 404);
+        throw new AppError(error.message, 500);
     }
 
     return data;
@@ -38,7 +38,7 @@ export async function getTaskByIdService(taskId: number) {
 
 export async function createTaskService(newTask: Omit<Task, 'id' | 'created_at'>) {
     if (!newTask.title) {
-        return new AppError("El campo 'title' es obligatorio.", 400);
+        throw new AppError("El campo 'title' es obligatorio.", 400);
     }
 
     const { data, error } = await supabase
@@ -48,7 +48,7 @@ export async function createTaskService(newTask: Omit<Task, 'id' | 'created_at'>
         .single();
 
     if (error) {
-        return error;
+        throw new AppError(error.message, 500);
     }
 
     return data;
@@ -67,11 +67,11 @@ export async function updateTaskByIdService(taskId: number, newTask: Partial<Tas
         .single();
 
     if (error) {
-        return error;
+        throw new AppError(error.message, 500);
     }
 
     if (!data) {
-        return new AppError(`No se encontró la tarea con el id ${taskId}`, 404);
+        throw new AppError(`No se encontró la tarea con el id ${taskId}`, 404);
     }
 
     return data;
@@ -79,7 +79,7 @@ export async function updateTaskByIdService(taskId: number, newTask: Partial<Tas
 
 export async function deleteTaskByIdService(taskId: number) {
     if (isNaN(taskId)) {
-        return new AppError("El ID proporcionado no es un número.", 400);
+        throw new AppError("El ID proporcionado no es un número.", 400);
     }
 
     const { error } = await supabase
@@ -88,6 +88,6 @@ export async function deleteTaskByIdService(taskId: number) {
         .eq("id", taskId);
 
     if (error) {
-        return error;
+        throw new AppError(error.message, 500);
     }
 }
