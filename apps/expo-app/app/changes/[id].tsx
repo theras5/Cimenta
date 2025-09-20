@@ -312,7 +312,7 @@ export default function ChangeDetail() {
             <Ionicons name="chevron-back" size={24} color="#374151" />
           </TouchableOpacity>
           <Text className="text-gray-800 font-bold text-2xl">
-            Detalles de solicitud {id && `#${id}`}
+            Detalles de solicitud
           </Text>
         </View>
 
