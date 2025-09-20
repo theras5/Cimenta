@@ -57,15 +57,6 @@ export default function HomeScreen({ navigation }: Props) {
           />
         </TouchableOpacity>
 
-        {/* Tablero de cambios */}
-        <TouchableOpacity onPress={navigateToChanges} activeOpacity={0.7}>
-          <BoardCard
-            icon={require('../../assets/icons/change.png')}
-            title="Solicitudes de cambios"
-            subtitle="Abierto hace 2 días"
-          />
-        </TouchableOpacity>
-
         {/* Tablero de compras */}
         <TouchableOpacity onPress={navigateToPurchases} activeOpacity={0.7}>
           <BoardCard

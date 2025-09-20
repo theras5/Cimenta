@@ -10,6 +10,7 @@ export interface Category{
 
 interface TaskCardProps {
   task: Task;
+  changes?: boolean
 }
 
 const getStatusBgColor = (status: Task["status"]) => {
@@ -22,6 +23,8 @@ const getStatusBgColor = (status: Task["status"]) => {
       return "bg-green-100";
     case "blocked":
       return "bg-red-100";
+    case "changes":
+      return "bg-purple-100";
     default:
       return "bg-gray-100";
   }
@@ -45,32 +48,40 @@ const getCategoryColor = (category: string) => {
   }
 };
 
-const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
+const TaskCard: React.FC<TaskCardProps> = ({ task, changes }) => {
   return (
     <TouchableOpacity
-      className={`${getStatusBgColor(task.status)} rounded-2xl p-4 mb-3 mr-3 w-72`}
-      onPress={() => router.push(`/tasks/${task.id}`)}
+      className={`${getStatusBgColor(task.status)} rounded-2xl p-5 mb-3 mr-3 w-72 h-40`}
+      onPress={changes ? () => router.push(`/changes/${task.id}`) : () => router.push(`/tasks/${task.id}`)}
     >
-      <Text className="text-gray-800 font-semibold text-lg mb-1">
-        {task.title}
-      </Text>
-      <Text className="text-gray-600 text-sm mb-4 leading-5" numberOfLines={2}>
-        {task.description}
-      </Text>
-
-      <View className="flex-row justify-between items-center">
-        <View className="flex-row">
-          {/* <Text className="text-gray-500 text-sm">
-            {task.assignedMembers.length} miembro(s)
-          </Text> */}
+      <View className="flex-1">
+        {/* Contenido superior */}
+        <View className="flex-1">
+          <Text className="text-gray-800 font-semibold text-lg mb-2" numberOfLines={1}>
+            {task.title}
+          </Text>
+          <Text className="text-gray-600 text-sm leading-5" numberOfLines={2}>
+            {task.description}
+          </Text>
         </View>
 
-        <View
-          className={`${task.categoryColor || getCategoryColor(task.category)} px-3 py-1 rounded-full`}
-        >
-          <Text className="text-white text-xs font-medium">
-            {task.category}
-          </Text>
+        {/* Footer fijo en la parte inferior */}
+        <View className="flex-row justify-between items-center">
+          <View className="flex-row">
+            {task.assignedMembers && task.assignedMembers.length > 0 && (
+              <Text className="text-gray-500 text-xs">
+                {task.assignedMembers.length} miembro(s)
+              </Text>
+            )}
+          </View>
+
+          <View
+            className={`${task.categoryColor || getCategoryColor(task.category)} px-3 py-1 rounded-full`}
+          >
+            <Text className="text-white text-xs font-medium">
+              {task.category}
+            </Text>
+          </View>
         </View>
       </View>
     </TouchableOpacity>
