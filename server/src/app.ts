@@ -25,7 +25,7 @@ interface Task {
   title: string;
   description?: string;
   is_urgent: boolean;
-  status: "pending" | "in-progress" | "done";
+  status: "changes" | "pending" | "in-progress" | "done";
   start_date?: string;
   end_date?: string;
 }

@@ -100,7 +100,7 @@ export default function TaskDetail() {
   const [tempStartDate, setTempStartDate] = useState(new Date());
   const [tempEndDate, setTempEndDate] = useState(new Date());
   const [selectedStatus, setSelectedStatus] = useState<
-    "pending" | "in_progress" | "completed" | "blocked"
+    "changes" | "pending" | "in_progress" | "completed" | "blocked"
   >("pending");
 
   // Load task data

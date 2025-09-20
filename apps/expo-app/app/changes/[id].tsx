@@ -82,24 +82,24 @@ export default function ChangeDetail() {
       setDescription(change.description);
       setCategory(change.category);
       setImages(change.images);
-    } else if (id && !taskLoading && !taskError) {
+    /* } else if (id && !taskLoading && !taskError) {
       // Fallback a datos de ejemplo si no hay tarea pero tampoco hay error
       setChangeRequest(mockChangeRequest);
       setTitle(mockChangeRequest.title);
       setDescription(mockChangeRequest.description);
       setCategory(mockChangeRequest.category);
-      setImages(mockChangeRequest.images);
+      setImages(mockChangeRequest.images); */
     } else if (id && !taskLoading && taskError) {
       // Si hay error, mostrar alerta
       Alert.alert("Error", "No se pudo cargar la solicitud de cambio");
-    } else if (!id) {
+    } /* else if (!id) {
       // Creando nueva solicitud de cambio
       setTitle("Ej: Cambio de materiales");
       setDescription("");
       setCategory("ELECTRICIDAD");
       setImages([]);
       setIsEditing(true);
-    }
+    } */
   }, [id, task, taskLoading, taskError]);
 
   // Helper para obtener el color de la categoría
@@ -133,7 +133,7 @@ export default function ChangeDetail() {
   };
 
   const handleSaveChanges = async () => {
-    if (!title.trim() || !description.trim()) {
+    if (!title.trim()) {
       Alert.alert("Error", "Por favor completa todos los campos requeridos");
       return;
     }
@@ -141,26 +141,15 @@ export default function ChangeDetail() {
     try {
       setIsLoading(true);
       
-      // Preparar datos para enviar al API en el formato que espera taskService
-      let taskStatus: "changes" | "pending" | "in_progress" | "completed" | "blocked";
-      
-      // Convertir el status de ChangeRequest al formato que espera Task
-      switch(changeRequest?.status) {
-        case 'approved': taskStatus = 'completed'; break;
-        case 'rejected': taskStatus = 'blocked'; break;
-        case 'pending': 
-        default: taskStatus = 'pending'; break;
-      }
-      
       const changeData = {
         title: title.trim(),
         description: description.trim(),
         category,
-        mediaFiles: images,  // Usando mediaFiles para compatibilidad con la API de tareas
+        // mediaFiles: images,  // Usando mediaFiles para compatibilidad con la API de tareas
         // Mantener otros campos que podrían ser requeridos por la API
-        status: taskStatus,
-        startDate: task?.startDate || new Date().toISOString(),
-        endDate: task?.endDate || new Date().toISOString(),
+        // status: taskStatus,
+        // startDate: task?.startDate || new Date().toISOString(),
+        // endDate: task?.endDate || new Date().toISOString(),
       };
 
       console.log("Datos del cambio a enviar:", changeData);
@@ -239,11 +228,6 @@ export default function ChangeDetail() {
                 // Cambiamos el estado del cambio a 'pending' para convertirlo en una tarea pendiente
                 const result = await updateTask({
                   status: 'pending',
-                  // Conservamos los datos actuales
-                  title: title || changeRequest?.title,
-                  description: description || changeRequest?.description,
-                  category: category || changeRequest?.category,
-                  mediaFiles: images || changeRequest?.images,
                 });
                 
                 if (result) {
@@ -432,7 +416,7 @@ export default function ChangeDetail() {
               {categories.map((cat) => (
                 <TouchableOpacity
                   key={cat.name}
-                  onPress={() => setCategory(cat.name.toUpperCase())}
+                  onPress={() => setCategory(cat.name)}
                   className={`px-3 py-2 rounded-full ${
                     category.toUpperCase() === cat.name.toUpperCase()
                       ? getCategoryColor(category)
@@ -522,8 +506,6 @@ export default function ChangeDetail() {
             </View>
           )}
         </View>
-      </ScrollView>
-
       {/* Bottom Buttons */}
       <View className="px-4 pb-8">
         {isEditing ? (
@@ -554,6 +536,8 @@ export default function ChangeDetail() {
           </View>
         )}
       </View>
+      </ScrollView>
+
       )}
     </SafeAreaView>
   );
