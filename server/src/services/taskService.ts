@@ -1,14 +1,15 @@
 import { supabase } from "../config/supabase";
 import { AppError } from "../errors/AppError";
 
-interface Task {
+export interface Task {
     id: number;
     user_id: string; // o el tipo que corresponda
     created_at: string;
     title: string;
+    category: "electricidad" | "plomeria" | "construccion" | "pintura";
     description?: string;
     is_urgent: boolean;
-    status: "changes" | "pending" | "in-progress" | "done";
+    status: "changes" | "pending" | "in_progress" | "completed" | "blocked";
     start_date?: string;
     end_date?: string;
 }
@@ -37,8 +38,8 @@ export async function getTaskByIdService(taskId: number) {
 }
 
 export async function createTaskService(newTask: Omit<Task, 'id' | 'created_at'>) {
-    if (!newTask.title) {
-        throw new AppError("El campo 'title' es obligatorio.", 400);
+    if (!newTask.title || !newTask.category) {
+        throw new AppError("Title y category son campos obligatorios.", 400);
     }
 
     const { data, error } = await supabase
