@@ -30,7 +30,7 @@ export function parseTaskMessage(text: string, userUID: string): Omit<Task, 'id'
     lines.forEach(line => {
         const formattedLine = line.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         if (formattedLine.startsWith('descripcion:')) {
-            taskData.description = formattedLine.substring('descripcion:'.length).trim();
+            taskData.description = line.substring('descripcion:'.length).trim();
         } else if (formattedLine.startsWith('urgente:')) {
             const urgentValue = formattedLine.substring('urgente:'.length).trim().toLowerCase();
             taskData.is_urgent = (urgentValue === 'si' || urgentValue === 'sí');
@@ -100,7 +100,7 @@ export default async function connectToWhatsApp() {
     // Manejo de mensajes entrantes
     sock.ev.on('messages.upsert', async (m) => {
         const msg: WAMessage | undefined = m.messages[0];
-        if (!msg || !msg.message) return;
+        if (!msg || !msg.message || msg.key.fromMe) return;
 
         const senderNumber = msg.key.remoteJid;
         if (!senderNumber) return; // Salir si no hay remitente
