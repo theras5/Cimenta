@@ -28,19 +28,20 @@ export function parseTaskMessage(text: string, userUID: string): Omit<Task, 'id'
 
     // --- 2. Extraer otros campos del resto de las líneas ---
     lines.forEach(line => {
-        if (line.startsWith('descripcion:')) {
-            taskData.description = line.substring('descripcion:'.length).trim();
-        } else if (line.startsWith('urgente:')) {
-            const urgentValue = line.substring('urgente:'.length).trim().toLowerCase();
+        const formattedLine = line.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        if (formattedLine.startsWith('descripcion:')) {
+            taskData.description = formattedLine.substring('descripcion:'.length).trim();
+        } else if (formattedLine.startsWith('urgente:')) {
+            const urgentValue = formattedLine.substring('urgente:'.length).trim().toLowerCase();
             taskData.is_urgent = (urgentValue === 'si' || urgentValue === 'sí');
-        } else if (line.startsWith('estado:')) {
-            const statusValue = line.substring('estado:'.length).trim().toLowerCase();
+        } else if (formattedLine.startsWith('estado:')) {
+            const statusValue = formattedLine.substring('estado:'.length).trim().toLowerCase();
             // chequear que statusValue sea uno de los permitidos
             if (["changes", "pending", "in_progress", "completed", "blocked"].includes(statusValue)) {
                 taskData.status = statusValue as Task['status'];
             }
-        } else if (line.startsWith('categoria:')) {
-            const categoriaValue = line.substring('categoria:'.length).trim().toLowerCase();
+        } else if (formattedLine.startsWith('categoria:')) {
+            const categoriaValue = formattedLine.substring('categoria:'.length).trim().toLowerCase();
             if (['electricidad', 'construccion', 'pintura', 'plomeria'].includes(categoriaValue)) {
                 taskData.category = categoriaValue as Task['category'];
             }
@@ -99,7 +100,7 @@ export default async function connectToWhatsApp() {
     // Manejo de mensajes entrantes
     sock.ev.on('messages.upsert', async (m) => {
         const msg: WAMessage | undefined = m.messages[0];
-        if (!msg || !msg.message ) return;
+        if (!msg || !msg.message) return;
 
         const senderNumber = msg.key.remoteJid;
         if (!senderNumber) return; // Salir si no hay remitente
@@ -108,15 +109,15 @@ export default async function connectToWhatsApp() {
         if (!messageText) return;
 
         console.log(`Mensaje recibido de ${senderNumber}: "${messageText}"`);
-        const formattedMessage = messageText.toLowerCase();
-        if (formattedMessage.startsWith('crear tarea:')) {
-            handleTaskCreation(formattedMessage, senderNumber, sock);
-        } else if (formattedMessage.includes('ayud')) {
-            await sock.sendMessage(senderNumber, { text: '- *Para crear una tarea, usa el siguiente formato:*\n\ncrear tarea: [ título ]\ndescripcion: [ descripción ]\ncategoria: [ electricidad, plomeria, construccion, pintura ]\nurgente: [ si, no ]\nestado: [ changes, pending, in_progress, completed, blocked ]\n\n*Ejemplo*:\ncrear tarea: Reparar fuga de agua\ndescripcion: Hay una fuga en la cocina\ncategoria: plomeria\nurgente: si\nestado: pending\n\n- *Para editar el estado de una tarea usa el siguiente formato:*\n\nestado tarea: [ID] : [nuevo_estado] ' });
-        } else if (formattedMessage.startsWith('hola')) {
+        const lowerMessage = messageText.toLowerCase();
+        if (lowerMessage.startsWith('crear tarea:')) {
+            handleTaskCreation(messageText, senderNumber, sock);
+        } else if (lowerMessage.includes('ayud')) {
+            await sock.sendMessage(senderNumber, { text: '- *Para crear una tarea, usa el siguiente formato:*\n\ncrear tarea: [ título ]\ndescripcion: [ descripción ]\ncategoria: [ electricidad, plomeria, construccion, pintura ]\nurgente: [ si, no ]\nestado: [ changes, pending, in_progress, completed, blocked ]\n\n*Ejemplo*:\ncrear tarea: Reparar fuga de agua\ndescripcion: Hay una fuga en la cocina\ncategoria: plomeria\nurgente: si\nestado: pending\n\n- *Para editar el estado de una tarea usa el siguiente formato:*\n\ncambiar estado: [ID] : [nuevo_estado] ' });
+        } else if (lowerMessage.startsWith('hola')) {
             await sock.sendMessage(senderNumber, { text: '¡Hola! ¿En qué puedo ayudarte hoy?' });
-        } else if (formattedMessage.includes('cambiar estado:')) {
-            const parts = formattedMessage.split(':');
+        } else if (lowerMessage.includes('cambiar estado:')) {
+            const parts = messageText.split(':');
             if (parts.length === 3) {
                 const taskId = parseInt(parts[1].trim());
                 const newState = parts[2].trim().toLowerCase();
