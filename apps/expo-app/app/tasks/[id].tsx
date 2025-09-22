@@ -20,10 +20,10 @@ import DateTimePicker, {
 import { useTask } from "@/hooks/useTasks";
 
 // Reuse the mock data from new-task.tsx
-const electricidad: Category = { name: "Electricidad", color: "bg-blue-500" };
-const plomeria: Category = { name: "Plomeria", color: "bg-orange-500" };
-const construccion: Category = { name: "Construccion", color: "bg-gray-500" };
-const pintura: Category = { name: "Pintura", color: "bg-pink-500" };
+const electricidad: Category = { name: "electricidad", color: "bg-blue-500" };
+const plomeria: Category = { name: "plomeria", color: "bg-orange-500" };
+const construccion: Category = { name: "construccion", color: "bg-gray-500" };
+const pintura: Category = { name: "pintura", color: "bg-pink-500" };
 const categories: Category[] = [electricidad, plomeria, construccion, pintura];
 
 // Mock data for team members

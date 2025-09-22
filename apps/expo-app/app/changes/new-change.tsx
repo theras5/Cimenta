@@ -17,10 +17,10 @@ import * as ImagePicker from "expo-image-picker";
 /* ========= MOCKDATA ========== */
 
 /* mock data for categories */
-const Electricidad: Category = { name: "Electricidad", color: "bg-blue-500" };
-const Plomeria: Category = { name: "Plomeria", color: "bg-orange-500" };
-const Construccion: Category = { name: "Construccion", color: "bg-gray-500" };
-const Pintura: Category = { name: "Pintura", color: "bg-pink-500" };
+const Electricidad: Category = { name: "electricidad", color: "bg-blue-500" };
+const Plomeria: Category = { name: "plomeria", color: "bg-orange-500" };
+const Construccion: Category = { name: "construccion", color: "bg-gray-500" };
+const Pintura: Category = { name: "pintura", color: "bg-pink-500" };
 const categories: Category[] = [Electricidad, Plomeria, Construccion, Pintura];
 
 // Interfaz para manejar los archivos multimedia
