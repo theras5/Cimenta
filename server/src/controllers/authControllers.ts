@@ -1,6 +1,7 @@
 import express, { NextFunction, Request, Response } from 'express';
 import { supabase } from '../config/supabase';
 import { logInWithPasswordService, signInWithPasswordService } from '../services/authService';
+import { AppError } from '../errors/AppError';
 
 export const signInWithPassword = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -17,10 +18,10 @@ export const signInWithPassword = async (req: Request, res: Response, next: Next
       user: data.user,
     });
 
-  } catch (error) {
+  } catch (error: AppError | any) {
     console.error("Error en registro:", error);
-    res.status(500).json({
-      error: "Error interno del servidor"
+    res.status(error.statusCode).json({
+      error: error.message || "Error interno del servidor"
     });
   }
 };
@@ -39,10 +40,10 @@ export const logInWithPassword = async (req: Request, res: Response, next: NextF
       token: data.session?.access_token, // Para usar en otras llamadas
     });
 
-  } catch (error) {
+  } catch (error: AppError | any) {
     console.error("Error en login:", error);
-    res.status(500).json({
-      error: "Error interno del servidor"
+    res.status(error.statusCode).json({
+      error: error.message || "Error interno del servidor"
     });
   }
 };
