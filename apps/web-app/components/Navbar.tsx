@@ -2,19 +2,41 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Menu, X, Home, CheckSquare, Settings, User } from "lucide-react"
+import { 
+  Menu, 
+  X, 
+  Home, 
+  CheckSquare, 
+  Settings, 
+  User, 
+  ShoppingCart, 
+  TrendingUp, 
+  Calendar,
+  BookOpen,
+  BarChart3
+} from "lucide-react"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
 
-interface NavbarProps {
-  activeTab: "avances" | "tasks"
-  onTabChange: (tab: "avances" | "tasks") => void
-}
-
-export default function Navbar({ activeTab, onTabChange }: NavbarProps) {
+export default function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const pathname = usePathname()
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen)
   }
+
+  const navigationItems = [
+    { href: "/", icon: Home, label: "Inicio" },
+    { href: "/tasks", icon: CheckSquare, label: "Tareas" },
+    { href: "/purchases", icon: ShoppingCart, label: "Compras" },
+    { href: "/summary", icon: BarChart3, label: "Resumen" },
+    { href: "/updates", icon: TrendingUp, label: "Avances" },
+    { href: "/calendar", icon: Calendar, label: "Calendario" },
+    { href: "/guide", icon: BookOpen, label: "Guía" },
+  ]
+
+  const isActive = (href: string) => pathname === href
 
   return (
     <nav className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
@@ -23,46 +45,54 @@ export default function Navbar({ activeTab, onTabChange }: NavbarProps) {
           {/* Logo/Brand */}
           <div className="flex items-center">
             <div className="flex-shrink-0">
-              <h1 className="text-xl font-bold text-gray-900">Cimenta</h1>
+              <Link href="/">
+                <h1 className="text-xl font-bold text-blue-600 hover:text-blue-700 transition-colors">
+                  Cimenta
+                </h1>
+              </Link>
             </div>
           </div>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:block">
-            <div className="ml-10 flex items-baseline space-x-4">
-              <Button
-                variant={activeTab === "avances" ? "default" : "ghost"}
-                onClick={() => onTabChange("avances")}
-                className="flex items-center space-x-2"
-              >
-                <Home className="w-4 h-4" />
-                <span>Avances</span>
-              </Button>
-              <Button
-                variant={activeTab === "tasks" ? "default" : "ghost"}
-                onClick={() => onTabChange("tasks")}
-                className="flex items-center space-x-2"
-              >
-                <CheckSquare className="w-4 h-4" />
-                <span>Tareas</span>
-              </Button>
+          <div className="hidden lg:block">
+            <div className="ml-10 flex items-baseline space-x-2">
+              {navigationItems.map((item) => {
+                const Icon = item.icon
+                return (
+                  <Link key={item.href} href={item.href}>
+                    <Button
+                      variant={isActive(item.href) ? "default" : "ghost"}
+                      className="flex items-center space-x-2"
+                    >
+                      <Icon className="w-4 h-4" />
+                      <span>{item.label}</span>
+                    </Button>
+                  </Link>
+                )
+              })}
             </div>
           </div>
 
           {/* Desktop Right Menu */}
-          <div className="hidden md:block">
+          <div className="hidden lg:block">
             <div className="ml-4 flex items-center md:ml-6 space-x-2">
-              <Button variant="ghost" size="icon">
+              <Button variant="ghost" size="icon" title="Configuración">
                 <Settings className="w-4 h-4" />
               </Button>
-              <Button variant="ghost" size="icon">
-                <User className="w-4 h-4" />
-              </Button>
+              <Link href="/perfil">
+                <Button 
+                  variant={isActive("/perfil") ? "default" : "ghost"} 
+                  size="icon"
+                  title="Perfil"
+                >
+                  <User className="w-4 h-4" />
+                </Button>
+              </Link>
             </div>
           </div>
 
           {/* Mobile menu button */}
-          <div className="md:hidden">
+          <div className="lg:hidden">
             <Button variant="ghost" size="icon" onClick={toggleMobileMenu} aria-expanded="false">
               <span className="sr-only">Open main menu</span>
               {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -73,39 +103,39 @@ export default function Navbar({ activeTab, onTabChange }: NavbarProps) {
 
       {/* Mobile menu */}
       {isMobileMenuOpen && (
-        <div className="md:hidden">
+        <div className="lg:hidden">
           <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-white border-t border-gray-200">
-            <Button
-              variant={activeTab === "avances" ? "default" : "ghost"}
-              onClick={() => {
-                onTabChange("avances")
-                setIsMobileMenuOpen(false)
-              }}
-              className="w-full justify-start space-x-2"
-            >
-              <Home className="w-4 h-4" />
-              <span>Avances</span>
-            </Button>
-            <Button
-              variant={activeTab === "tasks" ? "default" : "ghost"}
-              onClick={() => {
-                onTabChange("tasks")
-                setIsMobileMenuOpen(false)
-              }}
-              className="w-full justify-start space-x-2"
-            >
-              <CheckSquare className="w-4 h-4" />
-              <span>Tareas</span>
-            </Button>
+            {navigationItems.map((item) => {
+              const Icon = item.icon
+              return (
+                <Link key={item.href} href={item.href}>
+                  <Button
+                    variant={isActive(item.href) ? "default" : "ghost"}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="w-full justify-start space-x-2"
+                  >
+                    <Icon className="w-4 h-4" />
+                    <span>{item.label}</span>
+                  </Button>
+                </Link>
+              )
+            })}
+            
             <div className="border-t border-gray-200 pt-2 mt-2">
               <Button variant="ghost" className="w-full justify-start space-x-2">
                 <Settings className="w-4 h-4" />
                 <span>Configuración</span>
               </Button>
-              <Button variant="ghost" className="w-full justify-start space-x-2">
-                <User className="w-4 h-4" />
-                <span>Perfil</span>
-              </Button>
+              <Link href="/perfil">
+                <Button 
+                  variant={isActive("/perfil") ? "default" : "ghost"} 
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="w-full justify-start space-x-2"
+                >
+                  <User className="w-4 h-4" />
+                  <span>Perfil</span>
+                </Button>
+              </Link>
             </div>
           </div>
         </div>

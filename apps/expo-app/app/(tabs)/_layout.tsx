@@ -61,11 +61,20 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="avances"
+        name="updates"
         options={{
-          title: "Avances",
+          title: "Updates",
           tabBarIcon: ({ focused }) => (
             <TabBarIcon title="Avances" icon={images.avances} focused={focused} />
+          ),
+        }}
+      />
+            <Tabs.Screen
+        name="summary"
+        options={{
+          title: "Summary",
+          tabBarIcon: ({ focused }) => (
+            <TabBarIcon title="Resumen" icon={images.resumen} focused={focused} />
           ),
         }}
       />
