@@ -1,7 +1,13 @@
-import { Router } from "express";
-import { createSite, deleteSiteById, getAllSites, getSiteById, updateSiteById } from "../controllers/siteController";
+import express from 'express';
+import { 
+    getAllSites, 
+    getSiteById, 
+    createSite, 
+    updateSiteById, 
+    deleteSiteById 
+} from '../controllers/siteController';
 
-const siteRouter = Router();
+const siteRouter = express.Router();
 
 siteRouter.get("/", getAllSites);
 siteRouter.get("/:id", getSiteById);

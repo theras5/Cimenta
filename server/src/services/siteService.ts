@@ -15,12 +15,18 @@ export interface UpdateSiteRequest {
 }
 
 export const getAllSitesService = async () => {
+    
     const { data, error } = await supabase
         .from('site')
         .select('*')
         .order('created_at', { ascending: false });
     
-    if (error) throw error;
+    
+    if (error) {
+        console.error('Error en getAllSitesService:', error);
+        throw error;
+    }
+    
     return data;
 };
 
