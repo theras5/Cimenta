@@ -3,9 +3,9 @@
 import { useState } from "react"
 import { Plus, RefreshCw, Clipboard } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import VideoCard from "./VideoCard"
-import NotificationCard from "./NotificationCard"
-import NoMediaCard from "./NoMediaCard"
+import VideoCard from "@/components/VideoCard"
+import NotificationCard from "@/components/NotificationCard"
+import NoMediaCard from "@/components/NoMediaCard"
 
 const AvancesScreen = () => {
   const [refreshing, setRefreshing] = useState(false)
@@ -54,19 +54,20 @@ const AvancesScreen = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200">
+      <div className="fixed top-0 left-64 right-0 z-40 flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200">
         <h1 className="text-2xl font-bold text-gray-800">Avances</h1>
         <Button
           onClick={handleAddUpdate}
           size="icon"
-          className="w-12 h-12 rounded-full bg-blue-600 hover:bg-blue-700 shadow-lg"
+          className="rounded-full bg-blue-600 hover:bg-blue-700 shadow-lg w-36 h-10"
         >
           <Plus className="w-6 h-6" />
+          Nuevo Avance
         </Button>
       </div>
 
       {/* Content */}
-      <div className="px-6 py-4 space-y-4 pb-20">
+      <div className="pt-25 px-40 py-4 space-y-4 pb-20">
         {updates.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20">
             <Clipboard className="w-16 h-16 text-gray-400 mb-4" />

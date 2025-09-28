@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Plus, Clipboard, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import TaskSection from "./TaskSection"
+import TaskSection from "@/components/TaskSection"
 
 // Mock data for tasks
 const mockTasks = [
@@ -37,6 +37,51 @@ const mockTasks = [
   },
   {
     id: 4,
+    title: "Cambio de diseño cocina",
+    description: "Modificar el diseño original de la cocina según nuevas especificaciones",
+    status: "changes" as const,
+    category: "CONSTRUCCIÓN",
+    categoryColor: "bg-gray-500",
+    assignedMembers: ["Luis"],
+  },
+  {
+    id: 5,
+    title: "Cambio de diseño cocina",
+    description: "Modificar el diseño original de la cocina según nuevas especificaciones",
+    status: "changes" as const,
+    category: "CONSTRUCCIÓN",
+    categoryColor: "bg-gray-500",
+    assignedMembers: ["Luis"],
+  },
+  {
+    id: 6,
+    title: "Cambio de diseño cocina",
+    description: "Modificar el diseño original de la cocina según nuevas especificaciones",
+    status: "changes" as const,
+    category: "CONSTRUCCIÓN",
+    categoryColor: "bg-gray-500",
+    assignedMembers: ["Luis"],
+  },
+  {
+    id: 7,
+    title: "Cambio de diseño cocina",
+    description: "Modificar el diseño original de la cocina según nuevas especificaciones",
+    status: "changes" as const,
+    category: "CONSTRUCCIÓN",
+    categoryColor: "bg-gray-500",
+    assignedMembers: ["Luis"],
+  },
+  {
+    id: 8,
+    title: "Cambio de diseño cocina",
+    description: "Modificar el diseño original de la cocina según nuevas especificaciones",
+    status: "changes" as const,
+    category: "CONSTRUCCIÓN",
+    categoryColor: "bg-gray-500",
+    assignedMembers: ["Luis"],
+  },
+  {
+    id: 9,
     title: "Cambio de diseño cocina",
     description: "Modificar el diseño original de la cocina según nuevas especificaciones",
     status: "changes" as const,
