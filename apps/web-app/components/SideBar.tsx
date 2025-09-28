@@ -66,5 +66,5 @@ export default function Sidebar() {
         </Avatar>
       </div>
     </div>
-  )
+  );
 }
