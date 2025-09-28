@@ -120,7 +120,7 @@ const teamMembers = [
 ]
 
 // Wrapper component for TaskSection with horizontal scroll
-const ScrollableTaskSection = ({ title, tasks, changes = false }: { title: string, tasks: any[], changes?: boolean }) => {
+const ScrollableTaskSection = ({ title, tasks, changes = false }: { title: string, tasks: unknown[], changes?: boolean }) => {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [showScrollButtons, setShowScrollButtons] = useState(false)
 
