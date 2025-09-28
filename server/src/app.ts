@@ -8,6 +8,7 @@ import cors from "cors";
 dotenv.config();
 
 import errorMiddleware from "./middlewares/errorMiddleware";
+import sites from './routes/sites';
 import tasks from "./routes/tasks";
 import auth from "./routes/auth";
 
@@ -17,7 +18,8 @@ app.use(express.json());
 
 app.use(cors());
 
-app.use(tasks);
+app.use('/api/sites', sites);
+app.use('/api', tasks);
 
 app.use(auth);
 

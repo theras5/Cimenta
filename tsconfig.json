@@ -8,8 +8,17 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@shared/*": ["packages/shared/*"]
+      "@shared/*": [
+        "packages/shared/*"
+      ]
     }
   },
-  "include": ["apps/**/*", "server/**/*", "packages/**/*"]
+  "include": [
+    "apps/**/*",
+    "server/**/*",
+    "packages/**/*",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
+  ],
+  "extends": "expo/tsconfig.base"
 }

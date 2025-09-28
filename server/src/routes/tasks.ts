@@ -1,5 +1,13 @@
 import express from 'express';
-import { getAllTasks, getTaskById, createTask, updateTaskById, deleteTaskById } from '../controllers/tasksController';
+import { 
+    getAllTasks, 
+    getTaskById, 
+    createTask, 
+    updateTaskById, 
+    deleteTaskById, 
+    getTasksBySite 
+} from '../controllers/tasksController';
+
 const tasksRouter = express.Router();
 
 /*
@@ -13,6 +21,8 @@ DELETE /task:id (elimina un task con el id indicado)
 */
 
 tasksRouter.get("/tasks", getAllTasks);
+
+tasksRouter.get("/tasks/site/:siteId", getTasksBySite);
 
 tasksRouter.get("/task/:id", getTaskById);
 
