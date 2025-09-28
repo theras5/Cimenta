@@ -8,8 +8,8 @@ export interface Task {
   category: string;
   categoryColor?: string;
   status: 'changes' | 'pending' | 'in_progress' | 'completed' | 'blocked';
-  startDate?: string;
-  endDate?: string;
+  start_date?: string;
+  end_date?: string;
   assignedMembers?: string[];
   mediaFiles?: string[];
   createdAt?: string;
@@ -23,8 +23,8 @@ export interface CreateTaskDTO {
   description: string;
   category: string;
   status: string;
-  startDate?: string;
-  endDate?: string;
+  start_date?: string;
+  end_date?: string;
   assignedMembers?: string[];
   mediaFiles?: string[];
 }

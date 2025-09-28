@@ -59,9 +59,6 @@ export async function createTaskService(newTask: Omit<Task, 'id' | 'created_at'>
         throw new AppError("Title y category son campos obligatorios.", 400);
     }
 
-    const siteId = newTask.site_id || DEFAULT_SITE_ID;
-    const userId = newTask.user_id || DEFAULT_USER_ID;
-
     const { data, error } = await supabase
         .from('tasks')
         .insert([{
@@ -69,7 +66,8 @@ export async function createTaskService(newTask: Omit<Task, 'id' | 'created_at'>
             description: newTask.description,
             category: newTask.category,
             status: newTask.status,
-            site_id: siteId
+            site_id: newTask.site_id || DEFAULT_SITE_ID,
+            user_id: newTask.user_id || DEFAULT_USER_ID
         }])
         .select(`
             *,
