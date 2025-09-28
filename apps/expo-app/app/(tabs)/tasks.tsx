@@ -40,7 +40,7 @@ export default function Tasks() {
 
   const handleCreateChange = () => {
     setShowModal(false);
-    router.push("/changes/new-change");
+    router.push("/tasks/new-change");
   };
 
   // Agrupar tareas por estado

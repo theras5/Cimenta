@@ -21,11 +21,11 @@ export default function HomeScreen({ navigation }: Props) {
   };
 
   const navigateToChanges = () => {
-  router.push("/changes/changes"); 
+  router.push("/tasks"); 
   };
 
   const navigateToPurchases = () => {
-    router.push("/purchases/purchases"); // Ahora apunta al archivo purchases.tsx
+    router.push("/purchases"); // Ahora apunta al archivo purchases.tsx
   };
 
   // Funciones para los atajos

@@ -37,14 +37,14 @@ export default function CimentaDashboard() {
                 </p>
                 <div className="flex gap-4 justify-center lg:justify-start">
                   <Button 
-                    onClick={() => router.push('/tareas/new-task')}
+                    onClick={() => router.push('/tasks/new-task')}
                     className="bg-blue-600 hover:bg-blue-700 text-white"
                   >
                     <PlusIcon className="w-4 h-4 mr-2" />
                     Crear Primera Tarea
                   </Button>
                   <Button 
-                    onClick={() => router.push('/tareas')}
+                    onClick={() => router.push('/tasks')}
                     variant="outline"
                   >
                     <LayoutGridIcon className="w-4 h-4 mr-2" />
@@ -72,7 +72,7 @@ export default function CimentaDashboard() {
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Tableros</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Seguimiento de tareas */}
-              <Link href="/tareas" className="group">
+              <Link href="/tasks" className="group">
                 <div className="relative overflow-hidden bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl border border-green-200 hover:border-green-300 transition-all duration-200 hover:shadow-lg">
                   <div className="absolute top-0 right-0 w-20 h-20 bg-green-100/50 rounded-full -translate-y-8 translate-x-8"></div>
                   <div className="relative p-5">
@@ -89,7 +89,7 @@ export default function CimentaDashboard() {
               </Link>
 
               {/* Seguimiento de compra */}
-              <Link href="/compras" className="group">
+              <Link href="/purchases" className="group">
                 <div className="relative overflow-hidden bg-gradient-to-br from-orange-50 to-amber-50 rounded-xl border border-orange-200 hover:border-orange-300 transition-all duration-200 hover:shadow-lg">
                   <div className="absolute top-0 right-0 w-20 h-20 bg-orange-100/50 rounded-full -translate-y-8 translate-x-8"></div>
                   <div className="relative p-5">
@@ -113,7 +113,7 @@ export default function CimentaDashboard() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Crear tarea */}
               <button 
-                onClick={() => router.push('/tareas/new-task')}
+                onClick={() => router.push('/tasks/new-task')}
                 className="group flex flex-col items-center p-6 bg-white rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all duration-200 hover:shadow-md"
               >
                 <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mb-3 group-hover:bg-blue-200 transition-colors">
@@ -125,7 +125,7 @@ export default function CimentaDashboard() {
 
               {/* Crear solicitud de compra */}
               <button 
-                onClick={() => router.push('/compras/new-purchase')}
+                onClick={() => router.push('/purchases/new-purchase')}
                 className="group flex flex-col items-center p-6 bg-white rounded-xl border border-gray-200 hover:border-orange-300 hover:bg-orange-50 transition-all duration-200 hover:shadow-md"
               >
                 <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center mb-3 group-hover:bg-orange-200 transition-colors">
@@ -137,7 +137,7 @@ export default function CimentaDashboard() {
 
               {/* Crear solicitud de cambio */}
               <button 
-                onClick={() => router.push('/changes/new-change')}
+                onClick={() => router.push('/tasks/new-change')}
                 className="group flex flex-col items-center p-6 bg-white rounded-xl border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-all duration-200 hover:shadow-md"
               >
                 <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center mb-3 group-hover:bg-purple-200 transition-colors">
