@@ -3,8 +3,8 @@ import { logInWithPassword, signInWithPassword } from '../controllers/authContro
 
 const authRouter = express.Router();
 
-authRouter.post("/auth/register", signInWithPassword);
+authRouter.post("/register", signInWithPassword);
 
-authRouter.post("/auth/login", logInWithPassword);
+authRouter.post("/login", logInWithPassword);
 
 export default authRouter;

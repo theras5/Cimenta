@@ -34,7 +34,7 @@ export async function getAllTasksService() {
     return data;
 }
 
-export async function getTaskByIdService(taskId: number) {
+export async function getTaskByIdService(taskId: string) {
     const { data, error } = await supabase
         .from('tasks')
         .select(`
@@ -85,11 +85,7 @@ export async function createTaskService(newTask: Omit<Task, 'id' | 'created_at'>
     return data;
 }
 
-export async function updateTaskByIdService(taskId: number, newTask: Partial<Task>) {
-    if (isNaN(taskId)) {
-        return new AppError("El ID proporcionado no es un número.", 400);
-    }
-
+export async function updateTaskByIdService(taskId: string, newTask: Partial<Task>) {
     const { data, error } = await supabase
         .from("tasks")
         .update(newTask)
@@ -114,11 +110,7 @@ export async function updateTaskByIdService(taskId: number, newTask: Partial<Tas
     return data;
 }
 
-export async function deleteTaskByIdService(taskId: number) {
-    if (isNaN(taskId)) {
-        throw new AppError("El ID proporcionado no es un número.", 400);
-    }
-
+export async function deleteTaskByIdService(taskId: string) {
     const { error } = await supabase
         .from("tasks")
         .delete()

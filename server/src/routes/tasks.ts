@@ -20,19 +20,19 @@ DELETE /task:id (elimina un task con el id indicado)
 
 */
 
-tasksRouter.get("/tasks", getAllTasks);
+tasksRouter.get("/", getAllTasks);
 
-tasksRouter.get("/tasks/site/:siteId", getTasksBySite);
+tasksRouter.get("/site/:siteId", getTasksBySite);
 
-tasksRouter.get("/task/:id", getTaskById);
+tasksRouter.get("/:id", getTaskById);
 
 // tenemos que tener definido un TaskT
-tasksRouter.post("/task", createTask);
+tasksRouter.post("/", createTask);
 
 // 3. Implementa la ruta PUT
-tasksRouter.put("/task/:id", updateTaskById);
+tasksRouter.put("/:id", updateTaskById);
 
 // 4. Implementa la ruta DELETE
-tasksRouter.delete("/task/:id", deleteTaskById);
+tasksRouter.delete("/:id", deleteTaskById);
 
 export default tasksRouter;

@@ -9,12 +9,12 @@ import {
 
 export const getAllSites = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        console.log('Controller getAllSites llamado...');
+        // console.log('Controller getAllSites llamado...');
         const data = await getAllSitesService();
-        console.log('Data a devolver:', data);
+        // console.log('Data a devolver:', data);
         res.status(200).json(data);
     } catch (err) {
-        console.error('Error en controller getAllSites:', err);
+        // console.error('Error en controller getAllSites:', err);
         next(err);
     }
 };

@@ -29,7 +29,8 @@ export const getTasksBySite = async (req: Request, res: Response, next: NextFunc
 
 export const getTaskById = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const id = parseInt(req.params.id);
+        const id = req.params.id;
+        console.log(id);
         const data = await getTaskByIdService(id);
         res.status(200).json(data);
     } catch (err) {
@@ -62,7 +63,7 @@ export const createTask = async (req: Request, res: Response, next: NextFunction
 // 3. Implementa la ruta PUT
 export const updateTaskById = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const id = parseInt(req.params.id);
+        const id = req.params.id;
         const taskToUpdate = req.body;
         const data = await updateTaskByIdService(id, taskToUpdate);
         res.status(200).json(data);
@@ -74,7 +75,7 @@ export const updateTaskById = async (req: Request, res: Response, next: NextFunc
 // 4. Implementa la ruta DELETE
 export const deleteTaskById = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const id = parseInt(req.params.id);
+        const id = req.params.id;
         await deleteTaskByIdService(id);
         res.status(204).send();
     } catch (error) {
