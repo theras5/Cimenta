@@ -1,9 +1,11 @@
 import { supabase } from "../config/supabase";
 import { AppError } from "../errors/AppError";
 
+const DEFAULT_SITE_ID = 'e43d720c-8b2f-454f-8b41-55019ffef012';
+const DEFAULT_USER_ID = 'bf118bdb-6c44-469e-bdc9-0c46a4aa6737';
+
 export interface Task {
     id: number;
-    user_id: string; // o el tipo que corresponda
     created_at: string;
     title: string;
     category: "electricidad" | "plomeria" | "construccion" | "pintura";
@@ -12,10 +14,19 @@ export interface Task {
     status: "changes" | "pending" | "in_progress" | "completed" | "blocked";
     start_date?: string;
     end_date?: string;
+    site_id: string;
+    user_id: string; 
 }
 
 export async function getAllTasksService() {
-    const { data, error } = await supabase.from("tasks").select("*");
+    const { data, error } = await supabase.from("tasks").select(`
+            *,
+            site:site_id (
+                id,
+                address
+            )
+        `)
+        .order('created_at', { ascending: false });
 
     if (error) {
         throw new AppError(error.message, 500);
@@ -23,11 +34,17 @@ export async function getAllTasksService() {
     return data;
 }
 
-export async function getTaskByIdService(taskId: number) {
+export async function getTaskByIdService(taskId: string) {
     const { data, error } = await supabase
-        .from("tasks")
-        .select("*")
-        .eq("id", taskId)
+        .from('tasks')
+        .select(`
+            *,
+            site:site_id (
+                id,
+                address
+            )
+        `)
+        .eq('id', taskId)
         .single();
 
     if (error) {
@@ -44,8 +61,21 @@ export async function createTaskService(newTask: Omit<Task, 'id' | 'created_at'>
 
     const { data, error } = await supabase
         .from('tasks')
-        .insert([newTask])
-        .select()
+        .insert([{
+            title: newTask.title,
+            description: newTask.description,
+            category: newTask.category,
+            status: newTask.status,
+            site_id: newTask.site_id || DEFAULT_SITE_ID,
+            user_id: newTask.user_id || DEFAULT_USER_ID
+        }])
+        .select(`
+            *,
+            site:site_id (
+                id,
+                address
+            )
+        `)
         .single();
 
     if (error) {
@@ -55,16 +85,18 @@ export async function createTaskService(newTask: Omit<Task, 'id' | 'created_at'>
     return data;
 }
 
-export async function updateTaskByIdService(taskId: number, newTask: Partial<Task>) {
-    if (isNaN(taskId)) {
-        return new AppError("El ID proporcionado no es un número.", 400);
-    }
-
+export async function updateTaskByIdService(taskId: string, newTask: Partial<Task>) {
     const { data, error } = await supabase
         .from("tasks")
         .update(newTask)
         .eq("id", taskId)
-        .select()
+        .select(`
+            *,
+            site:site_id (
+                id,
+                address
+            )
+        `)
         .single();
 
     if (error) {
@@ -78,11 +110,7 @@ export async function updateTaskByIdService(taskId: number, newTask: Partial<Tas
     return data;
 }
 
-export async function deleteTaskByIdService(taskId: number) {
-    if (isNaN(taskId)) {
-        throw new AppError("El ID proporcionado no es un número.", 400);
-    }
-
+export async function deleteTaskByIdService(taskId: string) {
     const { error } = await supabase
         .from("tasks")
         .delete()
@@ -92,3 +120,21 @@ export async function deleteTaskByIdService(taskId: number) {
         throw new AppError(error.message, 500);
     }
 }
+
+
+export const getTasksBySiteService = async (siteId: string) => {
+    const { data, error } = await supabase
+        .from('tasks')
+        .select(`
+            *,
+            site:site_id (
+                id,
+                address
+            )
+        `)
+        .eq('site_id', siteId)
+        .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    return data;
+};

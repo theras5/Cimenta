@@ -4,17 +4,17 @@ import { deleteUpdate, getUpdate, getUpdates, postUpdate, putUpdate } from "../c
 const updatesRouter = express.Router();
 
 //get all updates
-updatesRouter.get("/updates", getUpdates);
+updatesRouter.get("/", getUpdates);
 
 //get a single update
-updatesRouter.get("/updates/:id", getUpdate);
+updatesRouter.get("/:id", getUpdate);
 
 //create an update
-updatesRouter.post("/updates", postUpdate);
+updatesRouter.post("/", postUpdate);
 
 //update an update
-updatesRouter.put("/updates/:id", putUpdate);
+updatesRouter.put("/:id", putUpdate);
 
-updatesRouter.delete("/updates/:id", deleteUpdate);
+updatesRouter.delete("/:id", deleteUpdate);
 
 export default updatesRouter;

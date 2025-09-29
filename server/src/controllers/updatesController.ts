@@ -39,10 +39,10 @@ export const getUpdate = async (
   next: NextFunction
 ) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = req.params.id;
 
     const { data, error } = await supabase
-      .from("tasks")
+      .from("updates")
       .select("*")
       .eq("id", id)
       .single();
@@ -96,15 +96,9 @@ export const putUpdate = async (
   next: NextFunction
 ) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = req.params.id;
     // Los datos a actualizar. Partial<Task> hace que todas las propiedades sean opcionales.
     const updateToUpdate: Partial<Update> = req.body;
-
-    if (isNaN(id)) {
-      return res
-        .status(400)
-        .json({ message: "El ID proporcionado no es un número." });
-    }
 
     // El método .select() al final hace que Supabase devuelva el registro actualizado.
     const { data, error } = await supabase
@@ -138,13 +132,7 @@ export const deleteUpdate = async (
   next: NextFunction
 ) => {
   try {
-    const id = parseInt(req.params.id);
-
-    if (isNaN(id)) {
-      return res
-        .status(400)
-        .json({ message: "El ID proporcionado no es un número." });
-    }
+    const id = req.params.id;
 
     // Eliminar la tarea con el ID especificado
     const { error } = await supabase.from("updates").delete().eq("id", id);

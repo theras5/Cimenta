@@ -8,11 +8,13 @@ export interface Task {
   category: string;
   categoryColor?: string;
   status: 'changes' | 'pending' | 'in_progress' | 'completed' | 'blocked';
-  startDate?: string;
-  endDate?: string;
+  start_date?: string;
+  end_date?: string;
   assignedMembers?: string[];
   mediaFiles?: string[];
   createdAt?: string;
+  site_id?: string;
+  user_id?: string;
 //   updatedAt?: string;
 }
 
@@ -21,13 +23,12 @@ export interface CreateTaskDTO {
   description: string;
   category: string;
   status: string;
-  startDate?: string;
-  endDate?: string;
+  start_date?: string;
+  end_date?: string;
   assignedMembers?: string[];
   mediaFiles?: string[];
 }
 
-// Función para manejar errores de API
 const handleApiError = (error: any): never => {
   console.error('API Error:', error);
   Alert.alert(
@@ -37,7 +38,6 @@ const handleApiError = (error: any): never => {
   throw error;
 }
 
-// Servicio principal
 export const TaskService = {
   // Obtener todas las tareas
   async getTasks(): Promise<Task[]> {
@@ -72,13 +72,30 @@ export const TaskService = {
   // Crear una nueva tarea
   async createTask(task: CreateTaskDTO): Promise<Task> {
     try {
+
       const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/task`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(task),
+        body: JSON.stringify({
+          ...task,
+        })
       });
+      
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      return handleApiError(error);
+    }
+  },
+
+  async getTasksBySite(siteId: string): Promise<Task[]> {
+    try {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/tasks/site/${siteId}`);
       
       if (!response.ok) {
         throw new Error(`Error ${response.status}: ${response.statusText}`);
