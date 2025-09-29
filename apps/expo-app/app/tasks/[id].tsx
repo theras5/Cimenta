@@ -114,8 +114,8 @@ export default function TaskDetail() {
       setSelectedStatus(taskData.status);
 
       // Usar el nombre correcto según tu API (camelCase o snake_case)
-      const startDateValue = taskData.startDate;
-      const endDateValue = taskData.endDate;
+      const startDateValue = taskData.start_date;
+      const endDateValue = taskData.end_date;
 
       // Manejar fecha de inicio
       if (startDateValue) {

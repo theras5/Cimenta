@@ -23,10 +23,10 @@ import * as ImagePicker from "expo-image-picker";
 /* ========= MOCKDATA ========== */
 
 /* mock data for categories */
-const Electricidad: Category = { name: "Electricidad", color: "bg-blue-500" };
-const Plomeria: Category = { name: "Plomeria", color: "bg-orange-500" };
-const Construccion: Category = { name: "Construccion", color: "bg-gray-500" };
-const Pintura: Category = { name: "Pintura", color: "bg-pink-500" };
+const Electricidad: Category = { name: "electricidad", color: "bg-blue-500" };
+const Plomeria: Category = { name: "plomeria", color: "bg-orange-500" };
+const Construccion: Category = { name: "construccion", color: "bg-gray-500" };
+const Pintura: Category = { name: "pintura", color: "bg-pink-500" };
 const categories: Category[] = [Electricidad, Plomeria, Construccion, Pintura];
 
 // Mock data para miembros del equipo
@@ -247,7 +247,7 @@ export default function NewTask() {
       description,
       category,
       status: "pending",
-      is_urgent: false,
+      // is_urgent: false,
       user_id: user.id,
 
       // Si tienes campos de fecha en la base, agrégalos aquí
@@ -259,7 +259,7 @@ export default function NewTask() {
     console.log("Enviando al backend:", nuevaTarea);
 
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/task`, {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/tasks`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",

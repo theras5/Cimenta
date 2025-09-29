@@ -10,7 +10,7 @@ export interface Task {
     title: string;
     category: "electricidad" | "plomeria" | "construccion" | "pintura";
     description?: string;
-    is_urgent: boolean;
+    // is_urgent: boolean;
     status: "changes" | "pending" | "in_progress" | "completed" | "blocked";
     start_date?: string;
     end_date?: string;
@@ -66,6 +66,8 @@ export async function createTaskService(newTask: Omit<Task, 'id' | 'created_at'>
             description: newTask.description,
             category: newTask.category,
             status: newTask.status,
+            start_date: newTask.start_date,
+            end_date: newTask.end_date,                
             site_id: newTask.site_id || DEFAULT_SITE_ID,
             user_id: newTask.user_id || DEFAULT_USER_ID
         }])
