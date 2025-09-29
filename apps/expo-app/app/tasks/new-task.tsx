@@ -251,8 +251,8 @@ export default function NewTask() {
       user_id: user.id,
 
       // Si tienes campos de fecha en la base, agrégalos aquí
-      startDate: formatDate(startDate),
-      endDate: formatDate(endDate),
+      start_date: formatDate(startDate),
+      end_date: formatDate(endDate),
     };
 
     // Muestra en consola lo que se envía

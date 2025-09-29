@@ -17,10 +17,10 @@ import * as ImagePicker from "expo-image-picker";
 /* ========= MOCKDATA ========== */
 
 /* mock data for categories */
-const Electricidad: Category = { name: "Electricidad", color: "bg-blue-500" };
-const Plomeria: Category = { name: "Plomeria", color: "bg-orange-500" };
-const Construccion: Category = { name: "Construccion", color: "bg-gray-500" };
-const Pintura: Category = { name: "Pintura", color: "bg-pink-500" };
+const Electricidad: Category = { name: "electricidad", color: "bg-blue-500" };
+const Plomeria: Category = { name: "plomeria", color: "bg-orange-500" };
+const Construccion: Category = { name: "construccion", color: "bg-gray-500" };
+const Pintura: Category = { name: "pintura", color: "bg-pink-500" };
 const categories: Category[] = [Electricidad, Plomeria, Construccion, Pintura];
 
 // Interfaz para manejar los archivos multimedia
@@ -107,7 +107,7 @@ export default function NewRequest() {
       description,
       category,
       status: "changes",
-      is_urgent: false,
+      // is_urgent: false,
       user_id: "ad4d74ba-beac-4741-9ec1-978d564a971c",
     };
 
@@ -115,7 +115,7 @@ export default function NewRequest() {
     console.log("Enviando solicitud al backend:", nuevaSolicitud);
 
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/task`, {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/tasks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(nuevaSolicitud),
@@ -228,7 +228,7 @@ export default function NewRequest() {
                     category === cat.name ? "text-white" : "text-gray-800"
                   }`}
                 >
-                  {cat.name === "Construccion" ? "Construcción" : cat.name === "Plomeria" ? "Plomería" : cat.name}
+                  {cat.name === "construccion" ? "construcción" : cat.name === "plomeria" ? "plomería" : cat.name}
                 </Text>
               </TouchableOpacity>
             ))}

@@ -57,7 +57,7 @@ export const TaskService = {
   // Obtener una tarea por ID
   async getTask(id: string): Promise<Task> {
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/task/${id}`);
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/tasks/${id}`);
       
       if (!response.ok) {
         throw new Error(`Error ${response.status}: ${response.statusText}`);
@@ -110,7 +110,7 @@ export const TaskService = {
   // Actualizar una tarea
   async updateTask(id: string, task: Partial<CreateTaskDTO>): Promise<Task> {
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/task/${id}`, {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/tasks/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -131,7 +131,7 @@ export const TaskService = {
   // Eliminar una tarea
   async deleteTask(id: string): Promise<boolean> {
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/task/${id}`, {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/tasks/${id}`, {
         method: 'DELETE',
       });
       
@@ -148,7 +148,7 @@ export const TaskService = {
   // Actualizar estado de una tarea
   async updateTaskStatus(id: string, status: Task['status']): Promise<Task> {
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/task/${id}/status`, {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/tasks/${id}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
