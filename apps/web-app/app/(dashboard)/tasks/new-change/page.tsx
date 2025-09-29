@@ -1,25 +1,37 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { ArrowLeft, Loader2 } from "lucide-react"
-import Sidebar from "@/components/sidebar"
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ArrowLeft, Loader2 } from "lucide-react";
+import Sidebar from "@/components/SideBar";
 
 interface Task {
-  id: number
-  title: string
-  description: string
-  status: "pending" | "in_progress" | "completed" | "changes"
-  category: string
-  categoryColor: string
-  assignedMembers: string[]
+  id: number;
+  title: string;
+  description: string;
+  status: "pending" | "in_progress" | "completed" | "changes";
+  category: string;
+  categoryColor: string;
+  assignedMembers: string[];
 }
 
 const categoryColors = {
@@ -29,46 +41,63 @@ const categoryColors = {
   CONSTRUCCIÓN: "bg-gray-500",
   ALBAÑILERÍA: "bg-yellow-500",
   CARPINTERÍA: "bg-brown-500",
-}
+};
 
 const teamMembers = [
-  "Juan", "Pedro", "María", "Carlos", "Ana", "Luis", 
-  "Sofia", "Miguel", "Carmen", "Roberto", "Elena"
-]
+  "Juan",
+  "Pedro",
+  "María",
+  "Carlos",
+  "Ana",
+  "Luis",
+  "Sofia",
+  "Miguel",
+  "Carmen",
+  "Roberto",
+  "Elena",
+];
 
 export default function NewChangePage() {
-  const router = useRouter()
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
-  const [selectedMembers, setSelectedMembers] = useState<string[]>([])
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const [newChange, setNewChange] = useState({
     title: "",
     description: "",
     category: "",
     reason: "",
-  })
+  });
 
   const toggleMember = (member: string) => {
     if (selectedMembers.includes(member)) {
-      setSelectedMembers(selectedMembers.filter(m => m !== member))
+      setSelectedMembers(selectedMembers.filter((m) => m !== member));
     } else {
-      setSelectedMembers([...selectedMembers, member])
+      setSelectedMembers([...selectedMembers, member]);
     }
-  }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
+    e.preventDefault();
+
     // Validación
-    if (!newChange.title || !newChange.description || !newChange.category || !newChange.reason || selectedMembers.length === 0) {
-      setError("Por favor completa todos los campos y selecciona al menos un responsable")
-      return
+    if (
+      !newChange.title ||
+      !newChange.description ||
+      !newChange.category ||
+      !newChange.reason ||
+      selectedMembers.length === 0
+    ) {
+      setError(
+        "Por favor completa todos los campos y selecciona al menos un responsable"
+      );
+      return;
     }
 
     try {
-      setLoading(true)
-      setError("")
-      
+      setLoading(true);
+      setError("");
+
       // Aquí integrarás con tu backend más adelante
       const changeRequest: Task = {
         id: Math.floor(Math.random() * 10000), // Temporal
@@ -76,26 +105,28 @@ export default function NewChangePage() {
         description: `${newChange.description}\n\nRazón del cambio: ${newChange.reason}`,
         status: "changes",
         category: newChange.category,
-        categoryColor: categoryColors[newChange.category as keyof typeof categoryColors] || "bg-gray-500",
+        categoryColor:
+          categoryColors[newChange.category as keyof typeof categoryColors] ||
+          "bg-gray-500",
         assignedMembers: selectedMembers,
-      }
+      };
 
       // Simular llamada al backend
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
       // Redirigir a la página de tareas
-      router.push("/tasks")
+      router.push("/tasks");
     } catch (error: any) {
-      setError(error.message || "Error al crear la solicitud de cambio")
+      setError(error.message || "Error al crear la solicitud de cambio");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       <Sidebar />
-      
+
       <main className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200 flex-shrink-0">
@@ -106,7 +137,9 @@ export default function NewChangePage() {
                 Volver
               </Button>
             </Link>
-            <h1 className="text-2xl font-bold text-gray-800">Solicitar Cambio</h1>
+            <h1 className="text-2xl font-bold text-gray-800">
+              Solicitar Cambio
+            </h1>
           </div>
         </div>
 
@@ -115,12 +148,14 @@ export default function NewChangePage() {
           <div className="max-w-2xl mx-auto">
             <Card className="border-orange-200 shadow-lg">
               <CardHeader className="bg-orange-50">
-                <CardTitle className="text-xl text-orange-800">Solicitud de Cambio</CardTitle>
+                <CardTitle className="text-xl text-orange-800">
+                  Solicitud de Cambio
+                </CardTitle>
                 <CardDescription className="text-orange-700">
                   Completa los detalles para solicitar un cambio en el proyecto
                 </CardDescription>
               </CardHeader>
-              
+
               <CardContent className="pt-6">
                 <form onSubmit={handleSubmit} className="space-y-6">
                   {/* Error Alert */}
@@ -138,7 +173,9 @@ export default function NewChangePage() {
                     <Input
                       placeholder="Ej: Modificación del diseño de la cocina"
                       value={newChange.title}
-                      onChange={(e) => setNewChange({ ...newChange, title: e.target.value })}
+                      onChange={(e) =>
+                        setNewChange({ ...newChange, title: e.target.value })
+                      }
                       className="h-12"
                       disabled={loading}
                     />
@@ -152,7 +189,12 @@ export default function NewChangePage() {
                     <Textarea
                       placeholder="Describe detalladamente el cambio que necesitas realizar..."
                       value={newChange.description}
-                      onChange={(e) => setNewChange({ ...newChange, description: e.target.value })}
+                      onChange={(e) =>
+                        setNewChange({
+                          ...newChange,
+                          description: e.target.value,
+                        })
+                      }
                       rows={4}
                       disabled={loading}
                     />
@@ -166,7 +208,9 @@ export default function NewChangePage() {
                     <Textarea
                       placeholder="Explica por qué es necesario este cambio..."
                       value={newChange.reason}
-                      onChange={(e) => setNewChange({ ...newChange, reason: e.target.value })}
+                      onChange={(e) =>
+                        setNewChange({ ...newChange, reason: e.target.value })
+                      }
                       rows={3}
                       disabled={loading}
                     />
@@ -179,17 +223,23 @@ export default function NewChangePage() {
                     </label>
                     <Select
                       value={newChange.category}
-                      onValueChange={(value) => setNewChange({ ...newChange, category: value })}
+                      onValueChange={(value) =>
+                        setNewChange({ ...newChange, category: value })
+                      }
                       disabled={loading}
                     >
                       <SelectTrigger className="h-12">
                         <SelectValue placeholder="Seleccionar categoría" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="ELECTRICIDAD">ELECTRICIDAD</SelectItem>
+                        <SelectItem value="ELECTRICIDAD">
+                          ELECTRICIDAD
+                        </SelectItem>
                         <SelectItem value="PINTURA">PINTURA</SelectItem>
                         <SelectItem value="PLOMERÍA">PLOMERÍA</SelectItem>
-                        <SelectItem value="CONSTRUCCIÓN">CONSTRUCCIÓN</SelectItem>
+                        <SelectItem value="CONSTRUCCIÓN">
+                          CONSTRUCCIÓN
+                        </SelectItem>
                         <SelectItem value="ALBAÑILERÍA">ALBAÑILERÍA</SelectItem>
                         <SelectItem value="CARPINTERÍA">CARPINTERÍA</SelectItem>
                       </SelectContent>
@@ -199,7 +249,8 @@ export default function NewChangePage() {
                   {/* Responsables del cambio */}
                   <div className="space-y-3">
                     <label className="text-sm font-medium text-gray-700">
-                      Responsables del cambio * ({selectedMembers.length} seleccionados)
+                      Responsables del cambio * ({selectedMembers.length}{" "}
+                      seleccionados)
                     </label>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3 p-4 border rounded-lg bg-gray-50 max-h-48 overflow-y-auto">
                       {teamMembers.map((member) => (
@@ -207,9 +258,9 @@ export default function NewChangePage() {
                           key={member}
                           className={`cursor-pointer p-3 rounded-lg text-sm font-medium transition-all ${
                             selectedMembers.includes(member)
-                              ? 'bg-orange-500 text-white shadow-md'
-                              : 'bg-white hover:bg-gray-100 border border-gray-200'
-                          } ${loading ? 'pointer-events-none opacity-50' : ''}`}
+                              ? "bg-orange-500 text-white shadow-md"
+                              : "bg-white hover:bg-gray-100 border border-gray-200"
+                          } ${loading ? "pointer-events-none opacity-50" : ""}`}
                           onClick={() => !loading && toggleMember(member)}
                         >
                           {member}
@@ -229,9 +280,16 @@ export default function NewChangePage() {
                     >
                       Cancelar
                     </Button>
-                    <Button 
+                    <Button
                       type="submit"
-                      disabled={!newChange.title || !newChange.description || !newChange.reason || !newChange.category || selectedMembers.length === 0 || loading}
+                      disabled={
+                        !newChange.title ||
+                        !newChange.description ||
+                        !newChange.reason ||
+                        !newChange.category ||
+                        selectedMembers.length === 0 ||
+                        loading
+                      }
                       className="flex-1 bg-orange-600 hover:bg-orange-700"
                     >
                       {loading ? (
@@ -251,5 +309,5 @@ export default function NewChangePage() {
         </div>
       </main>
     </div>
-  )
+  );
 }

@@ -1,25 +1,44 @@
-"use client"
+"use client";
 
-import { useState, useRef, useEffect } from "react"
-import { Plus, Clipboard, RefreshCw, ChevronLeft, ChevronRight, Package, DollarSign } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import Sidebar from "@/components/sidebar"
+import { useState, useRef, useEffect } from "react";
+import {
+  Plus,
+  Clipboard,
+  RefreshCw,
+  ChevronLeft,
+  ChevronRight,
+  Package,
+  DollarSign,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import Sidebar from "@/components/SideBar";
 
 interface Purchase {
-  id: string
-  title: string
-  description: string
-  quantity: number
-  estimatedPrice: number
-  supplier: string
-  category: string
-  status: "para-comprar" | "comprado" | "recibido"
-  orderDate?: string
-  deliveryDate?: string
+  id: string;
+  title: string;
+  description: string;
+  quantity: number;
+  estimatedPrice: number;
+  supplier: string;
+  category: string;
+  status: "para-comprar" | "comprado" | "recibido";
+  orderDate?: string;
+  deliveryDate?: string;
 }
 const initialPurchases: Purchase[] = [
   // Para comprar - Ejemplos existentes
@@ -151,8 +170,8 @@ const initialPurchases: Purchase[] = [
     status: "recibido",
     orderDate: "2025-09-18",
     deliveryDate: "2025-09-22",
-  }
-]
+  },
+];
 
 const categoryColors = {
   MATERIALES: "bg-gray-500",
@@ -160,19 +179,25 @@ const categoryColors = {
   PINTURA: "bg-pink-500",
   PLOMERÍA: "bg-cyan-500",
   HERRAMIENTAS: "bg-purple-500",
-}
+};
 
 // Purchase Section Component with horizontal scroll
-const PurchaseSection = ({ title, purchases }: { title: string, purchases: Purchase[] }) => {
+const PurchaseSection = ({
+  title,
+  purchases,
+}: {
+  title: string;
+  purchases: Purchase[];
+}) => {
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("es-AR", {
       style: "currency",
       currency: "ARS",
-    }).format(price)
-  }
+    }).format(price);
+  };
 
   if (purchases.length === 0) {
-    return null
+    return null;
   }
 
   return (
@@ -186,12 +211,16 @@ const PurchaseSection = ({ title, purchases }: { title: string, purchases: Purch
             key={purchase.id}
             className="flex-shrink-0 w-80 bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md transition-shadow"
           >
-          <div className="mb-3">
-            <h3 className="font-semibold text-gray-900 text-sm leading-tight">{purchase.title}</h3>
-          </div>
-            
-            <p className="text-xs text-gray-600 mb-4 line-clamp-2">{purchase.description}</p>
-            
+            <div className="mb-3">
+              <h3 className="font-semibold text-gray-900 text-sm leading-tight">
+                {purchase.title}
+              </h3>
+            </div>
+
+            <p className="text-xs text-gray-600 mb-4 line-clamp-2">
+              {purchase.description}
+            </p>
+
             <div className="space-y-2 mb-4">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-gray-500">Cantidad:</span>
@@ -199,7 +228,9 @@ const PurchaseSection = ({ title, purchases }: { title: string, purchases: Purch
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-gray-500">Precio:</span>
-                <span className="font-medium text-green-600">{formatPrice(purchase.estimatedPrice)}</span>
+                <span className="font-medium text-green-600">
+                  {formatPrice(purchase.estimatedPrice)}
+                </span>
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-gray-500">Proveedor:</span>
@@ -218,9 +249,9 @@ const PurchaseSection = ({ title, purchases }: { title: string, purchases: Purch
                 </div>
               )}
             </div>
-            
+
             <div className="flex items-center justify-between">
-              <span 
+              <span
                 className={`${categoryColors[purchase.category as keyof typeof categoryColors]} text-white text-xs px-2 py-1 rounded-full font-medium`}
               >
                 {purchase.category}
@@ -235,41 +266,47 @@ const PurchaseSection = ({ title, purchases }: { title: string, purchases: Purch
         ))}
       </div>
     </div>
-  )
-}
+  );
+};
 
 // Wrapper component for PurchaseSection with horizontal scroll
-const ScrollablePurchaseSection = ({ title, purchases }: { title: string, purchases: Purchase[] }) => {
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const [showScrollButtons, setShowScrollButtons] = useState(false)
+const ScrollablePurchaseSection = ({
+  title,
+  purchases,
+}: {
+  title: string;
+  purchases: Purchase[];
+}) => {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [showScrollButtons, setShowScrollButtons] = useState(false);
 
   useEffect(() => {
     const checkOverflow = () => {
       if (scrollRef.current) {
-        const { scrollWidth, clientWidth } = scrollRef.current
-        setShowScrollButtons(scrollWidth > clientWidth)
+        const { scrollWidth, clientWidth } = scrollRef.current;
+        setShowScrollButtons(scrollWidth > clientWidth);
       }
-    }
+    };
 
-    checkOverflow()
-    window.addEventListener('resize', checkOverflow)
-    return () => window.removeEventListener('resize', checkOverflow)
-  }, [purchases])
+    checkOverflow();
+    window.addEventListener("resize", checkOverflow);
+    return () => window.removeEventListener("resize", checkOverflow);
+  }, [purchases]);
 
   const scrollLeft = () => {
     if (scrollRef.current) {
-      scrollRef.current.scrollBy({ left: -300, behavior: 'smooth' })
+      scrollRef.current.scrollBy({ left: -300, behavior: "smooth" });
     }
-  }
+  };
 
   const scrollRight = () => {
     if (scrollRef.current) {
-      scrollRef.current.scrollBy({ left: 300, behavior: 'smooth' })
+      scrollRef.current.scrollBy({ left: 300, behavior: "smooth" });
     }
-  }
+  };
 
   if (purchases.length === 0) {
-    return null
+    return null;
   }
 
   return (
@@ -292,21 +329,21 @@ const ScrollablePurchaseSection = ({ title, purchases }: { title: string, purcha
           </Button>
         </>
       )}
-      <div 
+      <div
         ref={scrollRef}
         className="overflow-x-auto scrollbar-hide"
-        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
       >
         <PurchaseSection title={title} purchases={purchases} />
       </div>
     </div>
-  )
-}
+  );
+};
 
 export default function ComprasPage() {
-  const [purchases, setPurchases] = useState<Purchase[]>(initialPurchases)
-  const [showModal, setShowModal] = useState(false)
-  const [refreshing, setRefreshing] = useState(false)
+  const [purchases, setPurchases] = useState<Purchase[]>(initialPurchases);
+  const [showModal, setShowModal] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [newPurchase, setNewPurchase] = useState({
     title: "",
     description: "",
@@ -315,16 +352,21 @@ export default function ComprasPage() {
     supplier: "",
     category: "",
     status: "para-comprar" as Purchase["status"],
-  })
+  });
 
   const handleRefresh = async () => {
-    setRefreshing(true)
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    setRefreshing(false)
-  }
+    setRefreshing(true);
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    setRefreshing(false);
+  };
 
   const handleAddPurchase = () => {
-    if (newPurchase.title && newPurchase.description && newPurchase.category && newPurchase.supplier) {
+    if (
+      newPurchase.title &&
+      newPurchase.description &&
+      newPurchase.category &&
+      newPurchase.supplier
+    ) {
       const purchase: Purchase = {
         id: Date.now().toString(),
         title: newPurchase.title,
@@ -334,8 +376,8 @@ export default function ComprasPage() {
         supplier: newPurchase.supplier,
         category: newPurchase.category,
         status: newPurchase.status,
-      }
-      setPurchases([...purchases, purchase])
+      };
+      setPurchases([...purchases, purchase]);
       setNewPurchase({
         title: "",
         description: "",
@@ -344,20 +386,25 @@ export default function ComprasPage() {
         supplier: "",
         category: "",
         status: "para-comprar",
-      })
-      setShowModal(false)
+      });
+      setShowModal(false);
     }
-  }
+  };
 
   // Group purchases by status
-  const paraComprar = purchases.filter((purchase) => purchase.status === "para-comprar")
-  const comprado = purchases.filter((purchase) => purchase.status === "comprado")
-  const recibido = purchases.filter((purchase) => purchase.status === "recibido")
+  const paraComprar = purchases.filter(
+    (purchase) => purchase.status === "para-comprar"
+  );
+  const comprado = purchases.filter(
+    (purchase) => purchase.status === "comprado"
+  );
+  const recibido = purchases.filter(
+    (purchase) => purchase.status === "recibido"
+  );
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
-      <Sidebar />
-      
+
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
@@ -376,43 +423,64 @@ export default function ComprasPage() {
         <Dialog open={showModal} onOpenChange={setShowModal}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle className="text-center text-xl">Crear Solicitud de Compra</DialogTitle>
+              <DialogTitle className="text-center text-xl">
+                Crear Solicitud de Compra
+              </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <Input
                 placeholder="Nombre del producto"
                 value={newPurchase.title}
-                onChange={(e) => setNewPurchase({ ...newPurchase, title: e.target.value })}
+                onChange={(e) =>
+                  setNewPurchase({ ...newPurchase, title: e.target.value })
+                }
               />
               <Textarea
                 placeholder="Descripción detallada"
                 value={newPurchase.description}
-                onChange={(e) => setNewPurchase({ ...newPurchase, description: e.target.value })}
+                onChange={(e) =>
+                  setNewPurchase({
+                    ...newPurchase,
+                    description: e.target.value,
+                  })
+                }
               />
               <div className="grid grid-cols-2 gap-4">
                 <Input
                   type="number"
                   placeholder="Cantidad"
                   value={newPurchase.quantity}
-                  onChange={(e) => setNewPurchase({ ...newPurchase, quantity: Number.parseInt(e.target.value) || 1 })}
+                  onChange={(e) =>
+                    setNewPurchase({
+                      ...newPurchase,
+                      quantity: Number.parseInt(e.target.value) || 1,
+                    })
+                  }
                 />
                 <Input
                   type="number"
                   placeholder="Precio estimado"
                   value={newPurchase.estimatedPrice}
                   onChange={(e) =>
-                    setNewPurchase({ ...newPurchase, estimatedPrice: Number.parseFloat(e.target.value) || 0 })
+                    setNewPurchase({
+                      ...newPurchase,
+                      estimatedPrice: Number.parseFloat(e.target.value) || 0,
+                    })
                   }
                 />
               </div>
               <Input
                 placeholder="Proveedor"
                 value={newPurchase.supplier}
-                onChange={(e) => setNewPurchase({ ...newPurchase, supplier: e.target.value })}
+                onChange={(e) =>
+                  setNewPurchase({ ...newPurchase, supplier: e.target.value })
+                }
               />
               <Select
                 value={newPurchase.category}
-                onValueChange={(value) => setNewPurchase({ ...newPurchase, category: value })}
+                onValueChange={(value) =>
+                  setNewPurchase({ ...newPurchase, category: value })
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccionar categoría" />
@@ -437,19 +505,32 @@ export default function ComprasPage() {
           {purchases.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20">
               <Clipboard className="w-16 h-16 text-gray-400 mb-4" />
-              <h3 className="text-lg font-medium text-gray-500 mb-2">No hay solicitudes aún</h3>
-              <p className="text-gray-400 text-center px-6">Crea tu primera solicitud usando el botón +</p>
+              <h3 className="text-lg font-medium text-gray-500 mb-2">
+                No hay solicitudes aún
+              </h3>
+              <p className="text-gray-400 text-center px-6">
+                Crea tu primera solicitud usando el botón +
+              </p>
             </div>
           ) : (
             <div className="space-y-6">
               {/* Para Comprar */}
-              <ScrollablePurchaseSection title="Para comprar" purchases={paraComprar} />
+              <ScrollablePurchaseSection
+                title="Para comprar"
+                purchases={paraComprar}
+              />
 
               {/* Comprado */}
-              <ScrollablePurchaseSection title="Comprado" purchases={comprado} />
+              <ScrollablePurchaseSection
+                title="Comprado"
+                purchases={comprado}
+              />
 
               {/* Recibido */}
-              <ScrollablePurchaseSection title="Recibido" purchases={recibido} />
+              <ScrollablePurchaseSection
+                title="Recibido"
+                purchases={recibido}
+              />
             </div>
           )}
         </div>
@@ -463,10 +544,12 @@ export default function ComprasPage() {
             className="w-12 h-12 rounded-full bg-white shadow-lg"
             disabled={refreshing}
           >
-            <RefreshCw className={`w-5 h-5 ${refreshing ? "animate-spin" : ""}`} />
+            <RefreshCw
+              className={`w-5 h-5 ${refreshing ? "animate-spin" : ""}`}
+            />
           </Button>
         </div>
       </main>
     </div>
-  )
+  );
 }

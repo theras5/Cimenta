@@ -1,35 +1,48 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Badge } from "@/components/ui/badge"
-import { Star, MapPin, Phone, Mail, Globe, ArrowRight, Search } from "lucide-react"
-import Sidebar from "@/components/sidebar"
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import {
+  Star,
+  MapPin,
+  Phone,
+  Mail,
+  Globe,
+  ArrowRight,
+  Search,
+} from "lucide-react";
+import Sidebar from "@/components/SideBar";
 
 interface Supplier {
-  id: string
-  name: string
-  category: string
-  rating: number
-  address: string
-  phone: string
-  email: string
-  website: string
-  materials: string[]
-  description: string
-  image: string
-  reviews: Review[]
+  id: string;
+  name: string;
+  category: string;
+  rating: number;
+  address: string;
+  phone: string;
+  email: string;
+  website: string;
+  materials: string[];
+  description: string;
+  image: string;
+  reviews: Review[];
 }
 
 interface Review {
-  id: string
-  author: string
-  rating: number
-  comment: string
-  date: string
+  id: string;
+  author: string;
+  rating: number;
+  comment: string;
+  date: string;
 }
 
 const suppliers: Supplier[] = [
@@ -42,7 +55,13 @@ const suppliers: Supplier[] = [
     phone: "+54 11 4567-8901",
     email: "info@materialesgonzalez.com",
     website: "www.materialesgonzalez.com",
-    materials: ["Cemento Portland", "Canalones de aluminio", "Ladrillos", "Arena", "Piedra"],
+    materials: [
+      "Cemento Portland",
+      "Canalones de aluminio",
+      "Ladrillos",
+      "Arena",
+      "Piedra",
+    ],
     description:
       "Empresa familiar con más de 30 años de experiencia en materiales de construcción. Especialistas en cemento de alta calidad y sistemas de canalones.",
     image: "/construction-materials-warehouse.jpg",
@@ -54,7 +73,13 @@ const suppliers: Supplier[] = [
         comment: "Excelente calidad y servicio. Muy recomendable.",
         date: "2025-09-20",
       },
-      { id: "2", author: "Ana Rodriguez", rating: 4, comment: "Buenos precios y entrega puntual.", date: "2025-09-15" },
+      {
+        id: "2",
+        author: "Ana Rodriguez",
+        rating: 4,
+        comment: "Buenos precios y entrega puntual.",
+        date: "2025-09-15",
+      },
     ],
   },
   {
@@ -66,7 +91,13 @@ const suppliers: Supplier[] = [
     phone: "+54 351 123-4567",
     email: "ventas@electricosdelnorte.com",
     website: "www.electricosdelnorte.com",
-    materials: ["Cables eléctricos", "Interruptores", "Tomas corriente", "Tableros eléctricos", "Iluminación LED"],
+    materials: [
+      "Cables eléctricos",
+      "Interruptores",
+      "Tomas corriente",
+      "Tableros eléctricos",
+      "Iluminación LED",
+    ],
     description:
       "Distribuidores autorizados de las mejores marcas en materiales eléctricos. Asesoramiento técnico especializado.",
     image: "/electrical-supplies-store.jpg",
@@ -96,7 +127,13 @@ const suppliers: Supplier[] = [
     phone: "+54 341 987-6543",
     email: "contacto@pinturaspremium.com",
     website: "www.pinturaspremium.com",
-    materials: ["Pintura exterior", "Pintura interior", "Esmaltes", "Barnices", "Impermeabilizantes"],
+    materials: [
+      "Pintura exterior",
+      "Pintura interior",
+      "Esmaltes",
+      "Barnices",
+      "Impermeabilizantes",
+    ],
     description:
       "Especialistas en pinturas de alta gama para interiores y exteriores. Amplia gama de colores y acabados especiales.",
     image: "/paint-store-colorful.jpg",
@@ -126,8 +163,15 @@ const suppliers: Supplier[] = [
     phone: "+54 261 555-0123",
     email: "info@sanitariosmodernos.com",
     website: "www.sanitariosmodernos.com",
-    materials: ["Inodoros", "Lavatorios", "Grifería", "Tuberías PVC", "Accesorios de baño"],
-    description: "Todo en sanitarios y plomería. Marcas reconocidas con garantía extendida y servicio de instalación.",
+    materials: [
+      "Inodoros",
+      "Lavatorios",
+      "Grifería",
+      "Tuberías PVC",
+      "Accesorios de baño",
+    ],
+    description:
+      "Todo en sanitarios y plomería. Marcas reconocidas con garantía extendida y servicio de instalación.",
     image: "/bathroom-fixtures-showroom.jpg",
     reviews: [
       {
@@ -155,7 +199,13 @@ const suppliers: Supplier[] = [
     phone: "+54 221 444-7890",
     email: "ventas@herramientaspro.com",
     website: "www.herramientaspro.com",
-    materials: ["Taladros", "Sierras", "Martillos", "Niveles", "Equipos de seguridad"],
+    materials: [
+      "Taladros",
+      "Sierras",
+      "Martillos",
+      "Niveles",
+      "Equipos de seguridad",
+    ],
     description:
       "Herramientas profesionales para construcción. Venta y alquiler de equipos con servicio técnico especializado.",
     image: "/construction-tools-workshop.jpg",
@@ -185,8 +235,15 @@ const suppliers: Supplier[] = [
     phone: "+54 294 333-2211",
     email: "info@maderasdelsur.com",
     website: "www.maderasdelsur.com",
-    materials: ["Madera de pino", "Tablones de roble", "MDF", "Placas OSB", "Molduras"],
-    description: "Maderas seleccionadas de la Patagonia. Cortes a medida y asesoramiento en proyectos de carpintería.",
+    materials: [
+      "Madera de pino",
+      "Tablones de roble",
+      "MDF",
+      "Placas OSB",
+      "Molduras",
+    ],
+    description:
+      "Maderas seleccionadas de la Patagonia. Cortes a medida y asesoramiento en proyectos de carpintería.",
     image: "/lumber-yard-wood-planks.jpg",
     reviews: [
       {
@@ -205,44 +262,56 @@ const suppliers: Supplier[] = [
       },
     ],
   },
-]
+];
 
 export default function GuiaPage() {
-  const [searchTerm, setSearchTerm] = useState("")
-  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null)
-  const [isDetailOpen, setIsDetailOpen] = useState(false)
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(
+    null
+  );
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
 
   const filteredSuppliers = suppliers.filter(
     (supplier) =>
       supplier.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       supplier.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      supplier.materials.some((material) => material.toLowerCase().includes(searchTerm.toLowerCase())),
-  )
+      supplier.materials.some((material) =>
+        material.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+  );
 
   const renderStars = (rating: number) => {
     return Array.from({ length: 5 }, (_, i) => (
       <Star
         key={i}
         size={16}
-        className={i < Math.floor(rating) ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}
+        className={
+          i < Math.floor(rating)
+            ? "fill-yellow-400 text-yellow-400"
+            : "text-gray-300"
+        }
       />
-    ))
-  }
+    ));
+  };
 
   const handleSupplierClick = (supplier: Supplier) => {
-    setSelectedSupplier(supplier)
-    setIsDetailOpen(true)
-  }
+    setSelectedSupplier(supplier);
+    setIsDetailOpen(true);
+  };
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <Sidebar />
 
       <div className="flex-1 p-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">Guía de Proveedores</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-4">
+            Guía de Proveedores
+          </h1>
           <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+            <Search
+              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+              size={20}
+            />
             <Input
               placeholder="Buscar por material, empresa..."
               value={searchTerm}
@@ -254,7 +323,10 @@ export default function GuiaPage() {
 
         <div className="space-y-4">
           {filteredSuppliers.map((supplier) => (
-            <Card key={supplier.id} className="hover:shadow-md transition-shadow cursor-pointer">
+            <Card
+              key={supplier.id}
+              className="hover:shadow-md transition-shadow cursor-pointer"
+            >
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
@@ -264,11 +336,17 @@ export default function GuiaPage() {
                       className="w-16 h-16 rounded-lg object-cover"
                     />
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-900">{supplier.name}</h3>
-                      <p className="text-sm text-gray-600">{supplier.category}</p>
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        {supplier.name}
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        {supplier.category}
+                      </p>
                       <div className="flex items-center gap-1 mt-1">
                         {renderStars(supplier.rating)}
-                        <span className="text-sm text-gray-500 ml-1">({supplier.rating})</span>
+                        <span className="text-sm text-gray-500 ml-1">
+                          ({supplier.rating})
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -292,7 +370,9 @@ export default function GuiaPage() {
             {selectedSupplier && (
               <>
                 <DialogHeader>
-                  <DialogTitle className="text-2xl">{selectedSupplier.name}</DialogTitle>
+                  <DialogTitle className="text-2xl">
+                    {selectedSupplier.name}
+                  </DialogTitle>
                 </DialogHeader>
 
                 <div className="space-y-6">
@@ -304,19 +384,27 @@ export default function GuiaPage() {
                       className="w-48 h-32 rounded-lg object-cover"
                     />
                     <div className="flex-1">
-                      <Badge className="mb-2">{selectedSupplier.category}</Badge>
+                      <Badge className="mb-2">
+                        {selectedSupplier.category}
+                      </Badge>
                       <div className="flex items-center gap-1 mb-2">
                         {renderStars(selectedSupplier.rating)}
-                        <span className="text-sm text-gray-500 ml-1">({selectedSupplier.rating})</span>
+                        <span className="text-sm text-gray-500 ml-1">
+                          ({selectedSupplier.rating})
+                        </span>
                       </div>
-                      <p className="text-gray-600">{selectedSupplier.description}</p>
+                      <p className="text-gray-600">
+                        {selectedSupplier.description}
+                      </p>
                     </div>
                   </div>
 
                   {/* Contact Information */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-3">
-                      <h3 className="font-semibold text-gray-900">Información de Contacto</h3>
+                      <h3 className="font-semibold text-gray-900">
+                        Información de Contacto
+                      </h3>
                       <div className="space-y-2">
                         <div className="flex items-center gap-2 text-sm">
                           <MapPin size={16} className="text-gray-400" />
@@ -332,16 +420,24 @@ export default function GuiaPage() {
                         </div>
                         <div className="flex items-center gap-2 text-sm">
                           <Globe size={16} className="text-gray-400" />
-                          <span className="text-blue-600">{selectedSupplier.website}</span>
+                          <span className="text-blue-600">
+                            {selectedSupplier.website}
+                          </span>
                         </div>
                       </div>
                     </div>
 
                     <div className="space-y-3">
-                      <h3 className="font-semibold text-gray-900">Materiales que Provee</h3>
+                      <h3 className="font-semibold text-gray-900">
+                        Materiales que Provee
+                      </h3>
                       <div className="flex flex-wrap gap-2">
                         {selectedSupplier.materials.map((material, index) => (
-                          <Badge key={index} variant="secondary" className="text-xs">
+                          <Badge
+                            key={index}
+                            variant="secondary"
+                            className="text-xs"
+                          >
                             {material}
                           </Badge>
                         ))}
@@ -351,18 +447,31 @@ export default function GuiaPage() {
 
                   {/* Reviews */}
                   <div>
-                    <h3 className="font-semibold text-gray-900 mb-4">Comentarios y Reseñas</h3>
+                    <h3 className="font-semibold text-gray-900 mb-4">
+                      Comentarios y Reseñas
+                    </h3>
                     <div className="space-y-4">
                       {selectedSupplier.reviews.map((review) => (
-                        <div key={review.id} className="border-l-4 border-blue-200 pl-4">
+                        <div
+                          key={review.id}
+                          className="border-l-4 border-blue-200 pl-4"
+                        >
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
-                              <span className="font-medium text-sm">{review.author}</span>
-                              <div className="flex items-center gap-1">{renderStars(review.rating)}</div>
+                              <span className="font-medium text-sm">
+                                {review.author}
+                              </span>
+                              <div className="flex items-center gap-1">
+                                {renderStars(review.rating)}
+                              </div>
                             </div>
-                            <span className="text-xs text-gray-500">{review.date}</span>
+                            <span className="text-xs text-gray-500">
+                              {review.date}
+                            </span>
                           </div>
-                          <p className="text-sm text-gray-600">{review.comment}</p>
+                          <p className="text-sm text-gray-600">
+                            {review.comment}
+                          </p>
                         </div>
                       ))}
                     </div>
@@ -374,5 +483,5 @@ export default function GuiaPage() {
         </Dialog>
       </div>
     </div>
-  )
+  );
 }

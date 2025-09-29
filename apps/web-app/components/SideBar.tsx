@@ -16,7 +16,7 @@ import {
 } from "lucide-react"
 
 const navigationItems = [
-  { href: "/", icon: Home, label: "Inicio" },
+  { href: "/dashboard", icon: Home, label: "Inicio" },
   { href: "/tasks", icon: CheckSquare, label: "Tareas" },
   { href: "/purchases", icon: ShoppingCart, label: "Compras" },
   { href: "/summary", icon: BarChart3, label: "Resumen" },
@@ -30,11 +30,10 @@ export default function Sidebar() {
   const pathname = usePathname()
 
   return (
-    <div className="w-64 min-w-64 bg-white border-r border-gray-200 flex flex-col">
-      {/* Logo */}
+    <div className="fixed left-0 top-0 h-screen w-64 z-20 bg-white border-r border-gray-200 flex flex-col">
       <div className="p-6">
-        <Link href="/">
-          <h1 className="text-2xl font-bold text-blue-600">Cimenta</h1>
+        <Link href="/dashboard">
+          <h1 className="text-3xl font-bold text-blue-600">Cimenta</h1>
         </Link>
       </div>
 

@@ -1,9 +1,16 @@
-"use client"
+"use client";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Card, CardContent } from "@/components/ui/card"
-import { User, Wrench, Users, Building, LogOut, ChevronRight } from "lucide-react"
-import Sidebar from "@/components/sidebar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  User,
+  Wrench,
+  Users,
+  Building,
+  LogOut,
+  ChevronRight,
+} from "lucide-react";
+import Sidebar from "@/components/SideBar";
 
 const profileMenuItems = [
   {
@@ -30,12 +37,11 @@ const profileMenuItems = [
     description: "Cartera de clientes y contactos",
     href: "/perfil/clientes",
   },
-]
+];
 
 export default function PerfilPage() {
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <Sidebar />
 
       <div className="flex-1 p-8">
         <div className="max-w-2xl mx-auto">
@@ -45,8 +51,13 @@ export default function PerfilPage() {
 
             <div className="flex flex-col items-center">
               <Avatar className="w-32 h-32 mb-6">
-                <AvatarImage src="/construction-worker-with-hard-hat-and-safety-vest.jpg" alt="Martín" />
-                <AvatarFallback className="text-4xl font-bold bg-blue-100 text-blue-600">M</AvatarFallback>
+                <AvatarImage
+                  src="/construction-worker-with-hard-hat-and-safety-vest.jpg"
+                  alt="Martín"
+                />
+                <AvatarFallback className="text-4xl font-bold bg-blue-100 text-blue-600">
+                  M
+                </AvatarFallback>
               </Avatar>
 
               <h2 className="text-3xl font-bold text-gray-900 mb-2">Martín</h2>
@@ -57,9 +68,12 @@ export default function PerfilPage() {
           {/* Profile Menu */}
           <div className="space-y-4 mb-8">
             {profileMenuItems.map((item, index) => {
-              const Icon = item.icon
+              const Icon = item.icon;
               return (
-                <Card key={index} className="hover:shadow-md transition-shadow cursor-pointer">
+                <Card
+                  key={index}
+                  className="hover:shadow-md transition-shadow cursor-pointer"
+                >
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
@@ -67,15 +81,19 @@ export default function PerfilPage() {
                           <Icon className="text-blue-600" size={24} />
                         </div>
                         <div>
-                          <h3 className="font-semibold text-gray-900 mb-1">{item.title}</h3>
-                          <p className="text-sm text-gray-600">{item.description}</p>
+                          <h3 className="font-semibold text-gray-900 mb-1">
+                            {item.title}
+                          </h3>
+                          <p className="text-sm text-gray-600">
+                            {item.description}
+                          </p>
                         </div>
                       </div>
                       <ChevronRight className="text-gray-400" size={20} />
                     </div>
                   </CardContent>
                 </Card>
-              )
+              );
             })}
           </div>
 
@@ -96,5 +114,5 @@ export default function PerfilPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }

@@ -1,37 +1,49 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { ArrowLeft, Loader2, Plus, Trash2 } from "lucide-react"
-import Sidebar from "@/components/sidebar"
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ArrowLeft, Loader2, Plus, Trash2 } from "lucide-react";
+import Sidebar from "@/components/SideBar";
 
 interface PurchaseItem {
-  id: string
-  name: string
-  quantity: number
-  unitPrice: number
-  unit: string
-  category: string
+  id: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  unit: string;
+  category: string;
 }
 
 interface Purchase {
-  id: number
-  title: string
-  description: string
-  supplier: string
-  priority: "low" | "medium" | "high" | "urgent"
-  status: "pending" | "approved" | "ordered" | "delivered"
-  items: PurchaseItem[]
-  totalAmount: number
-  requestedBy: string
-  deliveryDate: string
+  id: number;
+  title: string;
+  description: string;
+  supplier: string;
+  priority: "low" | "medium" | "high" | "urgent";
+  status: "pending" | "approved" | "ordered" | "delivered";
+  items: PurchaseItem[];
+  totalAmount: number;
+  requestedBy: string;
+  deliveryDate: string;
 }
 
 const categories = [
@@ -42,13 +54,22 @@ const categories = [
   "PINTURA",
   "ACABADOS",
   "SEGURIDAD",
-  "OTROS"
-]
+  "OTROS",
+];
 
 const units = [
-  "unidad", "metro", "metro²", "metro³", "kilogramo", 
-  "litro", "bolsa", "caja", "rollo", "galón", "saco"
-]
+  "unidad",
+  "metro",
+  "metro²",
+  "metro³",
+  "kilogramo",
+  "litro",
+  "bolsa",
+  "caja",
+  "rollo",
+  "galón",
+  "saco",
+];
 
 const suppliers = [
   "Proveedor Principal",
@@ -56,22 +77,22 @@ const suppliers = [
   "Distribuidora Eléctrica",
   "Materiales del Norte",
   "Suministros Técnicos",
-  "Otro (especificar)"
-]
+  "Otro (especificar)",
+];
 
 export default function NewPurchasePage() {
-  const router = useRouter()
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
-  
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
   const [purchaseData, setPurchaseData] = useState({
     title: "",
     description: "",
     supplier: "",
     priority: "medium" as Purchase["priority"],
     deliveryDate: "",
-    customSupplier: ""
-  })
+    customSupplier: "",
+  });
 
   const [items, setItems] = useState<PurchaseItem[]>([
     {
@@ -80,9 +101,9 @@ export default function NewPurchasePage() {
       quantity: 1,
       unitPrice: 0,
       unit: "unidad",
-      category: ""
-    }
-  ])
+      category: "",
+    },
+  ]);
 
   const addItem = () => {
     const newItem: PurchaseItem = {
@@ -91,65 +112,76 @@ export default function NewPurchasePage() {
       quantity: 1,
       unitPrice: 0,
       unit: "unidad",
-      category: ""
-    }
-    setItems([...items, newItem])
-  }
+      category: "",
+    };
+    setItems([...items, newItem]);
+  };
 
   const removeItem = (id: string) => {
     if (items.length > 1) {
-      setItems(items.filter(item => item.id !== id))
+      setItems(items.filter((item) => item.id !== id));
     }
-  }
+  };
 
-  const updateItem = (id: string, field: keyof PurchaseItem, value: string | number) => {
-    setItems(items.map(item => 
-      item.id === id 
-        ? { ...item, [field]: value }
-        : item
-    ))
-  }
+  const updateItem = (
+    id: string,
+    field: keyof PurchaseItem,
+    value: string | number
+  ) => {
+    setItems(
+      items.map((item) => (item.id === id ? { ...item, [field]: value } : item))
+    );
+  };
 
   const calculateTotal = () => {
-    return items.reduce((total, item) => total + (item.quantity * item.unitPrice), 0)
-  }
+    return items.reduce(
+      (total, item) => total + item.quantity * item.unitPrice,
+      0
+    );
+  };
 
   const validateForm = () => {
     if (!purchaseData.title || !purchaseData.description) {
-      return "Por favor completa el título y la descripción"
+      return "Por favor completa el título y la descripción";
     }
 
-    if (!purchaseData.supplier || (purchaseData.supplier === "Otro (especificar)" && !purchaseData.customSupplier)) {
-      return "Por favor selecciona o especifica un proveedor"
+    if (
+      !purchaseData.supplier ||
+      (purchaseData.supplier === "Otro (especificar)" &&
+        !purchaseData.customSupplier)
+    ) {
+      return "Por favor selecciona o especifica un proveedor";
     }
 
-    const invalidItems = items.some(item => 
-      !item.name || !item.category || item.quantity <= 0 || item.unitPrice < 0
-    )
+    const invalidItems = items.some(
+      (item) =>
+        !item.name || !item.category || item.quantity <= 0 || item.unitPrice < 0
+    );
 
     if (invalidItems) {
-      return "Por favor completa todos los campos de los artículos"
+      return "Por favor completa todos los campos de los artículos";
     }
 
-    return null
-  }
+    return null;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    const validationError = validateForm()
+    e.preventDefault();
+
+    const validationError = validateForm();
     if (validationError) {
-      setError(validationError)
-      return
+      setError(validationError);
+      return;
     }
 
     try {
-      setLoading(true)
-      setError("")
-      
-      const finalSupplier = purchaseData.supplier === "Otro (especificar)" 
-        ? purchaseData.customSupplier 
-        : purchaseData.supplier
+      setLoading(true);
+      setError("");
+
+      const finalSupplier =
+        purchaseData.supplier === "Otro (especificar)"
+          ? purchaseData.customSupplier
+          : purchaseData.supplier;
 
       const purchase: Purchase = {
         id: Math.floor(Math.random() * 10000),
@@ -161,37 +193,42 @@ export default function NewPurchasePage() {
         items: items,
         totalAmount: calculateTotal(),
         requestedBy: "Usuario actual", // Aquí integrarás con auth
-        deliveryDate: purchaseData.deliveryDate
-      }
+        deliveryDate: purchaseData.deliveryDate,
+      };
 
       // Simular llamada al backend
-      await new Promise(resolve => setTimeout(resolve, 1500))
-      
-      console.log("Nueva compra creada:", purchase)
-      
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      console.log("Nueva compra creada:", purchase);
+
       // Redirigir a la página de compras
-      router.push("/purchases")
+      router.push("/purchases");
     } catch (error: unknown) {
-      setError(error.message || "Error al crear la solicitud de compra")
+      setError(error.message || "Error al crear la solicitud de compra");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case "low": return "text-green-600 bg-green-50"
-      case "medium": return "text-yellow-600 bg-yellow-50"
-      case "high": return "text-orange-600 bg-orange-50"
-      case "urgent": return "text-red-600 bg-red-50"
-      default: return "text-gray-600 bg-gray-50"
+      case "low":
+        return "text-green-600 bg-green-50";
+      case "medium":
+        return "text-yellow-600 bg-yellow-50";
+      case "high":
+        return "text-orange-600 bg-orange-50";
+      case "urgent":
+        return "text-red-600 bg-red-50";
+      default:
+        return "text-gray-600 bg-gray-50";
     }
-  }
+  };
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       <Sidebar />
-      
+
       <main className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200 flex-shrink-0">
@@ -204,7 +241,7 @@ export default function NewPurchasePage() {
             </Link>
             <h1 className="text-2xl font-bold text-gray-800">Nueva Compra</h1>
           </div>
-          
+
           {/* Total Amount */}
           <div className="bg-blue-50 px-4 py-2 rounded-lg">
             <span className="text-sm text-blue-600 font-medium">
@@ -217,7 +254,6 @@ export default function NewPurchasePage() {
         <div className="flex-1 overflow-y-auto px-6 py-6">
           <div className="max-w-4xl mx-auto">
             <form onSubmit={handleSubmit} className="space-y-6">
-              
               {/* Error Alert */}
               {error && (
                 <Alert variant="destructive">
@@ -242,7 +278,12 @@ export default function NewPurchasePage() {
                     <Input
                       placeholder="Ej: Materiales para instalación eléctrica"
                       value={purchaseData.title}
-                      onChange={(e) => setPurchaseData({ ...purchaseData, title: e.target.value })}
+                      onChange={(e) =>
+                        setPurchaseData({
+                          ...purchaseData,
+                          title: e.target.value,
+                        })
+                      }
                       className="h-12"
                       disabled={loading}
                     />
@@ -256,7 +297,12 @@ export default function NewPurchasePage() {
                     <Textarea
                       placeholder="Describe el propósito y detalles de la compra..."
                       value={purchaseData.description}
-                      onChange={(e) => setPurchaseData({ ...purchaseData, description: e.target.value })}
+                      onChange={(e) =>
+                        setPurchaseData({
+                          ...purchaseData,
+                          description: e.target.value,
+                        })
+                      }
                       rows={3}
                       disabled={loading}
                     />
@@ -270,14 +316,16 @@ export default function NewPurchasePage() {
                       </label>
                       <Select
                         value={purchaseData.supplier}
-                        onValueChange={(value) => setPurchaseData({ ...purchaseData, supplier: value })}
+                        onValueChange={(value) =>
+                          setPurchaseData({ ...purchaseData, supplier: value })
+                        }
                         disabled={loading}
                       >
                         <SelectTrigger className="h-12">
                           <SelectValue placeholder="Seleccionar proveedor" />
                         </SelectTrigger>
                         <SelectContent>
-                          {suppliers.map(supplier => (
+                          {suppliers.map((supplier) => (
                             <SelectItem key={supplier} value={supplier}>
                               {supplier}
                             </SelectItem>
@@ -292,7 +340,12 @@ export default function NewPurchasePage() {
                       </label>
                       <Select
                         value={purchaseData.priority}
-                        onValueChange={(value) => setPurchaseData({ ...purchaseData, priority: value as Purchase["priority"] })}
+                        onValueChange={(value) =>
+                          setPurchaseData({
+                            ...purchaseData,
+                            priority: value as Purchase["priority"],
+                          })
+                        }
                         disabled={loading}
                       >
                         <SelectTrigger className="h-12">
@@ -337,7 +390,12 @@ export default function NewPurchasePage() {
                       <Input
                         placeholder="Nombre del proveedor"
                         value={purchaseData.customSupplier}
-                        onChange={(e) => setPurchaseData({ ...purchaseData, customSupplier: e.target.value })}
+                        onChange={(e) =>
+                          setPurchaseData({
+                            ...purchaseData,
+                            customSupplier: e.target.value,
+                          })
+                        }
                         className="h-12"
                         disabled={loading}
                       />
@@ -352,7 +410,12 @@ export default function NewPurchasePage() {
                     <Input
                       type="date"
                       value={purchaseData.deliveryDate}
-                      onChange={(e) => setPurchaseData({ ...purchaseData, deliveryDate: e.target.value })}
+                      onChange={(e) =>
+                        setPurchaseData({
+                          ...purchaseData,
+                          deliveryDate: e.target.value,
+                        })
+                      }
                       className="h-12"
                       disabled={loading}
                     />
@@ -384,7 +447,10 @@ export default function NewPurchasePage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {items.map((item, index) => (
-                    <div key={item.id} className="p-4 border rounded-lg bg-gray-50">
+                    <div
+                      key={item.id}
+                      className="p-4 border rounded-lg bg-gray-50"
+                    >
                       <div className="flex items-center justify-between mb-4">
                         <h4 className="font-medium text-gray-700">
                           Artículo {index + 1}
@@ -412,7 +478,9 @@ export default function NewPurchasePage() {
                           <Input
                             placeholder="Ej: Cable eléctrico 12 AWG"
                             value={item.name}
-                            onChange={(e) => updateItem(item.id, "name", e.target.value)}
+                            onChange={(e) =>
+                              updateItem(item.id, "name", e.target.value)
+                            }
                             disabled={loading}
                           />
                         </div>
@@ -426,7 +494,13 @@ export default function NewPurchasePage() {
                             type="number"
                             min="1"
                             value={item.quantity}
-                            onChange={(e) => updateItem(item.id, "quantity", parseInt(e.target.value) || 1)}
+                            onChange={(e) =>
+                              updateItem(
+                                item.id,
+                                "quantity",
+                                parseInt(e.target.value) || 1
+                              )
+                            }
                             disabled={loading}
                           />
                         </div>
@@ -438,14 +512,16 @@ export default function NewPurchasePage() {
                           </label>
                           <Select
                             value={item.unit}
-                            onValueChange={(value) => updateItem(item.id, "unit", value)}
+                            onValueChange={(value) =>
+                              updateItem(item.id, "unit", value)
+                            }
                             disabled={loading}
                           >
                             <SelectTrigger>
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              {units.map(unit => (
+                              {units.map((unit) => (
                                 <SelectItem key={unit} value={unit}>
                                   {unit}
                                 </SelectItem>
@@ -465,7 +541,13 @@ export default function NewPurchasePage() {
                             step="0.01"
                             placeholder="0.00"
                             value={item.unitPrice}
-                            onChange={(e) => updateItem(item.id, "unitPrice", parseFloat(e.target.value) || 0)}
+                            onChange={(e) =>
+                              updateItem(
+                                item.id,
+                                "unitPrice",
+                                parseFloat(e.target.value) || 0
+                              )
+                            }
                             disabled={loading}
                           />
                         </div>
@@ -478,14 +560,16 @@ export default function NewPurchasePage() {
                         </label>
                         <Select
                           value={item.category}
-                          onValueChange={(value) => updateItem(item.id, "category", value)}
+                          onValueChange={(value) =>
+                            updateItem(item.id, "category", value)
+                          }
                           disabled={loading}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Seleccionar categoría" />
                           </SelectTrigger>
                           <SelectContent>
-                            {categories.map(category => (
+                            {categories.map((category) => (
                               <SelectItem key={category} value={category}>
                                 {category}
                               </SelectItem>
@@ -496,7 +580,9 @@ export default function NewPurchasePage() {
 
                       {/* Subtotal */}
                       <div className="mt-4 text-right">
-                        <span className="text-sm text-gray-600">Subtotal: </span>
+                        <span className="text-sm text-gray-600">
+                          Subtotal:{" "}
+                        </span>
                         <span className="font-medium text-gray-800">
                           ${(item.quantity * item.unitPrice).toLocaleString()}
                         </span>
@@ -517,7 +603,7 @@ export default function NewPurchasePage() {
                 >
                   Cancelar
                 </Button>
-                <Button 
+                <Button
                   type="submit"
                   disabled={loading}
                   className="flex-1 bg-blue-600 hover:bg-blue-700"
@@ -537,5 +623,5 @@ export default function NewPurchasePage() {
         </div>
       </main>
     </div>
-  )
+  );
 }

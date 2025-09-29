@@ -1,23 +1,43 @@
-"use client"
+"use client";
 
-import { useState, useRef, useEffect } from "react"
-import { Plus, Clipboard, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import TaskSection from "@/components/TaskSection"
-import Sidebar from "@/components/sidebar"
+import { useState, useRef, useEffect } from "react";
+import {
+  Plus,
+  Clipboard,
+  RefreshCw,
+  ChevronLeft,
+  ChevronRight,
+  Check,
+  Upload,
+  RotateCcw,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import TaskSection from "@/components/TaskSection";
+import Sidebar from "@/components/SideBar";
 
 interface Task {
-  id: number
-  title: string
-  description: string
-  status: "pending" | "in_progress" | "completed" | "changes"
-  category: string
-  categoryColor: string
-  assignedMembers: string[]
+  id: number;
+  title: string;
+  description: string;
+  status: "pending" | "in_progress" | "completed" | "changes";
+  category: string;
+  categoryColor: string;
+  assignedMembers: string[];
 }
 
 // Mock data for tasks
@@ -52,7 +72,8 @@ const initialTasks: Task[] = [
   {
     id: 4,
     title: "Cambio de diseño cocina",
-    description: "Modificar el diseño original de la cocina según nuevas especificaciones",
+    description:
+      "Modificar el diseño original de la cocina según nuevas especificaciones",
     status: "changes" as const,
     category: "CONSTRUCCIÓN",
     categoryColor: "bg-gray-500",
@@ -61,7 +82,8 @@ const initialTasks: Task[] = [
   {
     id: 5,
     title: "Cambio de diseño cocina",
-    description: "Modificar el diseño original de la cocina según nuevas especificaciones",
+    description:
+      "Modificar el diseño original de la cocina según nuevas especificaciones",
     status: "changes" as const,
     category: "CONSTRUCCIÓN",
     categoryColor: "bg-gray-500",
@@ -70,7 +92,8 @@ const initialTasks: Task[] = [
   {
     id: 6,
     title: "Cambio de diseño cocina",
-    description: "Modificar el diseño original de la cocina según nuevas especificaciones",
+    description:
+      "Modificar el diseño original de la cocina según nuevas especificaciones",
     status: "changes" as const,
     category: "CONSTRUCCIÓN",
     categoryColor: "bg-gray-500",
@@ -79,7 +102,8 @@ const initialTasks: Task[] = [
   {
     id: 7,
     title: "Cambio de diseño cocina",
-    description: "Modificar el diseño original de la cocina según nuevas especificaciones",
+    description:
+      "Modificar el diseño original de la cocina según nuevas especificaciones",
     status: "changes" as const,
     category: "CONSTRUCCIÓN",
     categoryColor: "bg-gray-500",
@@ -88,7 +112,8 @@ const initialTasks: Task[] = [
   {
     id: 8,
     title: "Cambio de diseño cocina",
-    description: "Modificar el diseño original de la cocina según nuevas especificaciones",
+    description:
+      "Modificar el diseño original de la cocina según nuevas especificaciones",
     status: "changes" as const,
     category: "CONSTRUCCIÓN",
     categoryColor: "bg-gray-500",
@@ -97,13 +122,14 @@ const initialTasks: Task[] = [
   {
     id: 9,
     title: "Cambio de diseño cocina",
-    description: "Modificar el diseño original de la cocina según nuevas especificaciones",
+    description:
+      "Modificar el diseño original de la cocina según nuevas especificaciones",
     status: "changes" as const,
     category: "CONSTRUCCIÓN",
     categoryColor: "bg-gray-500",
     assignedMembers: ["Luis"],
   },
-]
+];
 
 const categoryColors = {
   ELECTRICIDAD: "bg-blue-500",
@@ -112,42 +138,59 @@ const categoryColors = {
   CONSTRUCCIÓN: "bg-gray-500",
   ALBAÑILERÍA: "bg-yellow-500",
   CARPINTERÍA: "bg-brown-500",
-}
+};
 
 const teamMembers = [
-  "Juan", "Pedro", "María", "Carlos", "Ana", "Luis", 
-  "Sofia", "Miguel", "Carmen", "Roberto", "Elena"
-]
+  "Juan",
+  "Pedro",
+  "María",
+  "Carlos",
+  "Ana",
+  "Luis",
+  "Sofia",
+  "Miguel",
+  "Carmen",
+  "Roberto",
+  "Elena",
+];
 
 // Wrapper component for TaskSection with horizontal scroll
-const ScrollableTaskSection = ({ title, tasks, changes = false }: { title: string, tasks: unknown[], changes?: boolean }) => {
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const [showScrollButtons, setShowScrollButtons] = useState(false)
+const ScrollableTaskSection = ({
+  title,
+  tasks,
+  changes = false,
+}: {
+  title: string;
+  tasks: unknown[];
+  changes?: boolean;
+}) => {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [showScrollButtons, setShowScrollButtons] = useState(false);
 
   useEffect(() => {
     const checkOverflow = () => {
       if (scrollRef.current) {
-        const { scrollWidth, clientWidth } = scrollRef.current
-        setShowScrollButtons(scrollWidth > clientWidth)
+        const { scrollWidth, clientWidth } = scrollRef.current;
+        setShowScrollButtons(scrollWidth > clientWidth);
       }
-    }
+    };
 
-    checkOverflow()
-    window.addEventListener('resize', checkOverflow)
-    return () => window.removeEventListener('resize', checkOverflow)
-  }, [tasks])
+    checkOverflow();
+    window.addEventListener("resize", checkOverflow);
+    return () => window.removeEventListener("resize", checkOverflow);
+  }, [tasks]);
 
   const scrollLeft = () => {
     if (scrollRef.current) {
-      scrollRef.current.scrollBy({ left: -300, behavior: 'smooth' })
+      scrollRef.current.scrollBy({ left: -300, behavior: "smooth" });
     }
-  }
+  };
 
   const scrollRight = () => {
     if (scrollRef.current) {
-      scrollRef.current.scrollBy({ left: 300, behavior: 'smooth' })
+      scrollRef.current.scrollBy({ left: 300, behavior: "smooth" });
     }
-  }
+  };
 
   return (
     <div className="relative">
@@ -169,42 +212,42 @@ const ScrollableTaskSection = ({ title, tasks, changes = false }: { title: strin
           </Button>
         </>
       )}
-      <div 
+      <div
         ref={scrollRef}
         className="overflow-x-auto scrollbar-hide"
-        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
       >
         <TaskSection title={title} tasks={tasks} changes={changes} />
       </div>
     </div>
-  )
-}
+  );
+};
 
 const TasksScreen = () => {
-  const [tasks, setTasks] = useState<Task[]>(initialTasks)
-  const [showModal, setShowModal] = useState(false)
-  const [showTaskModal, setShowTaskModal] = useState(false)
-  const [showChangeModal, setShowChangeModal] = useState(false)
-  const [refreshing, setRefreshing] = useState(false)
-  const [selectedMembers, setSelectedMembers] = useState<string[]>([])
+  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const [showModal, setShowModal] = useState(false);
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [showChangeModal, setShowChangeModal] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const [newTask, setNewTask] = useState({
     title: "",
     description: "",
     category: "",
     status: "pending" as Task["status"],
-  })
+  });
   const [newChange, setNewChange] = useState({
     title: "",
     description: "",
     category: "",
     reason: "",
-  })
+  });
 
   const handleRefresh = async () => {
-    setRefreshing(true)
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    setRefreshing(false)
-  }
+    setRefreshing(true);
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    setRefreshing(false);
+  };
 
   const resetTaskForm = () => {
     setNewTask({
@@ -212,9 +255,9 @@ const TasksScreen = () => {
       description: "",
       category: "",
       status: "pending",
-    })
-    setSelectedMembers([])
-  }
+    });
+    setSelectedMembers([]);
+  };
 
   const resetChangeForm = () => {
     setNewChange({
@@ -222,72 +265,85 @@ const TasksScreen = () => {
       description: "",
       category: "",
       reason: "",
-    })
-    setSelectedMembers([])
-  }
+    });
+    setSelectedMembers([]);
+  };
 
   const handleCreateTask = () => {
-    setShowModal(false)
-    setShowTaskModal(true)
-  }
+    setShowModal(false);
+    setShowTaskModal(true);
+  };
 
   const handleCreateChange = () => {
-    setShowModal(false)
-    setShowChangeModal(true)
-  }
+    setShowModal(false);
+    setShowChangeModal(true);
+  };
 
   const handleAddTask = () => {
-    if (newTask.title && newTask.description && newTask.category && selectedMembers.length > 0) {
+    if (
+      newTask.title &&
+      newTask.description &&
+      newTask.category &&
+      selectedMembers.length > 0
+    ) {
       const task: Task = {
-        id: Math.max(...tasks.map(t => t.id), 0) + 1,
+        id: Math.max(...tasks.map((t) => t.id), 0) + 1,
         title: newTask.title,
         description: newTask.description,
         status: newTask.status,
         category: newTask.category,
-        categoryColor: categoryColors[newTask.category as keyof typeof categoryColors] || "bg-gray-500",
+        categoryColor:
+          categoryColors[newTask.category as keyof typeof categoryColors] ||
+          "bg-gray-500",
         assignedMembers: selectedMembers,
-      }
-      setTasks([...tasks, task])
-      resetTaskForm()
-      setShowTaskModal(false)
+      };
+      setTasks([...tasks, task]);
+      resetTaskForm();
+      setShowTaskModal(false);
     }
-  }
+  };
 
   const handleAddChange = () => {
-    if (newChange.title && newChange.description && newChange.category && selectedMembers.length > 0) {
+    if (
+      newChange.title &&
+      newChange.description &&
+      newChange.category &&
+      selectedMembers.length > 0
+    ) {
       const changeRequest: Task = {
-        id: Math.max(...tasks.map(t => t.id), 0) + 1,
+        id: Math.max(...tasks.map((t) => t.id), 0) + 1,
         title: newChange.title,
         description: `${newChange.description}\n\nRazón del cambio: ${newChange.reason}`,
         status: "changes",
         category: newChange.category,
-        categoryColor: categoryColors[newChange.category as keyof typeof categoryColors] || "bg-gray-500",
+        categoryColor:
+          categoryColors[newChange.category as keyof typeof categoryColors] ||
+          "bg-gray-500",
         assignedMembers: selectedMembers,
-      }
-      setTasks([...tasks, changeRequest])
-      resetChangeForm()
-      setShowChangeModal(false)
+      };
+      setTasks([...tasks, changeRequest]);
+      resetChangeForm();
+      setShowChangeModal(false);
     }
-  }
+  };
 
   const toggleMember = (member: string) => {
     if (selectedMembers.includes(member)) {
-      setSelectedMembers(selectedMembers.filter(m => m !== member))
+      setSelectedMembers(selectedMembers.filter((m) => m !== member));
     } else {
-      setSelectedMembers([...selectedMembers, member])
+      setSelectedMembers([...selectedMembers, member]);
     }
-  }
+  };
 
   // Group tasks by status
-  const changes = tasks.filter((task) => task.status === "changes")
-  const pendingTasks = tasks.filter((task) => task.status === "pending")
-  const inProgressTasks = tasks.filter((task) => task.status === "in_progress")
-  const completedTasks = tasks.filter((task) => task.status === "completed")
+  const changes = tasks.filter((task) => task.status === "changes");
+  const pendingTasks = tasks.filter((task) => task.status === "pending");
+  const inProgressTasks = tasks.filter((task) => task.status === "in_progress");
+  const completedTasks = tasks.filter((task) => task.status === "completed");
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
-      <Sidebar />
-      
+
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
@@ -306,7 +362,9 @@ const TasksScreen = () => {
         <Dialog open={showModal} onOpenChange={setShowModal}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle className="text-center text-xl">¿Qué quieres crear?</DialogTitle>
+              <DialogTitle className="text-center text-xl">
+                ¿Qué quieres crear?
+              </DialogTitle>
             </DialogHeader>
             <div className="space-y-3">
               <Button
@@ -315,12 +373,14 @@ const TasksScreen = () => {
                 variant="outline"
               >
                 <div className="flex items-center">
-                  <div className="bg-blue-500 p-3 rounded-full mr-4">
-                    <span className="text-white text-lg">✓</span>
+                  <div className="bg-blue-500 p-3 rounded-4xl mr-4">
+                      <Check className="text-white"/>
                   </div>
                   <div className="text-left">
                     <div className="font-semibold">Tarea</div>
-                    <div className="text-sm text-gray-600">Crear una nueva tarea para realizar</div>
+                    <div className="text-sm text-gray-600">
+                      Crear una nueva tarea para realizar
+                    </div>
                   </div>
                 </div>
               </Button>
@@ -332,11 +392,13 @@ const TasksScreen = () => {
               >
                 <div className="flex items-center">
                   <div className="bg-orange-500 p-3 rounded-full mr-4">
-                    <span className="text-white text-lg">⟷</span>
+                    <RotateCcw className="text-white"/>
                   </div>
                   <div className="text-left">
                     <div className="font-semibold">Cambio</div>
-                    <div className="text-sm text-gray-600">Solicitar un cambio en el proyecto</div>
+                    <div className="text-sm text-gray-600">
+                      Solicitar un cambio en el proyecto
+                    </div>
                   </div>
                 </div>
               </Button>
@@ -345,29 +407,40 @@ const TasksScreen = () => {
         </Dialog>
 
         {/* Task Creation Modal */}
-        <Dialog open={showTaskModal} onOpenChange={(open) => {
-          setShowTaskModal(open)
-          if (!open) resetTaskForm()
-        }}>
+        <Dialog
+          open={showTaskModal}
+          onOpenChange={(open) => {
+            setShowTaskModal(open);
+            if (!open) resetTaskForm();
+          }}
+        >
           <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle className="text-center text-xl">Crear Nueva Tarea</DialogTitle>
+              <DialogTitle className="text-center text-xl">
+                Crear Nueva Tarea
+              </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <Input
                 placeholder="Título de la tarea"
                 value={newTask.title}
-                onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+                onChange={(e) =>
+                  setNewTask({ ...newTask, title: e.target.value })
+                }
               />
               <Textarea
                 placeholder="Descripción detallada de la tarea"
                 value={newTask.description}
-                onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
+                onChange={(e) =>
+                  setNewTask({ ...newTask, description: e.target.value })
+                }
                 rows={3}
               />
               <Select
                 value={newTask.category}
-                onValueChange={(value) => setNewTask({ ...newTask, category: value })}
+                onValueChange={(value) =>
+                  setNewTask({ ...newTask, category: value })
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccionar categoría" />
@@ -383,7 +456,9 @@ const TasksScreen = () => {
               </Select>
               <Select
                 value={newTask.status}
-                onValueChange={(value) => setNewTask({ ...newTask, status: value as Task["status"] })}
+                onValueChange={(value) =>
+                  setNewTask({ ...newTask, status: value as Task["status"] })
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Estado inicial" />
@@ -393,11 +468,12 @@ const TasksScreen = () => {
                   <SelectItem value="in_progress">En progreso</SelectItem>
                 </SelectContent>
               </Select>
-              
+
               {/* Team Members Selection */}
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-2 block">
-                  Asignar miembros del equipo ({selectedMembers.length} seleccionados)
+                  Asignar miembros del equipo ({selectedMembers.length}{" "}
+                  seleccionados)
                 </label>
                 <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto border rounded-md p-2">
                   {teamMembers.map((member) => (
@@ -405,8 +481,8 @@ const TasksScreen = () => {
                       key={member}
                       className={`cursor-pointer p-2 rounded text-sm transition-colors ${
                         selectedMembers.includes(member)
-                          ? 'bg-blue-100 text-blue-800 border border-blue-300'
-                          : 'bg-gray-50 hover:bg-gray-100'
+                          ? "bg-blue-100 text-blue-800 border border-blue-300"
+                          : "bg-gray-50 hover:bg-gray-100"
                       }`}
                       onClick={() => toggleMember(member)}
                     >
@@ -416,10 +492,15 @@ const TasksScreen = () => {
                 </div>
               </div>
 
-              <Button 
-                onClick={handleAddTask} 
+              <Button
+                onClick={handleAddTask}
                 className="w-full"
-                disabled={!newTask.title || !newTask.description || !newTask.category || selectedMembers.length === 0}
+                disabled={
+                  !newTask.title ||
+                  !newTask.description ||
+                  !newTask.category ||
+                  selectedMembers.length === 0
+                }
               >
                 Crear Tarea
               </Button>
@@ -428,35 +509,48 @@ const TasksScreen = () => {
         </Dialog>
 
         {/* Change Request Modal */}
-        <Dialog open={showChangeModal} onOpenChange={(open) => {
-          setShowChangeModal(open)
-          if (!open) resetChangeForm()
-        }}>
+        <Dialog
+          open={showChangeModal}
+          onOpenChange={(open) => {
+            setShowChangeModal(open);
+            if (!open) resetChangeForm();
+          }}
+        >
           <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle className="text-center text-xl">Solicitar Cambio</DialogTitle>
+              <DialogTitle className="text-center text-xl">
+                Solicitar Cambio
+              </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <Input
                 placeholder="Título del cambio"
                 value={newChange.title}
-                onChange={(e) => setNewChange({ ...newChange, title: e.target.value })}
+                onChange={(e) =>
+                  setNewChange({ ...newChange, title: e.target.value })
+                }
               />
               <Textarea
                 placeholder="Descripción del cambio propuesto"
                 value={newChange.description}
-                onChange={(e) => setNewChange({ ...newChange, description: e.target.value })}
+                onChange={(e) =>
+                  setNewChange({ ...newChange, description: e.target.value })
+                }
                 rows={3}
               />
               <Textarea
                 placeholder="Razón o justificación del cambio"
                 value={newChange.reason}
-                onChange={(e) => setNewChange({ ...newChange, reason: e.target.value })}
+                onChange={(e) =>
+                  setNewChange({ ...newChange, reason: e.target.value })
+                }
                 rows={2}
               />
               <Select
                 value={newChange.category}
-                onValueChange={(value) => setNewChange({ ...newChange, category: value })}
+                onValueChange={(value) =>
+                  setNewChange({ ...newChange, category: value })
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Categoría afectada" />
@@ -470,11 +564,12 @@ const TasksScreen = () => {
                   <SelectItem value="CARPINTERÍA">CARPINTERÍA</SelectItem>
                 </SelectContent>
               </Select>
-              
+
               {/* Team Members Selection */}
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-2 block">
-                  Responsables del cambio ({selectedMembers.length} seleccionados)
+                  Responsables del cambio ({selectedMembers.length}{" "}
+                  seleccionados)
                 </label>
                 <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto border rounded-md p-2">
                   {teamMembers.map((member) => (
@@ -482,8 +577,8 @@ const TasksScreen = () => {
                       key={member}
                       className={`cursor-pointer p-2 rounded text-sm transition-colors ${
                         selectedMembers.includes(member)
-                          ? 'bg-orange-100 text-orange-800 border border-orange-300'
-                          : 'bg-gray-50 hover:bg-gray-100'
+                          ? "bg-orange-100 text-orange-800 border border-orange-300"
+                          : "bg-gray-50 hover:bg-gray-100"
                       }`}
                       onClick={() => toggleMember(member)}
                     >
@@ -493,10 +588,16 @@ const TasksScreen = () => {
                 </div>
               </div>
 
-              <Button 
-                onClick={handleAddChange} 
+              <Button
+                onClick={handleAddChange}
                 className="w-full bg-orange-600 hover:bg-orange-700"
-                disabled={!newChange.title || !newChange.description || !newChange.reason || !newChange.category || selectedMembers.length === 0}
+                disabled={
+                  !newChange.title ||
+                  !newChange.description ||
+                  !newChange.reason ||
+                  !newChange.category ||
+                  selectedMembers.length === 0
+                }
               >
                 Crear Solicitud de Cambio
               </Button>
@@ -509,22 +610,47 @@ const TasksScreen = () => {
           {tasks.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20">
               <Clipboard className="w-16 h-16 text-gray-400 mb-4" />
-              <h3 className="text-lg font-medium text-gray-500 mb-2">No hay tareas aún</h3>
-              <p className="text-gray-400 text-center px-6">Crea tu primera tarea usando el botón +</p>
+              <h3 className="text-lg font-medium text-gray-500 mb-2">
+                No hay tareas aún
+              </h3>
+              <p className="text-gray-400 text-center px-6">
+                Crea tu primera tarea usando el botón +
+              </p>
             </div>
           ) : (
             <div className="space-y-6">
               {/* Changes */}
-              {changes.length > 0 && <ScrollableTaskSection title="Cambios" tasks={changes} changes={true} />}
+              {changes.length > 0 && (
+                <ScrollableTaskSection
+                  title="Cambios"
+                  tasks={changes}
+                  changes={true}
+                />
+              )}
 
               {/* Pending */}
-              {pendingTasks.length > 0 && <ScrollableTaskSection title="Pendientes" tasks={pendingTasks} />}
+              {pendingTasks.length > 0 && (
+                <ScrollableTaskSection
+                  title="Pendientes"
+                  tasks={pendingTasks}
+                />
+              )}
 
               {/* In Progress */}
-              {inProgressTasks.length > 0 && <ScrollableTaskSection title="En progreso" tasks={inProgressTasks} />}
+              {inProgressTasks.length > 0 && (
+                <ScrollableTaskSection
+                  title="En progreso"
+                  tasks={inProgressTasks}
+                />
+              )}
 
               {/* Completed */}
-              {completedTasks.length > 0 && <ScrollableTaskSection title="Completadas" tasks={completedTasks} />}
+              {completedTasks.length > 0 && (
+                <ScrollableTaskSection
+                  title="Completadas"
+                  tasks={completedTasks}
+                />
+              )}
             </div>
           )}
         </div>
@@ -538,12 +664,14 @@ const TasksScreen = () => {
             className="w-12 h-12 rounded-full bg-white shadow-lg"
             disabled={refreshing}
           >
-            <RefreshCw className={`w-5 h-5 ${refreshing ? "animate-spin" : ""}`} />
+            <RefreshCw
+              className={`w-5 h-5 ${refreshing ? "animate-spin" : ""}`}
+            />
           </Button>
         </div>
       </main>
     </div>
-  )
-}
+  );
+};
 
-export default TasksScreen
+export default TasksScreen;

@@ -1,15 +1,15 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Plus, RefreshCw, Clipboard } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import VideoCard from "@/components/VideoCard"
-import NotificationCard from "@/components/NotificationCard"
-import NoMediaCard from "@/components/NoMediaCard"
-import Sidebar from "@/components/sidebar"
+import { useState } from "react";
+import { Plus, RefreshCw, Clipboard } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import VideoCard from "@/components/VideoCard";
+import NotificationCard from "@/components/NotificationCard";
+import NoMediaCard from "@/components/NoMediaCard";
+import Sidebar from "@/components/SideBar";
 
 const AvancesScreen = () => {
-  const [refreshing, setRefreshing] = useState(false)
+  const [refreshing, setRefreshing] = useState(false);
   const [updates, setUpdates] = useState([
     {
       id: 1,
@@ -35,31 +35,30 @@ const AvancesScreen = () => {
       timeAgo: "Hace 1 día",
       hasVideo: false,
     },
-  ])
+  ]);
 
   const handleRefresh = async () => {
-    setRefreshing(true)
+    setRefreshing(true);
     // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    setRefreshing(false)
-  }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    setRefreshing(false);
+  };
 
   const handleAddUpdate = () => {
-    console.log("Add new update")
-  }
+    console.log("Add new update");
+  };
 
   const handleNoMediaPress = (id: number) => {
-    console.log(`Pressed update with id: ${id}`)
-  }
+    console.log(`Pressed update with id: ${id}`);
+  };
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <Sidebar />
-      
+
       {/* Main Content */}
       <main className="flex-1">
         {/* Header */}
-        <div className="sticky top-0 z-40 flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200">
+        <div className="fixed top-0 left-64 right-0 z-40 flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200">
           <h1 className="text-2xl font-bold text-gray-800">Avances</h1>
           <Button
             onClick={handleAddUpdate}
@@ -71,12 +70,16 @@ const AvancesScreen = () => {
         </div>
 
         {/* Content */}
-        <div className="px-6 py-6 space-y-4 pb-20">
+        <div className="pt-25 px-6 py-6 space-y-4 pb-20">
           {updates.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20">
               <Clipboard className="w-16 h-16 text-gray-400 mb-4" />
-              <h3 className="text-lg font-medium text-gray-500 mb-2">No hay avances aún</h3>
-              <p className="text-gray-400 text-center px-6">Crea tu primer avance usando el botón +</p>
+              <h3 className="text-lg font-medium text-gray-500 mb-2">
+                No hay avances aún
+              </h3>
+              <p className="text-gray-400 text-center px-6">
+                Crea tu primer avance usando el botón +
+              </p>
             </div>
           ) : (
             <>
@@ -90,7 +93,10 @@ const AvancesScreen = () => {
               />
 
               {/* Notification card */}
-              <NotificationCard message="Se ha terminado" highlight="Instalación del aire" />
+              <NotificationCard
+                message="Se ha terminado"
+                highlight="Instalación del aire"
+              />
 
               {/* Remaining cards */}
               {updates
@@ -114,7 +120,7 @@ const AvancesScreen = () => {
                       timeAgo={update.timeAgo}
                       onPress={() => handleNoMediaPress(update.id)}
                     />
-                  ),
+                  )
                 )}
             </>
           )}
@@ -129,12 +135,14 @@ const AvancesScreen = () => {
             className="w-12 h-12 rounded-full bg-white shadow-lg"
             disabled={refreshing}
           >
-            <RefreshCw className={`w-5 h-5 ${refreshing ? "animate-spin" : ""}`} />
+            <RefreshCw
+              className={`w-5 h-5 ${refreshing ? "animate-spin" : ""}`}
+            />
           </Button>
         </div>
       </main>
     </div>
-  )
-}
+  );
+};
 
-export default AvancesScreen
+export default AvancesScreen;
