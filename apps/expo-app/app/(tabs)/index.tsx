@@ -28,6 +28,11 @@ export default function HomeScreen({ navigation }: Props) {
     router.push("/purchases/purchases"); // Ahora apunta al archivo purchases.tsx
   };
 
+  // Función para navegar al Gantt
+  const navigateToGantt = () => {
+    router.push("/gantt/project-1"); // Usamos un ID de proyecto por defecto
+  };
+
   // Funciones para los atajos
   const navigateToNewTask = () => {
     router.push("/tasks/new-task");
@@ -63,6 +68,15 @@ export default function HomeScreen({ navigation }: Props) {
             icon={require('../../assets/icons/shopping-cart.png')}
             title="Seguimiento de compra"
             subtitle="Abierto hace 2 días"
+          />
+        </TouchableOpacity>
+
+        {/* Tablero de Gantt */}
+        <TouchableOpacity onPress={navigateToGantt} activeOpacity={0.7}>
+          <BoardCard
+            icon={require('../../assets/icons/task.png')} // Puedes cambiar por un icono específico de Gantt
+            title="Diagrama de Gantt"
+            subtitle="Cronograma del proyecto"
           />
         </TouchableOpacity>
       </View>
