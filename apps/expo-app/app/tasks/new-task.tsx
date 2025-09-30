@@ -247,19 +247,19 @@ export default function NewTask() {
       description,
       category,
       status: "pending",
-      is_urgent: false,
+      // is_urgent: false,
       user_id: user.id,
 
       // Si tienes campos de fecha en la base, agrégalos aquí
-      startDate: formatDate(startDate),
-      endDate: formatDate(endDate),
+      start_date: formatDate(startDate),
+      end_date: formatDate(endDate),
     };
 
     // Muestra en consola lo que se envía
     console.log("Enviando al backend:", nuevaTarea);
 
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/task`, {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/tasks`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",

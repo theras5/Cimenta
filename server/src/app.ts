@@ -1,6 +1,9 @@
 import express from "express";
 import dotenv from "dotenv";
 import updates from './routes/updates';
+import sites from './routes/sites';
+import tasks from "./routes/tasks";
+import auth from "./routes/auth";
 
 // server/src/app.ts
 import cors from "cors";
@@ -8,8 +11,6 @@ import cors from "cors";
 dotenv.config();
 
 import errorMiddleware from "./middlewares/errorMiddleware";
-import tasks from "./routes/tasks";
-import auth from "./routes/auth";
 
 const app = express();
 
@@ -17,11 +18,13 @@ app.use(express.json());
 
 app.use(cors());
 
-app.use(tasks);
+app.use("/sites", sites);
 
-app.use(auth);
+app.use("/tasks", tasks);
 
-app.use(updates);
+app.use("/auth", auth);
+
+app.use("/updates", updates);
 
 app.use(errorMiddleware); // esto tiene que ir siempre al final
 

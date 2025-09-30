@@ -20,7 +20,11 @@ import { useTask } from "@/hooks/useTasks"; // Importamos el hook para obtener l
 // Reuse the same categories from task-detail.tsx
 const electricidad: Category = { name: "electricidad", color: "bg-blue-500" };
 const plomeria: Category = { name: "plomeria", color: "bg-orange-500" };
+<<<<<<< HEAD
 const construccion: Category = { name: "construccion", color: "bg-gray-500" };
+=======
+const construccion: Category = { name: "ponstruccion", color: "bg-gray-500" };
+>>>>>>> feature/site-integration
 const pintura: Category = { name: "pintura", color: "bg-pink-500" };
 const categories: Category[] = [electricidad, plomeria, construccion, pintura];
 
@@ -73,7 +77,7 @@ export default function ChangeDetail() {
         category: task.category,
         status: task.status as any,
         images: task.mediaFiles || [],
-        createdAt: task.startDate ? new Date(task.startDate) : new Date(),
+        createdAt: task.start_date ? new Date(task.start_date) : new Date(),
         taskId: task.id || undefined  // Usamos el ID de la tarea actual como relación
       };
       
