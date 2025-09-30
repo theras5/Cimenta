@@ -6,9 +6,8 @@ import makeWASocket, {
 } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
-import { createTaskService, getTaskByIdService, updateTaskByIdService } from '../services/taskService';
-import { Task } from '../services/taskService';
-import { AppError } from '../errors/AppError';
+import { Task } from '@cimenta/dtos';
+
 
 export function parseTaskMessage(text: string, userUID: string): Omit<Task, 'id' | 'created_at'> {
     const lines = text.split('\n').filter(line => line.trim() !== ''); // Filtramos líneas vacías
@@ -137,10 +136,11 @@ async function handleTaskCreation(messageText: string, senderNumber: string, soc
         const parsedData = parseTaskMessage(messageText, senderNumber);
 
         // Llamada al service
-        const createdTask = await createTaskService(parsedData);
+        // const createdTask = await createTaskService(parsedData);
 
         await sock.sendMessage(senderNumber, {
-            text: `✅ Tarea creada con éxito:\nTítulo: ${createdTask.title}\n`
+            // text: `✅ Tarea creada con éxito:\nTítulo: ${createdTask.title}\n`
+            text: `✅ Tarea creada con éxito:\nTítulo: \n`
         });
 
     } catch (error: any) {
@@ -152,9 +152,9 @@ async function handleTaskCreation(messageText: string, senderNumber: string, soc
 
 async function handleTaskStateUpdate(taskId: number, newState: string, senderNumber: string, sock: WASocket) {
     try {
-        const originalTask = await getTaskByIdService(taskId);
-        originalTask.status = newState as Task['status'];
-        await updateTaskByIdService(taskId, originalTask);
+        // const originalTask = await getTaskByIdService(taskId);
+        // originalTask.status = newState as Task['status'];
+        // await updateTaskByIdService(taskId, originalTask);
         await sock.sendMessage(senderNumber, {
             text: `✅ El estado de la tarea ${taskId} ha sido actualizado a "${newState}".`
         });
@@ -163,3 +163,5 @@ async function handleTaskStateUpdate(taskId: number, newState: string, senderNum
         await sock.sendMessage(senderNumber, { text: `❌ Error al actualizar la tarea: ${error.message}` });
     }
 }
+
+connectToWhatsApp();

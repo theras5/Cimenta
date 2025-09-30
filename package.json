@@ -5,10 +5,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "build": "npm run build --workspaces --if-present",
     "dev:server": "npm run dev --workspace=server",
-    "build:server": "npm run build --workspace=server",
     "start:server": "npm run start --workspace=server",
-    "dev:app": "npm run start --workspace=apps/expo-app"
+    "dev:app": "npm run start --workspace=apps/expo-app",
+    "predev:app": "npm run build --workspace=packages/dtos"
   },
   "keywords": [],
   "author": "",
@@ -16,14 +17,7 @@
   "workspaces": [
     "apps/*",
     "server",
+    "bot",
     "packages/*"
-  ],
-  "dependencies": {
-    "@supabase/supabase-js": "^2.57.4",
-    "cors": "^2.8.5",
-    "esbuild": "^0.25.10"
-  },
-  "devDependencies": {
-    "@types/cors": "^2.8.19"
-  }
+  ]
 }

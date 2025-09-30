@@ -12,4 +12,9 @@
     "skipLibCheck": true
   },
   "include": ["src/**/*"],
+  "references": [
+    {
+      "path": "../packages/dtos"
+    }
+  ]
 }
