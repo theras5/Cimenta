@@ -5,7 +5,7 @@ const DEFAULT_SITE_ID = 'e43d720c-8b2f-454f-8b41-55019ffef012';
 const DEFAULT_USER_ID = 'bf118bdb-6c44-469e-bdc9-0c46a4aa6737';
 
 export interface Task {
-    id: number;
+    id: string;
     created_at: string;
     title: string;
     category: "electricidad" | "plomeria" | "construccion" | "pintura";

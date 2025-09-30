@@ -2,12 +2,13 @@ import { NextFunction, Request, Response } from "express";
 import { supabase } from "../config/supabase";
 
 interface Update {
-  id: number;
+  id: string;
   created_at: string;
   user_id: string;
   title: string;
   description?: string;
   image_url?: string;
+  site_id?: string; 
 }
 
 //@desc get all updates
