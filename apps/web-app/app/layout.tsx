@@ -23,7 +23,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
-        {children}
+        {/* main con margen igual al ancho de la sidebar */}
+        <main className="min-h-screen">
+          <Suspense fallback={<div className="p-6">Cargando…</div>}>
+            {children}
+          </Suspense>
+        </main>
         <Analytics />
       </body>
     </html>

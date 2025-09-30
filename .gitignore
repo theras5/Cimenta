@@ -6,3 +6,5 @@ auth_info_baileys/
 
 expo-env.d.ts
 # @end expo-cli
+.idea
+
