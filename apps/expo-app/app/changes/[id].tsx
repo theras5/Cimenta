@@ -152,17 +152,17 @@ export default function ChangeDetail() {
         // endDate: task?.endDate || new Date().toISOString(),
       };
 
-      console.log("Datos del cambio a enviar:", changeData);
+
 
       // Si tenemos acceso a la API y el hook updateTask, úsalo
       if (id && updateTask) {
-        console.log("Intentando actualizar cambio con ID:", id);
+
         // En useTasks.ts el método updateTask ya recibe el ID como argumento cuando se crea el hook
         // Por eso aquí solo pasamos los datos a actualizar
         const result = await updateTask(changeData);
         
         if (result) {
-          console.log("Actualización exitosa:", result);
+
           
           // Actualizar el estado local con los nuevos datos
           setChangeRequest({
@@ -174,18 +174,17 @@ export default function ChangeDetail() {
           });
           
           // Actualizar los datos obteniendo la versión más reciente de la API
-          console.log("Refrescando datos desde la API...");
+
           await fetchTask();
-          console.log("Datos actualizados después de fetchTask:", task);
+
           
           setIsEditing(false);
           Alert.alert("Éxito", "Solicitud de cambio guardada correctamente");
         } else {
-          console.error("updateTask devolvió null o undefined");
           throw new Error("No se pudo actualizar el cambio");
         }
       } else {
-        console.log("Modo demo: sin API o updateTask");
+
         // Para demo si no hay API conectada
         setTimeout(() => {
           setChangeRequest({
@@ -222,7 +221,7 @@ export default function ChangeDetail() {
           onPress: async () => {
             try {
               setIsLoading(true);
-              console.log("Convirtiendo cambio a tarea pendiente...");
+
               
               if (id && updateTask) {
                 // Cambiamos el estado del cambio a 'pending' para convertirlo en una tarea pendiente
@@ -231,7 +230,7 @@ export default function ChangeDetail() {
                 });
                 
                 if (result) {
-                  console.log("Cambio convertido exitosamente a tarea:", result);
+
                   Alert.alert("Éxito", "Solicitud de cambio aprobada y convertida a tarea pendiente");
                   router.back();
                 } else {
@@ -239,7 +238,7 @@ export default function ChangeDetail() {
                 }
               } else {
                 // Modo demo si no hay API
-                console.log("Modo demo: simulando conversión a tarea pendiente");
+
                 setTimeout(() => {
                   Alert.alert("Éxito", "Solicitud de cambio aprobada y convertida a tarea pendiente (modo demo)");
                   router.back();
@@ -259,8 +258,8 @@ export default function ChangeDetail() {
 
   const handleRejectChange = () => {
     Alert.alert(
-      "Rechazar tarea",
-      "¿Estás seguro de que quieres rechazar esta tarea? Esta acción no se puede deshacer.",
+      "Rechazar cambio",
+      "¿Estás seguro de que quieres rechazar esta solicitud de cambio? Se moverá a la sección de cambios rechazados.",
       [
         {
           text: "Cancelar",
@@ -271,16 +270,39 @@ export default function ChangeDetail() {
           style: "destructive",
           onPress: async () => {
             try {
-              const success = await deleteTask();
-              if (success) {
-                Alert.alert("Éxito", "La tarea ha sido rechazada");
-                router.back();
+              setIsLoading(true);
+
+              
+              if (id && updateTask) {
+                // Cambiamos el estado del cambio a 'rejected' en lugar de eliminarlo
+                const result = await updateTask({
+                  status: 'rejected',
+                });
+                
+                if (result) {
+
+                  
+                  // Actualizar los datos para reflejar el cambio
+                  await fetchTask();
+                  
+                  Alert.alert("Éxito", "Solicitud de cambio rechazada y movida a cambios rechazados");
+                  router.back();
+                } else {
+                  throw new Error("No se pudo rechazar el cambio");
+                }
               } else {
-                throw new Error("No se pudo rechazar la tarea");
+                // Modo demo si no hay API
+
+                setTimeout(() => {
+                  Alert.alert("Éxito", "Solicitud de cambio rechazada y movida a cambios rechazados (modo demo)");
+                  router.back();
+                }, 1000);
               }
             } catch (error) {
-              console.error("Error al rechazar la tarea:", error);
-              Alert.alert("Error", "No se pudo rechazar la tarea");
+              console.error("Error al rechazar el cambio:", error);
+              Alert.alert("Error", "No se pudo rechazar la solicitud de cambio");
+            } finally {
+              setIsLoading(false);
             }
           },
         },
@@ -354,14 +376,18 @@ export default function ChangeDetail() {
         {/* Status Badge */}
         <View className="mb-4 flex-row justify-center">
           <View className={`${
-            task?.status === "changes" ? "bg-orange-500" : 
+            task?.status === "changes" ? "bg-purple-500" : 
             task?.status === "pending" ? "bg-yellow-500" : 
+            task?.status === "blocked" ? "bg-orange-500" :
+            task?.status === "rejected" ? "bg-red-500" :
             changeRequest?.status === "approved" ? "bg-green-500" :
             changeRequest?.status === "rejected" ? "bg-red-500" :
             "bg-gray-500"} px-3 py-1 rounded-full`}>
             <Text className="text-white text-sm font-medium">
               {task?.status === "changes" ? "Cambios" : 
                task?.status === "pending" ? "Pendiente" : 
+               task?.status === "blocked" ? "Bloqueado" :
+               task?.status === "rejected" ? "Rechazado" :
                changeRequest?.status === "approved" ? "Aprobado" :
                changeRequest?.status === "rejected" ? "Rechazado" :
                "Estado Desconocido"}

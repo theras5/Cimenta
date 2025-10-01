@@ -30,6 +30,11 @@ const GanttChart = () => {
   // Estado para controlar qué categorías están expandidas
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]) // Array de nombres de categorías
   
+  // Función para navegar a la tarea
+  const navigateToTask = (taskId: string) => {
+    router.push(`/tasks/${taskId}`);
+  };
+  
   // Cargar tareas al montar el componente
   useEffect(() => {
     fetchTasks();
@@ -60,48 +65,92 @@ const GanttChart = () => {
       tasks: processedTasks.filter(task => task.category === categoryName)
     }))
     .filter(category => category.tasks.length > 0); // Solo categorías con tareas
+  
+  console.log('TAREAS PROCESADAS:');
+  processedTasks.forEach(task => {
+    console.log(`${task.name}: ${task.startDate.toLocaleDateString()} - ${task.endDate.toLocaleDateString()}`);
+  });
     
-  // Timeline dinámico basado en las fechas de las tareas
+  // Timeline dinámico basado en las fechas de las tareas, empezando desde hoy
   const today = new Date()
+  today.setHours(0, 0, 0, 0) // Normalizar a medianoche
+  console.log('=== DIAGNÓSTICO GANTT ===');
+  console.log('HOY:', today.toLocaleDateString());
+  console.log('HOY:', today);
   
   // Calcular rango de fechas de las tareas
-  const taskDates = processedTasks.flatMap(task => [task.startDate, task.endDate])
-  const earliestTaskDate = taskDates.length > 0 ? new Date(Math.min(...taskDates.map(d => d.getTime()))) : today
+  const taskDates = processedTasks.flatMap(task => {
+    const start = new Date(task.startDate)
+    const end = new Date(task.endDate)
+    start.setHours(0, 0, 0, 0)
+    end.setHours(0, 0, 0, 0)
+    return [start, end]
+  })
   const latestTaskDate = taskDates.length > 0 ? new Date(Math.max(...taskDates.map(d => d.getTime()))) : today
   
-  // Definir inicio y fin del timeline con margen
-  const timelineStart = new Date(Math.min(today.getTime(), earliestTaskDate.getTime()))
+  // Definir inicio del timeline desde el inicio de la semana actual
+  const timelineStart = new Date(today)
+  timelineStart.setDate(today.getDate() - today.getDay()) // Domingo de esta semana
+  timelineStart.setHours(0, 0, 0, 0)
+  console.log('TIMELINE START:', timelineStart.toLocaleDateString());
+  
+  // Verificar si alguna tarea empieza antes del timeline
+  const earliestTaskDate = taskDates.length > 0 ? new Date(Math.min(...taskDates.map(d => d.getTime()))) : today
+  console.log('TAREA MÁS TEMPRANA:', earliestTaskDate.toLocaleDateString());
+  console.log('TAREA MÁS TARDÍA:', latestTaskDate.toLocaleDateString());
+  
+  // Si hay tareas antes del timeline, ajustar el inicio
+  const adjustedTimelineStart = new Date(Math.min(timelineStart.getTime(), earliestTaskDate.getTime()))
+  adjustedTimelineStart.setHours(0, 0, 0, 0)
+  console.log('TIMELINE START AJUSTADO:', adjustedTimelineStart.toLocaleDateString());
+  
+  // Definir fin del timeline (al menos 60 días desde hoy o 2 semanas después de la última tarea)
   const timelineEnd = new Date(Math.max(
-    today.getTime() + (30 * 24 * 60 * 60 * 1000), // Al menos 30 días desde hoy
+    today.getTime() + (60 * 24 * 60 * 60 * 1000), // Al menos 60 días desde hoy
     latestTaskDate.getTime() + (14 * 24 * 60 * 60 * 1000) // 2 semanas después de la última tarea
   ))
+  timelineEnd.setHours(23, 59, 59, 999) // Final del día
   
-  const weekWidth = 80
-  const dayWidth = weekWidth / 7 // ~11.43px por día para mantener consistencia
+  const dayWidth = 20 // Píxeles por día - más ancho para mejor visibilidad
+  console.log('ANCHO POR DÍA:', dayWidth, 'px');
+  const weekWidth = dayWidth * 7 // 140px por semana
   const oneDayMs = 24 * 60 * 60 * 1000
   
-  // Generar semanas para el header
+  // Generar semanas para el header - CORREGIDO
   const weeks: Date[] = []
-  for (let d = new Date(timelineStart); d <= timelineEnd; d.setDate(d.getDate() + 7)) {
-    weeks.push(new Date(d))
+  const currentWeek = new Date(adjustedTimelineStart)
+  while (currentWeek <= timelineEnd) {
+    weeks.push(new Date(currentWeek))
+    currentWeek.setDate(currentWeek.getDate() + 7)
   }
   
   const getTaskPosition = (task: any) => {
-    const startDays = (task.startDate.getTime() - timelineStart.getTime()) / oneDayMs
-    const endDays = (task.endDate.getTime() - timelineStart.getTime()) / oneDayMs
+    // Usar directamente las fechas sin normalización compleja
+    const startDate = new Date(task.startDate)
+    const endDate = new Date(task.endDate)
     
-    const startX = startDays * dayWidth
-    const endX = endDays * dayWidth
+    // Resetear a medianoche para cálculo consistente
+    startDate.setHours(0, 0, 0, 0)
+    endDate.setHours(0, 0, 0, 0)
     
-    console.log(`Task: ${task.name}`)
-    console.log(`Start Date: ${task.startDate.toISOString()}`)
-    console.log(`End Date: ${task.endDate.toISOString()}`) 
-    console.log(`Start Days: ${startDays}, End Days: ${endDays}`)
-    console.log(`Start X: ${startX}, End X: ${endX}, Width: ${endX - startX}`)
+    // Calcular días desde el inicio del timeline
+    const daysSinceStart = Math.round((startDate.getTime() - adjustedTimelineStart.getTime()) / oneDayMs)
+    const daysSinceEnd = Math.round((endDate.getTime() - adjustedTimelineStart.getTime()) / oneDayMs)
+    
+    // La duración es la diferencia + 1 día (para incluir ambos días)
+    const duration = Math.max(1, daysSinceEnd - daysSinceStart + 1)
+    
+    const left = daysSinceStart * dayWidth
+    const width = duration * dayWidth
+    
+    console.log(`TAREA ${task.name} [${task.category}]:`);
+    console.log(`  Fechas: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`);
+    console.log(`  Días: ${daysSinceStart} - ${daysSinceEnd} (duración: ${duration})`);
+    console.log(`  Posición: ${left}px, ancho: ${width}px`);
     
     return {
-      left: Math.max(0, startX),
-      width: Math.max(dayWidth, endX - startX), // Mínimo ancho de 1 día
+      left: Math.max(0, left),
+      width: Math.max(dayWidth, width)
     }
   }
   
@@ -140,18 +189,41 @@ const GanttChart = () => {
     const categoryTasks = processedTasks.filter(t => t.category === categoryName)
     if (categoryTasks.length === 0) return { left: 0, width: 0 }
     
-    const earliestStart = Math.min(...categoryTasks.map(t => t.startDate.getTime()))
-    const latestEnd = Math.max(...categoryTasks.map(t => t.endDate.getTime()))
+    // Calcular la posición de cada tarea usando la misma lógica que getTaskPosition
+    const taskPositions = categoryTasks.map(task => {
+      const startDate = new Date(task.startDate)
+      const endDate = new Date(task.endDate)
+      
+      // Resetear a medianoche para cálculo consistente
+      startDate.setHours(0, 0, 0, 0)
+      endDate.setHours(0, 0, 0, 0)
+      
+      const daysSinceStart = Math.round((startDate.getTime() - adjustedTimelineStart.getTime()) / oneDayMs)
+      const daysSinceEnd = Math.round((endDate.getTime() - adjustedTimelineStart.getTime()) / oneDayMs)
+      
+      return {
+        startDay: daysSinceStart,
+        endDay: daysSinceEnd,
+        taskName: task.name
+      }
+    })
     
-    const startDays = (earliestStart - timelineStart.getTime()) / oneDayMs
-    const endDays = (latestEnd - timelineStart.getTime()) / oneDayMs
+    // Encontrar el día más temprano y más tardío
+    const earliestDay = Math.min(...taskPositions.map(p => p.startDay))
+    const latestDay = Math.max(...taskPositions.map(p => p.endDay))
     
-    const startX = startDays * dayWidth
-    const endX = endDays * dayWidth
+    const duration = Math.max(1, latestDay - earliestDay + 1)
+    const left = earliestDay * dayWidth
+    const width = duration * dayWidth
     
+    console.log(`CATEGORÍA ${categoryName}:`);
+    console.log(`  Rango: día ${earliestDay} - ${latestDay} (${duration} días)`);
+    console.log(`  Posición: ${left}px, ancho: ${width}px`);
+    
+    console.log(`CATEGORÍA ${categoryName}: ${duration} días totales`);    
     return {
-      left: Math.max(0, startX),
-      width: Math.max(dayWidth, endX - startX),
+      left: Math.max(0, left),
+      width: Math.max(dayWidth, width)
     }
   }
   
@@ -322,7 +394,9 @@ const GanttChart = () => {
                             {weeks.map((_, index) => (
                               <View key={index} style={[styles.gridCell, { width: weekWidth }]} />
                             ))}
-                            <View
+                            <TouchableOpacity 
+                              onPress={() => navigateToTask(task.id)}
+                              activeOpacity={0.7}
                               style={[
                                 styles.taskBar,
                                 {
@@ -340,7 +414,7 @@ const GanttChart = () => {
                                   },
                                 ]}
                               />
-                            </View>
+                            </TouchableOpacity>
                           </View>
                         </View>
                       )

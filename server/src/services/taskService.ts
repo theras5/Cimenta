@@ -11,7 +11,7 @@ export interface Task {
     category: "electricidad" | "plomeria" | "construccion" | "pintura";
     description?: string;
     // is_urgent: boolean;
-    status: "changes" | "pending" | "in_progress" | "completed" | "blocked";
+    status: "changes" | "pending" | "in_progress" | "completed" | "blocked" | "rejected";
     start_date?: string;
     end_date?: string;
     site_id: string;

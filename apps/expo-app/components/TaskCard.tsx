@@ -22,9 +22,11 @@ const getStatusBgColor = (status: Task["status"]) => {
     case "completed":
       return "bg-green-100";
     case "blocked":
-      return "bg-red-100";
+      return "bg-orange-100";
     case "changes":
       return "bg-purple-100";
+    case "rejected":
+      return "bg-red-100";
     default:
       return "bg-gray-100";
   }

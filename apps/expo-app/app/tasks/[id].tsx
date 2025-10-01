@@ -102,14 +102,14 @@ export default function TaskDetail() {
   const [tempStartDate, setTempStartDate] = useState(new Date());
   const [tempEndDate, setTempEndDate] = useState(new Date());
   const [selectedStatus, setSelectedStatus] = useState<
-    "changes" | "pending" | "in_progress" | "completed" | "blocked"
+    "changes" | "pending" | "in_progress" | "completed" | "blocked" | "rejected"
   >("pending");
   
 
   // Load task data
   useEffect(() => {
     if (taskData) {
-      console.log("Datos recibidos:", taskData); // Para depurar
+
       setTask(taskData);
       setTitle(taskData.title);
       setDescription(taskData.description || "");
@@ -274,7 +274,7 @@ export default function TaskDetail() {
         status: selectedStatus,
       };
 
-      console.log("Datos a enviar:", updatedData);
+
 
       // Llama al método updateTask
       const result = await updateTask(updatedData);
@@ -367,8 +367,12 @@ export default function TaskDetail() {
                 : task.status === "in_progress"
                   ? "bg-blue-500"
                   : task.status === "blocked"
-                    ? "bg-red-500"
-                    : "bg-green-500"
+                    ? "bg-orange-500"
+                    : task.status === "rejected"
+                      ? "bg-red-500"
+                      : task.status === "changes"
+                        ? "bg-purple-500"
+                        : "bg-green-500"
             }`}
           >
             <Text className="text-white text-sm font-medium">
@@ -378,7 +382,11 @@ export default function TaskDetail() {
                   ? "En progreso"
                   : task.status === "blocked"
                     ? "Bloqueado"
-                    : "Completado"}
+                    : task.status === "rejected"
+                      ? "Rechazado"
+                      : task.status === "changes"
+                        ? "Cambios"
+                        : "Completado"}
             </Text>
           </View>
         </View>
@@ -436,11 +444,11 @@ export default function TaskDetail() {
               <TouchableOpacity
                 onPress={() => setSelectedStatus("blocked")}
                 className={`px-3 py-2 rounded-full ${
-                  selectedStatus === "blocked" ? "bg-red-500" : "bg-red-100"
+                  selectedStatus === "blocked" ? "bg-orange-500" : "bg-orange-100"
                 }`}
               >
                 <Text
-                  className={`${selectedStatus === "blocked" ? "text-white" : "text-red-800"}`}
+                  className={`${selectedStatus === "blocked" ? "text-white" : "text-orange-800"}`}
                 >
                   Bloqueado
                 </Text>

@@ -10,7 +10,7 @@ export interface Task {
   description: string;
   category: string;
   categoryColor?: string;
-  status: 'changes' | 'pending' | 'in_progress' | 'completed' | 'blocked';
+  status: 'changes' | 'pending' | 'in_progress' | 'completed' | 'blocked' | 'rejected';
   start_date?: ISODateString;
   end_date?: ISODateString;
   assignedMembers?: string[];
@@ -98,7 +98,7 @@ export const TaskService = {
 
   async getTasksBySite(siteId: string): Promise<Task[]> {
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/tasks/site/${siteId}`);
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/tasks/site/${siteId}`);
       
       if (!response.ok) {
         throw new Error(`Error ${response.status}: ${response.statusText}`);
