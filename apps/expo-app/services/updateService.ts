@@ -124,4 +124,18 @@ export const UpdateService = {
           return handleApiError(error);
         }
       },
+
+      async getUpdatesBySite(siteId: string): Promise<Update[]> {
+      try {
+        const response = await fetch(
+          `${process.env.EXPO_PUBLIC_API_URL}/updates?site_id=${siteId}`
+        );
+        if (!response.ok) {
+          throw new Error(`Error ${response.status}: ${response.statusText}`);
+        }
+          return await response.json();
+        } catch (error) {
+          return handleApiError(error);
+        }
+      }
 };

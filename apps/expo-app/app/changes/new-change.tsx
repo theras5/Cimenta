@@ -2,6 +2,7 @@ import { Category } from "@/components/TaskCard";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useState, useEffect } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   Image,
   ScrollView,
@@ -102,6 +103,12 @@ export default function NewRequest() {
       return;
     }
 
+    const site_id = await AsyncStorage.getItem("selectedSiteId");
+    if (!site_id) {
+      alert("Debes seleccionar una obra antes de crear la solicitud");
+      return;
+    }
+
     const nuevaSolicitud = {
       title,
       description,
@@ -109,6 +116,7 @@ export default function NewRequest() {
       status: "changes",
       // is_urgent: false,
       user_id: "ad4d74ba-beac-4741-9ec1-978d564a971c",
+      site_id,
     };
 
     // Muestra en consola lo que se envía

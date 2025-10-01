@@ -126,33 +126,41 @@ export const ChangeService = {
     }
   },
   
-  // Obtener solicitudes por estado
-  async getChangeRequestsByStatus(status: ChangeRequest['status']): Promise<ChangeRequest[]> {
-    try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/changes/status/${status}`);
+  // // Obtener solicitudes por estado
+  // async getChangeRequestsByStatus(status: ChangeRequest['status']): Promise<ChangeRequest[]> {
+  //   try {
+  //     const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/changes/status/${status}`);
       
-      if (!response.ok) {
-        throw new Error(`Error ${response.status}: ${response.statusText}`);
-      }
+  //     if (!response.ok) {
+  //       throw new Error(`Error ${response.status}: ${response.statusText}`);
+  //     }
       
-      return await response.json();
-    } catch (error) {
-      return handleApiError(error);
-    }
-  },
+  //     return await response.json();
+  //   } catch (error) {
+  //     return handleApiError(error);
+  //   }
+  // },
   
-  // Obtener solicitudes por usuario
-  async getChangeRequestsByUser(userId: string): Promise<ChangeRequest[]> {
-    try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/changes/user/${userId}`);
+  // // Obtener solicitudes por usuario
+  // async getChangeRequestsByUser(userId: string): Promise<ChangeRequest[]> {
+  //   try {
+  //     const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/changes/user/${userId}`);
       
-      if (!response.ok) {
-        throw new Error(`Error ${response.status}: ${response.statusText}`);
-      }
+  //     if (!response.ok) {
+  //       throw new Error(`Error ${response.status}: ${response.statusText}`);
+  //     }
       
-      return await response.json();
-    } catch (error) {
-      return handleApiError(error);
-    }
+  //     return await response.json();
+  //   } catch (error) {
+  //     return handleApiError(error);
+  //   }
+  // }
+
+  async getChangeRequestsBySite(siteId: string): Promise<ChangeRequest[]> {
+    const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/change/site/${siteId}`);
+    if (!response.ok) throw new Error("Error al cargar las solicitudes de cambio");
+    return response.json();
   }
+
+
 };

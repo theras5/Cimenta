@@ -2,6 +2,8 @@ import { Category } from "@/components/TaskCard";
 import { useAuth } from "@/context/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
 import React, { useState, useEffect } from "react";
 import {
   Image,
@@ -242,6 +244,11 @@ export default function NewTask() {
       return;
     }
 
+    const site_id = await AsyncStorage.getItem("selectedSiteId");
+    if (!site_id) {
+      alert("Debes seleccionar una obra antes de crear una tarea");
+      return;
+    }
     const nuevaTarea = {
       title,
       description,
@@ -253,6 +260,7 @@ export default function NewTask() {
       // Si tienes campos de fecha en la base, agrégalos aquí
       start_date: formatDate(startDate),
       end_date: formatDate(endDate),
+      site_id,
     };
 
     // Muestra en consola lo que se envía

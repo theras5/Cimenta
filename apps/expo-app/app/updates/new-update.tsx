@@ -15,6 +15,9 @@ import { Ionicons } from "@expo/vector-icons";
 import RequiredTextInput from "@/components/RequiredTextInput";
 import * as ImagePicker from "expo-image-picker";
 import { useUpdates } from "@/hooks/useUpdates";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useAuth } from "@/context/AuthContext";
+
 
 interface MediaFile {
   uri: string;
@@ -23,6 +26,7 @@ interface MediaFile {
 }
 
 const NewUpdate = () => {
+  const { user, token } = useAuth();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
@@ -168,16 +172,29 @@ const NewUpdate = () => {
     //Validar título
     const isTitleValid = title.trim() !== "";
 
+    if (!user) {
+      alert("Debes estar loggeado para crear una tarea");
+      router.push("/sign-in");
+      return;
+    }
+
     // Si hay errores, no continuar
     if (!isTitleValid) {
       Alert.alert("Por favor completa todos los campos obligatorios");
       return;
     }
 
+    const site_id = await AsyncStorage.getItem("selectedSiteId");
+    if (!site_id) {
+      alert("Debes seleccionar una obra antes de crear el avance");
+      return;
+    }
+
     const nuevoAvance = {
       title,
       description,
-      user_id: "ad4d74ba-beac-4741-9ec1-978d564a971c",
+      user_id: user.id,
+      site_id,
     };
 
     // Muestra en consola lo que se envía

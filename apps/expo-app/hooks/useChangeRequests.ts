@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { ChangeService, ChangeRequest, CreateChangeRequestDTO } from "../services/changeService";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+
 
 export function useChangeRequests() {
   const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
@@ -10,7 +13,13 @@ export function useChangeRequests() {
     try {
       setIsLoading(true);
       setError(null);
-      const data = await ChangeService.getChangeRequests();
+      const siteId = await AsyncStorage.getItem("selectedSiteId");
+      if (!siteId) {
+        setChangeRequests([]);
+        setIsLoading(false);
+        return;
+      }
+      const data = await ChangeService.getChangeRequestsBySite(siteId);
       setChangeRequests(data);
     } catch (err: any) {
       setError(err.message || "Error al cargar las solicitudes de cambio");
