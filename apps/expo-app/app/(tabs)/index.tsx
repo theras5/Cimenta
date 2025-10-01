@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Dimensions, Image } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Dimensions, Image, RefreshControl } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { useTasks } from '../../hooks/useTasks';
 
 const { width, height } = Dimensions.get('window');
@@ -21,6 +22,7 @@ const TIME_COLUMN_WIDTH = IS_SMALL_DEVICE ? 50 : 55;
 export default function HomeScreen() {
   const { tasks, isLoading, fetchTasks } = useTasks();
   const [todayEvents, setTodayEvents] = useState<any[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Colores por categoría
   const categoryColors: { [key: string]: string } = {
@@ -70,13 +72,25 @@ export default function HomeScreen() {
           const endHour = endDate.getHours();
           const endMinute = endDate.getMinutes();
           
+          // Si las fechas tienen horarios específicos (no son 00:00), usarlos
+          const hasStartTime = startHour !== 0 || startMinute !== 0;
+          const hasEndTime = endHour !== 0 || endMinute !== 0;
+          
+          const taskStartTime = hasStartTime 
+            ? `${startHour.toString().padStart(2, '0')}:${startMinute.toString().padStart(2, '0')}`
+            : '09:00';
+          
+          const taskEndTime = hasEndTime 
+            ? `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`
+            : '17:00';
+          
           return {
             id: task.id,
             title: task.title,
             category: task.category || 'default',
             color: getCategoryColor(task.category || 'default'),
-            startTime: `${startHour.toString().padStart(2, '0')}:${startMinute.toString().padStart(2, '0')}`,
-            endTime: `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`,
+            startTime: taskStartTime,
+            endTime: taskEndTime,
           };
         })
         .sort((a, b) => a.startTime.localeCompare(b.startTime)); // Ordenar por hora de inicio
@@ -86,6 +100,20 @@ export default function HomeScreen() {
       setTodayEvents([]);
     }
   }, [tasks]);
+
+  // Refrescar datos cuando se enfoca la pantalla
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchTasks();
+    }, [fetchTasks])
+  );
+
+  // Función para refrescar datos
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchTasks();
+    setRefreshing(false);
+  };
 
   // Funciones de navegación
   const navigateToTasks = () => router.push("/(tabs)/tasks");
@@ -102,6 +130,9 @@ export default function HomeScreen() {
         style={styles.scrollView} 
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       >
         {/* Header */}
         <Text style={styles.headerTitle}>Hoy</Text>
@@ -109,19 +140,19 @@ export default function HomeScreen() {
         {/* Today's Schedule - Clickeable para ir al calendario */}
         <TouchableOpacity onPress={navigateToCalendar} activeOpacity={0.7}>
           <View style={styles.scheduleCard}>
-            {/* Grid Lines Background */}
-            <View style={[styles.gridContainer, { left: TIME_COLUMN_WIDTH }]}>
-              {['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00'].map((time, index) => (
-                <View key={time} style={[styles.gridLine, { top: index * TIME_SLOT_HEIGHT + CALENDAR_PADDING + 8 }]} />
-              ))}
-            </View>
-            
             {/* Time Column */}
             <View style={[styles.timeColumn, { top: CALENDAR_PADDING }]}>
               {['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00'].map((time, index) => (
                 <View key={time} style={[styles.timeSlot, { height: TIME_SLOT_HEIGHT }]}>
                   <Text style={styles.timeText}>{time}</Text>
                 </View>
+              ))}
+            </View>
+
+            {/* Grid Lines Background */}
+            <View style={[styles.gridContainer, { left: TIME_COLUMN_WIDTH }]}>
+              {['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00'].map((time, index) => (
+                <View key={time} style={[styles.gridLine, { top: index * TIME_SLOT_HEIGHT }]} />
               ))}
             </View>
 
@@ -132,52 +163,102 @@ export default function HomeScreen() {
             }]}>
               {todayEvents.length > 0 ? (
                 todayEvents.map((event, index) => {
-                  // Cálculo simple y directo de posición
+                  // COPIAR EXACTAMENTE del teamCalendar.tsx
+                  const timeToMinutes = (time: string) => {
+                    const [hours, minutes] = time.split(':').map(Number);
+                    return hours * 60 + minutes;
+                  };
+
                   const getEventPosition = (startTime: string, endTime: string) => {
-                    const [startHour, startMinute] = startTime.split(':').map(Number);
-                    const [endHour, endMinute] = endTime.split(':').map(Number);
+                    const startMinutes = timeToMinutes(startTime);
+                    const endMinutes = timeToMinutes(endTime);
+                    const startHour = 8 * 60; // 8:00 AM en minutos
                     
-                    // Convertir horas a posición en pixels
-                    // Si timeline empieza en 08:00, entonces:
-                    // - 08:00 = posición 0
-                    // - 09:00 = posición 1 * TIME_SLOT_HEIGHT
-                    // - 14:00 = posición 6 * TIME_SLOT_HEIGHT
-                    const hoursFromStart = (startHour - 8) + (startMinute / 60);
-                    const duration = (endHour - startHour) + ((endMinute - startMinute) / 60);
+                    // Alinear exactamente con las líneas de tiempo y el timeColumn
+                    const top = ((startMinutes - startHour) / 60) * TIME_SLOT_HEIGHT;
+                    const height = ((endMinutes - startMinutes) / 60) * TIME_SLOT_HEIGHT;
                     
-                    const top = hoursFromStart * TIME_SLOT_HEIGHT + CALENDAR_PADDING + 8;
-                    const height = duration * TIME_SLOT_HEIGHT;
-                    
-                    return { top, height: Math.max(height, 20) };
+                    return { top, height };
                   };
                   
                   const position = getEventPosition(event.startTime, event.endTime);
                   
-                  // Posicionamiento responsivo para evitar superposiciones
+                  // Algoritmo optimizado para distribución de eventos superpuestos
                   const getEventLayout = (index: number) => {
-                    const totalEvents = todayEvents.length;
                     const availableWidth = SCREEN_WIDTH - TIME_COLUMN_WIDTH - CALENDAR_PADDING * 3;
+                    const currentStart = timeToMinutes(event.startTime);
+                    const currentEnd = timeToMinutes(event.endTime);
                     
-                    if (totalEvents === 1) {
-                      return { left: 0, width: Math.min(150, availableWidth * 0.8) };
-                    } else if (totalEvents === 2) {
-                      const eventWidth = Math.min(110, availableWidth * 0.45);
-                      return { left: index * (eventWidth + 10), width: eventWidth };
-                    } else if (totalEvents === 3) {
-                      const eventWidth = Math.min(95, availableWidth * 0.3);
-                      const positions = [0, eventWidth + 5, (eventWidth + 5) * 2];
-                      return { left: positions[index] || 0, width: eventWidth };
-                    } else {
-                      // Para 4 o más eventos, distribuir en grid responsivo
-                      const row = Math.floor(index / 2);
-                      const col = index % 2;
-                      const eventWidth = Math.min(105, availableWidth * 0.45);
+                    // Agrupar eventos que se superponen entre sí
+                    const findOverlappingGroup = () => {
+                      const group: number[] = [index];
+                      const checked = new Set<number>([index]);
+                      const toCheck = [index];
+                      
+                      while (toCheck.length > 0) {
+                        const current = toCheck.pop()!;
+                        const currentEvent = todayEvents[current];
+                        const currStart = timeToMinutes(currentEvent.startTime);
+                        const currEnd = timeToMinutes(currentEvent.endTime);
+                        
+                        todayEvents.forEach((otherEvent, otherIndex) => {
+                          if (checked.has(otherIndex)) return;
+                          
+                          const otherStart = timeToMinutes(otherEvent.startTime);
+                          const otherEnd = timeToMinutes(otherEvent.endTime);
+                          
+                          // Verificar si hay superposición
+                          if (currStart < otherEnd && currEnd > otherStart) {
+                            group.push(otherIndex);
+                            checked.add(otherIndex);
+                            toCheck.push(otherIndex);
+                          }
+                        });
+                      }
+                      
+                      return group.sort((a, b) => a - b);
+                    };
+                    
+                    const overlappingGroup = findOverlappingGroup();
+                    
+                    if (overlappingGroup.length === 1) {
+                      // Sin superposiciones - ocupar exactamente el mismo ancho que dos columnas juntas
+                      const totalColumns = 2;
+                      const columnWidth = (availableWidth - (totalColumns - 1) * 10) / totalColumns;
+                      const eventWidth = Math.min(columnWidth, 140);
+                      const totalWidth = (eventWidth * 2) + 10; // Dos columnas + gap
                       return { 
-                        left: col * (eventWidth + 5), 
-                        width: eventWidth,
-                        extraTop: row * (TIME_SLOT_HEIGHT * 0.8)
+                        left: 0, 
+                        width: totalWidth,
+                        zIndex: 1
                       };
                     }
+                    
+                    // Calcular cuántas columnas necesitamos (máximo 2)
+                    const totalColumns = Math.min(2, overlappingGroup.length);
+                    const columnWidth = (availableWidth - (totalColumns - 1) * 10) / totalColumns;
+                    const eventWidth = Math.min(columnWidth, 140);
+                    
+                    // Asignar columna basado en la posición en el grupo
+                    const positionInGroup = overlappingGroup.indexOf(index);
+                    const column = positionInGroup % totalColumns;
+                    
+                    // Si hay más de 2 eventos, alternar columnas de manera inteligente
+                    let adjustedColumn = column;
+                    if (overlappingGroup.length > 2) {
+                      // Para el tercer evento en adelante, buscar la columna con menos eventos
+                      if (positionInGroup >= 2) {
+                        const eventsInCol0 = overlappingGroup.filter((i, pos) => pos % 2 === 0 && pos < positionInGroup).length;
+                        const eventsInCol1 = overlappingGroup.filter((i, pos) => pos % 2 === 1 && pos < positionInGroup).length;
+                        adjustedColumn = eventsInCol0 <= eventsInCol1 ? 0 : 1;
+                      }
+                    }
+                    
+                    return {
+                      left: adjustedColumn * (eventWidth + 10),
+                      width: eventWidth,
+                      zIndex: index + 1
+                    };
                   };
                   
                   const layout = getEventLayout(index);
@@ -191,9 +272,10 @@ export default function HomeScreen() {
                           backgroundColor: event.color + '30',
                           borderLeftColor: event.color,
                           left: layout.left,
-                          top: position.top + (layout.extraTop || 0),
+                          top: position.top,
                           width: layout.width,
-                          height: Math.min(position.height, 80), // Limitar altura máxima
+                          height: position.height,
+                          zIndex: layout.zIndex,
                         }
                       ]}
                     >
@@ -302,7 +384,7 @@ const styles = StyleSheet.create({
   gridContainer: {
     position: 'absolute',
     right: CALENDAR_PADDING,
-    top: 8,
+    top: CALENDAR_PADDING,
     bottom: 0,
   },
   gridLine: {
@@ -318,15 +400,17 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   timeSlot: {
-    justifyContent: 'center',
-    marginBottom: 0,
+    height: TIME_SLOT_HEIGHT,
     paddingRight: 8,
+    position: 'relative',
   },
   timeText: {
     fontSize: 11,
     color: '#64748B',
     fontWeight: '600',
     letterSpacing: -0.2,
+    position: 'absolute',
+    top: -7,
   },
   eventsContainer: {
     flex: 1,

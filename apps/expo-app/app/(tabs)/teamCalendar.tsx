@@ -6,29 +6,39 @@ import {
   ScrollView,
   TouchableOpacity,
   Dimensions,
+  RefreshControl,
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
-import { router } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useTasks } from '../../hooks/useTasks';
 import { Task } from '../../services/taskService';
 
 const { width } = Dimensions.get('window');
 
+// Interfaz para eventos del calendario
+interface CalendarEvent {
+  id: string;
+  taskId: string;
+  title: string;
+  category: string;
+  categoryColor: string;
+  startTime: string;
+  endTime: string;
+  date: number;
+  status: string;
+}
+
+// Interfaz para eventos posicionados
+interface PositionedEvent extends CalendarEvent {
+  column: number;
+  totalColumns: number;
+}
+
 const CalendarSchedule = () => {
+  const router = useRouter();
   const { tasks, isLoading, fetchTasks } = useTasks();
-  
-  // Obtener la fecha actual dinámicamente
-  const today = React.useMemo(() => new Date(), []);
-  const todayDate = today.getDate();
-  const todayMonth = today.getMonth();
-  const todayYear = today.getFullYear();
-  
-  // Inicializar con la fecha actual
-  const [selectedDate, setSelectedDate] = useState(() => {
-    return todayDate;
-  });
-  const [currentYear, setCurrentYear] = useState(todayYear);
-  const [currentMonthIndex, setCurrentMonthIndex] = useState(todayMonth);
+  const [selectedDate, setSelectedDate] = useState(30);
+  const [currentYear, setCurrentYear] = useState(2025);
+  const [currentMonthIndex, setCurrentMonthIndex] = useState(8);
   const [showMonthPicker, setShowMonthPicker] = useState(false);
   
   const months = [
@@ -38,83 +48,45 @@ const CalendarSchedule = () => {
   
   const currentMonth = `${months[currentMonthIndex]}, ${currentYear}`;
   
-  // Colores por categoría/área de trabajo
   const categoryColors: { [key: string]: string } = {
-  'pintura': '#FF2D92',
-  'plomeria': '#FF9500', 
-  'electricidad': '#007AFF',
-  'construccion': '#8A2BE2',
-  // Color por defecto
-  'default': '#999999'
+    'pintura': '#FF2D92',
+    'plomeria': '#FF9500', 
+    'electricidad': '#007AFF',
+    'construccion': '#8A2BE2',
+    'default': '#999999'
   };
 
-  // Obtener color para una categoría
   const getCategoryColor = (category: string): string => {
     const normalizedCategory = category.toLowerCase().trim();
     return categoryColors[normalizedCategory] || categoryColors['default'];
   };
 
-  // Actualizar tareas cuando cambie el mes/año o al montar el componente
+  const handleTaskPress = (taskId: string) => {
+    router.push(`/tasks/${taskId}`);
+  };
+
   useEffect(() => {
     fetchTasks();
   }, [currentYear, currentMonthIndex, fetchTasks]);
 
-  // Inicialización inicial (solo una vez al montar el componente)
-  useEffect(() => {
-    // Componente montado correctamente
-  }, []);
-
-  // Regresar al día de hoy SOLO cuando se navega desde otra pantalla
-  useFocusEffect(
-    React.useCallback(() => {
-      // Recalcular la fecha actual cuando se enfoca la pantalla
-      const currentToday = new Date();
-      const currentTodayDate = currentToday.getDate();
-      const currentTodayMonth = currentToday.getMonth();
-      const currentTodayYear = currentToday.getFullYear();
-      
-      // Solo actualizar al día actual
-      setCurrentYear(currentTodayYear);
-      setCurrentMonthIndex(currentTodayMonth);
-      setSelectedDate(currentTodayDate);
-    }, []) // Array vacío para que no dependa de los estados internos
-  );
-
-  // Interfaz para eventos del calendario
-  interface CalendarEvent {
-    id: string;
-    taskId: string;
-    title: string;
-    category: string;
-    categoryColor: string;
-    startTime: string;
-    endTime: string;
-    date: number;
-    status: string;
-  }
-
-  // Convertir tareas en eventos del calendario
   const convertTasksToEvents = (): CalendarEvent[] => {
     if (!tasks || tasks.length === 0) return [];
     
     return tasks
-      .filter(task => task.start_date && task.end_date) // Solo tareas con fechas
+      .filter(task => task.start_date && task.end_date)
       .map(task => {
         const startDate = new Date(task.start_date!);
         const endDate = new Date(task.end_date!);
         
-        // Filtrar solo tareas del mes actual
         if (startDate.getFullYear() !== currentYear || startDate.getMonth() !== currentMonthIndex) {
           return [];
         }
         
-        // Extraer horarios de las fechas o usar valores por defecto
         const startHour = startDate.getHours();
         const startMinute = startDate.getMinutes();
         const endHour = endDate.getHours();
         const endMinute = endDate.getMinutes();
         
-        // Si las fechas tienen horarios específicos (no son 00:00), usarlos
         const hasStartTime = startHour !== 0 || startMinute !== 0;
         const hasEndTime = endHour !== 0 || endMinute !== 0;
         
@@ -138,20 +110,18 @@ const CalendarSchedule = () => {
           status: task.status
         }];
       })
-      .flat() // Aplanar el array de arrays
+      .flat()
       .filter(event => event !== null && event !== undefined);
   };
 
   const events = convertTasksToEvents();
 
-  // Generar todos los días del mes actual
   const generateCalendarDays = () => {
     const daysInMonth = new Date(currentYear, currentMonthIndex + 1, 0).getDate();
     const firstDayOfWeek = new Date(currentYear, currentMonthIndex, 1).getDay();
     const dayNames = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
     
-    // Verificar si estamos en el mes/año actual usando la fecha dinámica
-    const isCurrentYearMonth = currentYear === todayYear && currentMonthIndex === todayMonth;
+    const isCurrentMonth = currentYear === 2025 && currentMonthIndex === 8;
     
     const calendarDays = [];
     for (let day = 1; day <= daysInMonth; day++) {
@@ -159,13 +129,12 @@ const CalendarSchedule = () => {
       calendarDays.push({
         date: day,
         dayName: dayNames[dayOfWeek],
-        isToday: isCurrentYearMonth && day === todayDate // Marcar el día actual dinámicamente
+        isToday: isCurrentMonth && day === 30
       });
     }
     return calendarDays;
   };
   
-  // Función para cambiar mes
   const changeMonth = (direction: 'prev' | 'next') => {
     if (direction === 'next') {
       if (currentMonthIndex === 11) {
@@ -182,31 +151,27 @@ const CalendarSchedule = () => {
         setCurrentMonthIndex(currentMonthIndex - 1);
       }
     }
-    // Resetear fecha seleccionada al 1 del nuevo mes
     setSelectedDate(1);
   };
   
   const calendarDays = generateCalendarDays();
-  const hours = Array.from({ length: 13 }, (_, i) => `${String(8 + i).padStart(2, '0')}:00`); // Cambiado para empezar a las 8:00
+  const hours = Array.from({ length: 13 }, (_, i) => `${String(8 + i).padStart(2, '0')}:00`);
 
-  // Filtrar eventos del día seleccionado
   const todayEvents = events.filter(event => event.date === selectedDate);
   
-  // Obtener categorías activas del día
   const activeCategories = Array.from(new Set(todayEvents.map(event => event.category)))
     .map(category => ({
       name: category,
       color: getCategoryColor(category)
     }));
   
-  const isSimplifiedView = todayEvents.length <= 2; // Vista simplificada para ≤2 eventos, vista compleja para >2 eventos
+  const isSimplifiedView = activeCategories.length <= 2;
 
   const timeToMinutes = (time: string) => {
     const [hours, minutes] = time.split(':').map(Number);
     return hours * 60 + minutes;
   };
 
-  // Ordenar eventos por hora de inicio
   const sortedTodayEvents = [...todayEvents].sort((a, b) => 
     timeToMinutes(a.startTime) - timeToMinutes(b.startTime)
   );
@@ -214,65 +179,126 @@ const CalendarSchedule = () => {
   const getEventPosition = (startTime: string, endTime: string) => {
     const startMinutes = timeToMinutes(startTime);
     const endMinutes = timeToMinutes(endTime);
-    const startHour = 8 * 60; // 8:00 AM en minutos (cambiado de 9)
+    const startHour = 8 * 60;
     
-    const top = ((startMinutes - startHour) / 60) * 55; // 55px por hora para mejor espaciado
+    const top = ((startMinutes - startHour) / 60) * 55;
     const height = ((endMinutes - startMinutes) / 60) * 55;
     
     return { top, height };
   };
 
-  // Función para navegar a la tarea
-  const navigateToTask = (taskId: string) => {
-    router.push(`/tasks/${taskId}`);
-  };
+  // Algoritmo mejorado para detectar y posicionar eventos superpuestos
+  const calculateEventPositions = (events: CalendarEvent[]): PositionedEvent[] => {
+    if (events.length === 0) return [];
 
-
-
-  const renderSimplifiedEvent = (event: CalendarEvent, eventIndex: number) => {
-    const { top, height } = getEventPosition(event.startTime, event.endTime);
-    
-    // Detectar si hay otros eventos que se superponen con este
-    const currentEventStart = timeToMinutes(event.startTime);
-    const currentEventEnd = timeToMinutes(event.endTime);
-    
-    const overlappingEvents = sortedTodayEvents.filter(otherEvent => {
-      if (otherEvent.id === event.id) return false;
-      const otherStart = timeToMinutes(otherEvent.startTime);
-      const otherEnd = timeToMinutes(otherEvent.endTime);
-      return currentEventStart < otherEnd && currentEventEnd > otherStart;
+    // Paso 1: Ordenar eventos por inicio
+    const sortedEvents = [...events].sort((a, b) => {
+      const startA = timeToMinutes(a.startTime);
+      const startB = timeToMinutes(b.startTime);
+      if (startA !== startB) return startA - startB;
+      // Si empiezan igual, ordenar por fin (más largos primero)
+      const endA = timeToMinutes(a.endTime);
+      const endB = timeToMinutes(b.endTime);
+      return endB - endA;
     });
+
+    // Algoritmo simple: asignar cada evento a una columna
+    const columns: number[] = []; // Hora de fin de cada columna
+    const result: PositionedEvent[] = [];
     
-    // Calcular ancho dinámico basado en el número de eventos superpuestos
-    const totalOverlappingEvents = overlappingEvents.length + 1; // +1 para incluir el evento actual
-    const availableWidth = width - 100; // Espacio disponible (75px inicio + 25px final)
-    const spacing = Math.max(3, Math.min(8, availableWidth / (totalOverlappingEvents * 15))); // Espaciado dinámico entre 3-8px
-    const eventWidth = Math.max((availableWidth - (totalOverlappingEvents - 1) * spacing) / totalOverlappingEvents, 60); // Mínimo 60px
-    
-    let leftPosition;
-    
-    if (overlappingEvents.length === 0) {
-      // Si no hay superposición, ocupa todo el ancho disponible
-      leftPosition = 75;
-    } else {
-      // Si hay superposición, distribuir proporcionalmente
-      // Encontrar la posición de este evento entre los superpuestos
-      const allOverlappingEvents = [event, ...overlappingEvents].sort((a, b) => {
-        const timeDiff = timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
-        if (timeDiff !== 0) return timeDiff;
-        return a.id.localeCompare(b.id);
+    for (const event of sortedEvents) {
+      const eventStart = timeToMinutes(event.startTime);
+      const eventEnd = timeToMinutes(event.endTime);
+      
+      // Encontrar la primera columna donde el evento no se superponga
+      let columnIndex = 0;
+      while (columnIndex < columns.length && columns[columnIndex] > eventStart) {
+        columnIndex++;
+      }
+      
+      // Si necesitamos una nueva columna
+      if (columnIndex === columns.length) {
+        columns.push(eventEnd);
+      } else {
+        columns[columnIndex] = eventEnd;
+      }
+      
+      console.log(`Evento ${event.title} (${event.startTime}-${event.endTime}) -> Columna ${columnIndex + 1}/${columns.length}`);
+      
+      result.push({
+        ...event,
+        column: columnIndex,
+        totalColumns: columns.length
       });
-      const eventPosition = allOverlappingEvents.findIndex(e => e.id === event.id);
-      leftPosition = 75 + eventPosition * (eventWidth + spacing);
     }
     
+    // Actualizar totalColumns para todos los eventos con el número final de columnas
+    const finalColumns = columns.length;
+    return result.map(event => ({
+      ...event,
+      totalColumns: finalColumns
+    }));
+  };
+
+  const positionedEvents = calculateEventPositions(sortedTodayEvents);
+
+  // Debug temporal para ver qué está pasando
+  if (sortedTodayEvents.length > 0) {
+    console.log('=== DEBUG EVENTOS ===');
+    console.log('Eventos originales:', sortedTodayEvents.map(e => ({
+      title: e.title,
+      start: e.startTime,
+      end: e.endTime
+    })));
+    console.log('Eventos posicionados:', positionedEvents.map(e => ({
+      title: e.title,
+      start: e.startTime,
+      end: e.endTime,
+      column: e.column,
+      totalColumns: e.totalColumns
+    })));
+  }
+
+  const renderLegend = () => {
+    if (isSimplifiedView || activeCategories.length === 0) return null;
+    
     return (
-      <TouchableOpacity 
-        key={event.id}
-        onPress={() => navigateToTask(event.taskId)}
-        activeOpacity={0.7}
-      >
-        {/* Fondo del evento */}
+      <View style={styles.legend}>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.legendScrollContent}
+        >
+          <View style={styles.legendContainer}>
+            {activeCategories.map((category) => (
+              <View key={category.name} style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: category.color }]} />
+                <Text style={styles.legendText}>{category.name.charAt(0).toUpperCase() + category.name.slice(1)}</Text>
+              </View>
+            ))}
+          </View>
+        </ScrollView>
+      </View>
+    );
+  };
+
+  const renderSimplifiedEvent = (event: PositionedEvent) => {
+    const { top, height } = getEventPosition(event.startTime, event.endTime);
+    
+    const availableWidth = width - 95;
+    const columnSpacing = 15; // Espacio visible entre columnas
+    const totalSpacing = (event.totalColumns - 1) * columnSpacing;
+    const eventWidth = (availableWidth - totalSpacing) / event.totalColumns;
+    const leftPosition = 75 + (event.column * (eventWidth + columnSpacing));
+    
+    // Asegurar ancho mínimo
+    const adjustedEventWidth = Math.max(eventWidth, 70);
+    
+    // Debug para ver posiciones
+    console.log(`📅 Renderizando ${event.title}: columna ${event.column + 1}/${event.totalColumns}, left: ${leftPosition.toFixed(1)}, width: ${adjustedEventWidth.toFixed(1)}`);
+    
+    return (
+      <TouchableOpacity key={event.id} onPress={() => handleTaskPress(event.taskId)} activeOpacity={0.7}>
         <View
           style={[
             styles.simplifiedEventBackground,
@@ -280,13 +306,17 @@ const CalendarSchedule = () => {
               top: top + 20,
               height: Math.max(height, 80),
               left: leftPosition,
-              width: eventWidth,
-              backgroundColor: event.categoryColor + '20',
+              width: adjustedEventWidth,
+              backgroundColor: event.categoryColor + '15',
+              shadowColor: event.categoryColor,
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 4,
+              elevation: 2,
             }
           ]}
         />
         
-        {/* Barra lateral de color */}
         <View
           style={[
             styles.simplifiedEventBar,
@@ -299,121 +329,49 @@ const CalendarSchedule = () => {
           ]}
         />
         
-        {/* Texto del evento */}
         <View
           style={[
             styles.simplifiedEventText,
             {
               top: top + 35,
               left: leftPosition + 15,
+              maxWidth: adjustedEventWidth - 20,
             }
           ]}
         >
-          <Text style={styles.eventPersonName} numberOfLines={1} ellipsizeMode="tail">{event.title}</Text>
-          <Text style={styles.eventCategory} numberOfLines={1} ellipsizeMode="tail">{event.category.charAt(0).toUpperCase() + event.category.slice(1)}</Text>
-          <Text style={styles.eventTime} numberOfLines={1} ellipsizeMode="tail">{event.startTime} - {event.endTime}</Text>
+          <Text style={styles.eventPersonName} numberOfLines={event.totalColumns > 2 ? 1 : 2}>
+            {event.title}
+          </Text>
+          <Text style={styles.eventCategory}>
+            {event.category.charAt(0).toUpperCase() + event.category.slice(1)}
+          </Text>
+          <Text style={styles.eventTime}>{event.startTime} - {event.endTime}</Text>
         </View>
       </TouchableOpacity>
     );
   };
 
-  const renderComplexEvent = (event: CalendarEvent, eventIndex: number) => {
+  const renderComplexEvent = (event: PositionedEvent) => {
     const { top, height } = getEventPosition(event.startTime, event.endTime);
 
-    // Distribuir eventos horizontalmente por índice (no por categoría)
-    const totalWidth = width - 100; // Espacio disponible
-    const totalEvents = sortedTodayEvents.length;
-    const eventWidth = Math.max(totalWidth / totalEvents - 8, 35); // Aumentar mínimo para texto
-    const spacing = (totalWidth - (eventWidth * totalEvents)) / (totalEvents + 1); // Espaciado uniforme
-    const leftPosition = 75 + spacing + eventIndex * (eventWidth + spacing);
+    // En vista compleja, usar tanto la categoría como la columna para posicionamiento
+    const categoryIndex = activeCategories.findIndex(cat => cat.name === event.category);
+    const totalWidth = width - 80;
+    const categoryWidth = totalWidth / activeCategories.length;
     
-    // Función para obtener texto optimizado que quepa en la barra
-    const getOptimizedContent = () => {
-      const actualHeight = Math.max(height, 30);
-      const availableWidth = eventWidth - 12; // Espacio disponible para texto
-      const timeText = `${event.startTime}-${event.endTime}`;
-      
-      // Calcular cuántas líneas podemos mostrar basado en la altura
-      const availableLines = Math.floor((actualHeight - 10) / 11); // 11px por línea (9px font + 2px spacing)
-      
-      if (availableLines >= 3 && actualHeight >= 80) {
-        // Espacio para título completo + horario + categoría
-        const maxTitleChars = Math.floor(availableWidth / 5.5); // Aproximadamente 5.5px por carácter
-        const truncatedTitle = event.title.length > maxTitleChars ? 
-          event.title.substring(0, maxTitleChars - 2) + '..' : event.title;
-        return {
-          title: truncatedTitle,
-          time: timeText,
-          category: event.category.charAt(0).toUpperCase() + event.category.slice(1),
-          lines: 3
-        };
-      } else if (availableLines >= 2 && actualHeight >= 50) {
-        // Espacio para título + horario
-        const maxTitleChars = Math.floor(availableWidth / 5.5);
-        const truncatedTitle = event.title.length > maxTitleChars ? 
-          event.title.substring(0, maxTitleChars - 2) + '..' : event.title;
-        return {
-          title: truncatedTitle,
-          time: timeText,
-          category: null,
-          lines: 2
-        };
-      } else if (availableLines >= 1) {
-        // Solo una línea - priorizar nombre sobre horario si es posible
-        const maxChars = Math.floor(availableWidth / 5.5);
-        if (event.title.length + timeText.length + 1 <= maxChars) {
-          // Si cabe todo en una línea
-          return {
-            title: `${event.title} ${timeText}`,
-            time: null,
-            category: null,
-            lines: 1
-          };
-        } else if (event.title.length <= maxChars - 3) {
-          // Si el título cabe con espacio para horario corto
-          const shortTime = `${event.startTime.substring(0, 2)}h`;
-          return {
-            title: `${event.title} ${shortTime}`,
-            time: null,
-            category: null,
-            lines: 1
-          };
-        } else {
-          // Solo título truncado
-          const truncatedTitle = event.title.length > maxChars ? 
-            event.title.substring(0, maxChars - 2) + '..' : event.title;
-          return {
-            title: truncatedTitle,
-            time: null,
-            category: null,
-            lines: 1
-          };
-        }
-      } else {
-        // Espacio muy limitado - solo iniciales
-        const initials = event.title.split(' ')
-          .map(word => word.charAt(0))
-          .join('')
-          .substring(0, 3)
-          .toUpperCase();
-        return {
-          title: initials,
-          time: null,
-          category: null,
-          lines: 1
-        };
-      }
-    };
+    // Dentro de cada categoría, dividir por número de columnas si hay superposición
+    const columnSpacing = 3;
+    const eventWidth = event.totalColumns > 1 
+      ? Math.max((categoryWidth - (event.totalColumns - 1) * columnSpacing) / event.totalColumns, 25)
+      : Math.max(categoryWidth - 10, 30);
     
-    const content = getOptimizedContent();
+    const categoryStartPosition = 75 + (categoryIndex * categoryWidth);
+    const leftPosition = event.totalColumns > 1
+      ? categoryStartPosition + (event.column * (eventWidth + columnSpacing))
+      : categoryStartPosition;
     
     return (
-      <TouchableOpacity 
-        key={event.id}
-        onPress={() => navigateToTask(event.taskId)}
-        activeOpacity={0.7}
-      >
-        {/* Fondo del evento */}
+      <TouchableOpacity key={event.id} onPress={() => handleTaskPress(event.taskId)} activeOpacity={0.7}>
         <View
           style={[
             styles.complexEventBackground,
@@ -427,7 +385,6 @@ const CalendarSchedule = () => {
           ]}
         />
         
-        {/* Barra de color */}
         <View
           style={[
             styles.complexEventBar,
@@ -435,60 +392,34 @@ const CalendarSchedule = () => {
               top: top + 20,
               height: Math.max(height, 30),
               left: leftPosition,
-              width: 4, // Barra más fina como en la imagen
               backgroundColor: event.categoryColor,
             }
           ]}
         />
         
-        {/* Texto de la tarea */}
-        <View
-          style={[
-            styles.complexEventText,
-            {
-              top: top + 25,
-              left: leftPosition + 8, // Después de la barra de color
-              width: eventWidth - 12,
-              height: Math.max(height - 10, 20),
-            }
-          ]}
-        >
-          {/* Título de la tarea */}
-          <Text 
-            style={styles.complexEventLabel}
-            numberOfLines={1}
-            ellipsizeMode="tail"
+        {/* Mostrar título solo si hay espacio suficiente */}
+        {eventWidth > 40 && height > 20 && (
+          <View
+            style={[
+              styles.complexEventText,
+              {
+                top: top + 25,
+                left: leftPosition + 8,
+                maxWidth: eventWidth - 12,
+              }
+            ]}
           >
-            {content.title}
-          </Text>
-          
-          {/* Horario (si hay espacio) */}
-          {content.time && (
-            <Text 
-              style={styles.complexEventTime}
-              numberOfLines={1}
-            >
-              {content.time}
+            <Text style={styles.complexEventTitle} numberOfLines={1}>
+              {event.title}
             </Text>
-          )}
-          
-          {/* Categoría (si hay espacio) */}
-          {content.category && (
-            <Text 
-              style={styles.complexEventCategory}
-              numberOfLines={1}
-            >
-              {content.category}
-            </Text>
-          )}
-        </View>
+          </View>
+        )}
       </TouchableOpacity>
     );
   };
 
   return (
     <View style={styles.container}>
-      {/* Header - navegación de mes */}
       <View style={styles.header}>
         <TouchableOpacity 
           style={styles.navButton}
@@ -513,7 +444,6 @@ const CalendarSchedule = () => {
         </TouchableOpacity>
       </View>
       
-      {/* Month Picker Modal */}
       {showMonthPicker && (
         <View style={styles.monthPickerContainer}>
           <TouchableOpacity 
@@ -548,9 +478,8 @@ const CalendarSchedule = () => {
         </View>
       )}
 
+      {renderLegend()}
 
-
-      {/* Calendar Days */}
       <View style={styles.calendarContainer}>
         <ScrollView 
           horizontal 
@@ -582,10 +511,8 @@ const CalendarSchedule = () => {
         </ScrollView>
       </View>
 
-      {/* Schedule */}
       <ScrollView style={styles.scheduleContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.schedule}>
-          {/* Time Labels */}
           <View style={styles.timeColumn}>
             {hours.map(hour => (
               <View key={hour} style={styles.timeSlot}>
@@ -594,31 +521,28 @@ const CalendarSchedule = () => {
             ))}
           </View>
 
-          {/* Grid Lines */}
           <View style={styles.gridContainer}>
             {hours.map((hour, index) => (
               <View key={hour} style={[styles.gridLine, { top: index * 55 + 20 }]} />
             ))}
           </View>
 
-          {/* Events */}
           <View style={styles.eventsContainer}>
             {isLoading ? (
               <View style={styles.loadingContainer}>
                 <Text style={styles.loadingText}>Cargando tareas...</Text>
               </View>
             ) : (
-              sortedTodayEvents.map((event, index) => 
+              positionedEvents.map((event) => 
                 isSimplifiedView 
-                  ? renderSimplifiedEvent(event, index)
-                  : renderComplexEvent(event, index)
+                  ? renderSimplifiedEvent(event)
+                  : renderComplexEvent(event)
               )
             )}
           </View>
         </View>
       </ScrollView>
 
-      {/* Bottom Navigation */}
       <View style={styles.bottomNav}>
         <TouchableOpacity style={styles.navItem}>
           <View style={styles.navIcon}>
@@ -669,7 +593,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: 70, // Bajado más para igualar la pantalla de tareas
+    paddingTop: 70,
     paddingBottom: 20,
   },
   backButton: {
@@ -826,40 +750,38 @@ const styles = StyleSheet.create({
   },
   eventsContainer: {
     position: 'relative',
-    minHeight: 715, // 13 hours * 55px (ahora empieza a las 8:00)
+    minHeight: 715,
   },
-  // Estilos para vista simplificada
   simplifiedEventBackground: {
     position: 'absolute',
-    borderRadius: 8,
+    borderRadius: 12,
   },
   simplifiedEventBar: {
     position: 'absolute',
-    width: 4,
-    borderRadius: 2,
+    width: 5,
+    borderRadius: 3,
   },
   simplifiedEventText: {
     position: 'absolute',
     paddingLeft: 8,
   },
   eventPersonName: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 1,
+    marginBottom: 2,
   },
   eventTime: {
-    fontSize: 10,
+    fontSize: 12,
     color: '#666',
     fontWeight: '500',
   },
   eventCategory: {
-    fontSize: 10,
+    fontSize: 12,
     color: '#888',
     fontWeight: '500',
-    marginBottom: 1,
+    marginBottom: 2,
   },
-  // Estilos para vista compleja
   complexEventBackground: {
     position: 'absolute',
     borderRadius: 6,
@@ -871,30 +793,11 @@ const styles = StyleSheet.create({
   },
   complexEventText: {
     position: 'absolute',
-    justifyContent: 'flex-start',
-    alignItems: 'flex-start',
-    paddingTop: 2,
   },
-  complexEventLabel: {
-    fontSize: 9,
+  complexEventTitle: {
+    fontSize: 10,
     fontWeight: '600',
     color: '#333',
-    textAlign: 'left',
-    lineHeight: 11,
-  },
-  complexEventTime: {
-    fontSize: 8,
-    fontWeight: '500',
-    color: '#666',
-    textAlign: 'left',
-    lineHeight: 10,
-  },
-  complexEventCategory: {
-    fontSize: 7,
-    fontWeight: '400',
-    color: '#888',
-    textAlign: 'left',
-    lineHeight: 9,
   },
   bottomNav: {
     flexDirection: 'row',
@@ -909,9 +812,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 5,
   },
-  activeNavItem: {
-    // Styles for active nav item
-  },
+  activeNavItem: {},
   navIcon: {
     marginBottom: 4,
   },
@@ -927,7 +828,6 @@ const styles = StyleSheet.create({
     color: '#007AFF',
     fontWeight: '600',
   },
-  // Estilos para navegación de meses
   navButton: {
     width: 40,
     height: 40,
@@ -942,7 +842,6 @@ const styles = StyleSheet.create({
     color: '#333',
     fontWeight: '600',
   },
-  // Estilos para el selector de mes
   monthPickerContainer: {
     position: 'absolute',
     top: 0,
@@ -997,7 +896,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '600',
   },
-  // Estilos para estados de carga y vacío
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
