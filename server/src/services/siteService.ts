@@ -76,3 +76,10 @@ export const deleteSiteByIdService = async (id: string) => {
     
     if (error) throw error;
 };
+
+export const createBelongsToService = async ({ user_id, site_id, role }: { user_id: string, site_id: string, role: string }) => {
+    const { error } = await supabase
+        .from("belongs_to")
+        .insert([{ user_id, site_id, role }]);
+    if (error) throw error;
+};

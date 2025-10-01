@@ -55,8 +55,8 @@ export async function createTaskService(newTask: Omit<Task, 'id' | 'created_at'>
             status: newTask.status,
             start_date: newTask.start_date,
             end_date: newTask.end_date,                
-            site_id: newTask.site_id || DEFAULT_SITE_ID,
-            user_id: newTask.user_id || DEFAULT_USER_ID
+            site_id: newTask.site_id,
+            user_id: newTask.user_id
         }])
         .select(`
             *,

@@ -63,10 +63,11 @@ const SignIn = () => {
 
       const data = await response.json();
 
-      
+    
       if (data.user && data.token) {
         await login(data.user, data.token);
-        router.replace("/(tabs)");
+        // router.replace("/(tabs)");
+        router.replace("/select-site");
       } else {
         throw new Error("Datos de usuario incompletos");
       }

@@ -95,7 +95,7 @@ export const TaskService = {
 
   async getTasksBySite(siteId: string): Promise<Task[]> {
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/tasks/site/${siteId}`);
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/tasks/site/${siteId}`);
       
       if (!response.ok) {
         throw new Error(`Error ${response.status}: ${response.statusText}`);

@@ -19,8 +19,15 @@ export const getUpdates = async (
   next: NextFunction
 ) => {
   try {
-    // Consultar la tabla correcta: "updates"
-    const { data, error } = await supabase.from("updates").select("*").order('created_at', { ascending: false });
+    const { site_id } = req.query;
+
+    let query = supabase.from("updates").select("*").order('created_at', { ascending: false });
+
+    if (site_id) {
+      query = query.eq("site_id", site_id);
+    }    
+
+    const { data, error } = await query;
 
     if (error) {
       return next(error);

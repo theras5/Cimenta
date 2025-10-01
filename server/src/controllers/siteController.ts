@@ -4,7 +4,8 @@ import {
     getSiteByIdService, 
     createSiteService, 
     updateSiteByIdService, 
-    deleteSiteByIdService 
+    deleteSiteByIdService,
+    createBelongsToService 
 } from "../services/siteService";
 
 export const getAllSites = async (req: Request, res: Response, next: NextFunction) => {
@@ -31,15 +32,24 @@ export const getSiteById = async (req: Request, res: Response, next: NextFunctio
 
 export const createSite = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const siteToCreate = req.body;
-        
-        if (!siteToCreate.address) {
-            return res.status(400).json({ 
-                error: "address is required" 
-            });
+        const { address, role, user_id } = req.body;
+
+        if (!address) {
+            return res.status(400).json({ error: "address is required" });
         }
+        if (!role) {
+            return res.status(400).json({ error: "role is required" });
+        }
+        if (!user_id) {
+            return res.status(400).json({ error: "user_id is required" });
+        }
+
         
-        const data = await createSiteService(siteToCreate);
+        const data = await createSiteService({ address });
+
+        // 2. Crear belongs_to
+        await createBelongsToService({ user_id, site_id: data.id, role });
+
         res.status(201).json(data);
     } catch (error) {
         next(error);

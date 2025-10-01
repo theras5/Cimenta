@@ -1,23 +1,46 @@
 import { useState, useEffect, useCallback } from "react";
 import { TaskService, Task, CreateTaskDTO } from "../services/taskService";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
 
 export function useTasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchTasks = useCallback(async () => {
+  // const fetchTasks = useCallback(async () => {
+  //   setIsLoading(true);
+  //   setError(null);
+  //   try {
+  //     const data = await TaskService.getTasks();
+  //     setTasks(data);
+  //   } catch (err: any) {
+  //     setError(err.message || "Error al cargar las tareas");
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // }, []);
+
+    const fetchTasks = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
     try {
-      setIsLoading(true);
-      setError(null);
-      const data = await TaskService.getTasks();
+      const siteId = await AsyncStorage.getItem("selectedSiteId");
+      if (!siteId) {
+        setTasks([]);
+        setIsLoading(false);
+        return;
+      }
+      const data = await TaskService.getTasksBySite(siteId);
       setTasks(data);
     } catch (err: any) {
-      setError(err.message || "Error al cargar las tareas");
+      setError("No se pudieron cargar las tareas");
+      setTasks([]);
     } finally {
       setIsLoading(false);
     }
   }, []);
+
 
   // Cargar tareas al iniciar
   useEffect(() => {
