@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Dimensions,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useTasks } from '../../hooks/useTasks';
 import { Task } from '../../services/taskService';
 
@@ -14,9 +15,19 @@ const { width } = Dimensions.get('window');
 
 const CalendarSchedule = () => {
   const { tasks, isLoading, fetchTasks } = useTasks();
-  const [selectedDate, setSelectedDate] = useState(30);
-  const [currentYear, setCurrentYear] = useState(2025);
-  const [currentMonthIndex, setCurrentMonthIndex] = useState(8); // Septiembre = 8 (0-indexed)
+  
+  // Obtener la fecha actual dinámicamente
+  const today = React.useMemo(() => new Date(), []);
+  const todayDate = today.getDate();
+  const todayMonth = today.getMonth();
+  const todayYear = today.getFullYear();
+  
+  // Inicializar con la fecha actual
+  const [selectedDate, setSelectedDate] = useState(() => {
+    return todayDate;
+  });
+  const [currentYear, setCurrentYear] = useState(todayYear);
+  const [currentMonthIndex, setCurrentMonthIndex] = useState(todayMonth);
   const [showMonthPicker, setShowMonthPicker] = useState(false);
   
   const months = [
@@ -46,6 +57,27 @@ const CalendarSchedule = () => {
   useEffect(() => {
     fetchTasks();
   }, [currentYear, currentMonthIndex, fetchTasks]);
+
+  // Inicialización inicial (solo una vez al montar el componente)
+  useEffect(() => {
+    // Componente montado correctamente
+  }, []);
+
+  // Regresar al día de hoy SOLO cuando se navega desde otra pantalla
+  useFocusEffect(
+    React.useCallback(() => {
+      // Recalcular la fecha actual cuando se enfoca la pantalla
+      const currentToday = new Date();
+      const currentTodayDate = currentToday.getDate();
+      const currentTodayMonth = currentToday.getMonth();
+      const currentTodayYear = currentToday.getFullYear();
+      
+      // Solo actualizar al día actual
+      setCurrentYear(currentTodayYear);
+      setCurrentMonthIndex(currentTodayMonth);
+      setSelectedDate(currentTodayDate);
+    }, []) // Array vacío para que no dependa de los estados internos
+  );
 
   // Interfaz para eventos del calendario
   interface CalendarEvent {
@@ -117,10 +149,8 @@ const CalendarSchedule = () => {
     const firstDayOfWeek = new Date(currentYear, currentMonthIndex, 1).getDay();
     const dayNames = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
     
-    // Verificar si estamos en el mes actual (Sep 2025)
-    const isCurrentMonth = currentYear === 2025 && currentMonthIndex === 8;
-    const today = new Date();
-    const isCurrentYearMonth = currentYear === today.getFullYear() && currentMonthIndex === today.getMonth();
+    // Verificar si estamos en el mes/año actual usando la fecha dinámica
+    const isCurrentYearMonth = currentYear === todayYear && currentMonthIndex === todayMonth;
     
     const calendarDays = [];
     for (let day = 1; day <= daysInMonth; day++) {
@@ -128,7 +158,7 @@ const CalendarSchedule = () => {
       calendarDays.push({
         date: day,
         dayName: dayNames[dayOfWeek],
-        isToday: isCurrentMonth && day === 30 // Solo marcar como hoy si es Sep 2025
+        isToday: isCurrentYearMonth && day === todayDate // Marcar el día actual dinámicamente
       });
     }
     return calendarDays;
