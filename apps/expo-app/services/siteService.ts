@@ -108,5 +108,19 @@ export const SiteService = {
     } catch (error) {
       return handleApiError(error);
     }
+  },
+
+
+async getSitesForUser(userId: string): Promise<Site[]> {
+  try {
+    const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/sites/user/${userId}`);
+    if (!response.ok) {
+      throw new Error(`Error ${response.status}: ${response.statusText}`);
+    }
+    return await response.json();
+  } catch (error) {
+    return handleApiError(error);
   }
+}
+
 };
