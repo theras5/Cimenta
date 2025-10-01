@@ -5,17 +5,15 @@ import {
     createSiteService, 
     updateSiteByIdService, 
     deleteSiteByIdService,
-    createBelongsToService 
+    createBelongsToService,
+    getSitesByUserService 
 } from "../services/siteService";
 
 export const getAllSites = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        // console.log('Controller getAllSites llamado...');
         const data = await getAllSitesService();
-        // console.log('Data a devolver:', data);
         res.status(200).json(data);
     } catch (err) {
-        // console.error('Error en controller getAllSites:', err);
         next(err);
     }
 };
@@ -74,5 +72,17 @@ export const deleteSiteById = async (req: Request, res: Response, next: NextFunc
         res.status(204).send();
     } catch (error) {
         next(error);
+    }
+};
+
+
+export const getSitesByUser = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const userId = req.params.userId;        
+        const sites = await getSitesByUserService(userId);
+        
+        res.status(200).json(sites);
+    } catch (err) {
+        next(err);
     }
 };

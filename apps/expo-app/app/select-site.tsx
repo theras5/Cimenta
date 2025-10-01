@@ -5,6 +5,10 @@ import { View, Text, TouchableOpacity, ActivityIndicator, ScrollView, Alert, Mod
 import { router } from "expo-router";
 import { Picker } from "@react-native-picker/picker"; // Instala si no lo tienes
 import { useAuth } from "../context/AuthContext";
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback } from 'react';
+
+
 
 const { width } = Dimensions.get("window");
 const BUTTON_WIDTH = Math.min(width * 0.85, 320);
@@ -18,13 +22,42 @@ export default function SelectSiteScreen() {
   const [newRole, setNewRole] = useState("client"); // Estado para el rol
   const { user } = useAuth(); // user.id es el uuid del usuario
 
-    
-  useEffect(() => {
-    SiteService.getSites()
-      .then(setSites)
-      .catch(() => Alert.alert("Error", "No se pudieron cargar las obras"))
-      .finally(() => setLoading(false));
-  }, []);
+
+useFocusEffect(
+  useCallback(() => {
+    const loadSites = async () => {
+      
+      // Esperar un poco por el user si no está disponible
+      let currentUser = user;
+      if (!currentUser?.id) {
+        // Esperar hasta 2 segundos por el user
+        for (let i = 0; i < 20; i++) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+          if (user?.id) {
+            currentUser = user;
+            break;
+          }
+        }
+      }
+
+      if (currentUser?.id) {
+        setLoading(true);
+        try {
+          const data = await SiteService.getSitesForUser(currentUser.id);
+          setSites(data);
+        } catch (error) {
+          Alert.alert("Error", "No se pudieron cargar las obras");
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        setLoading(false);
+      }
+    };
+
+    loadSites();
+  }, [user])
+);
 
     const handleSelect = async (site: any) => {
     await AsyncStorage.setItem("selectedSiteId", site.id); // Guarda el id del site

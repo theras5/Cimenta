@@ -83,3 +83,35 @@ export const createBelongsToService = async ({ user_id, site_id, role }: { user_
         .insert([{ user_id, site_id, role }]);
     if (error) throw error;
 };
+
+
+
+export const getSitesByUserService = async (userId: string) => {
+    
+    // 1. Verificar qué hay en belongs_to para este usuario
+    const { data: belongsData, error } = await supabase
+        .from('belongs_to')
+        .select('site_id')        
+        .eq('user_id', userId);
+
+ 
+    if (error) throw error;
+    if (!belongsData || belongsData.length === 0) {
+        return [];
+    }
+    
+    // 2. Extraer los site_ids
+    const siteIds = belongsData.map(row => row.site_id);
+    
+    // 3. Obtener los sites completos
+    const { data: sites, error: sitesError } = await supabase
+        .from('site')
+        .select('*')
+        .in('id', siteIds)
+        .order('created_at', { ascending: false });
+    
+    
+    if (sitesError) throw sitesError;
+    
+    return sites || [];
+};
