@@ -512,9 +512,9 @@ const styles = StyleSheet.create({
       width: 0,
       height: 1,
     },
-    shadowOpacity: 0.08,
-    shadowRadius: 1,
-    elevation: 2,
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
     overflow: 'hidden',
   },
   eventBar: {
