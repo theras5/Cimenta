@@ -77,6 +77,7 @@ export default async function connectToWhatsApp() {
         if (qr) {
             console.log('Escanea este código QR con tu WhatsApp:');
             qrcode.generate(qr, { small: true });
+            console.log(qr);
         }
         if (connection === 'close') {
             const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
