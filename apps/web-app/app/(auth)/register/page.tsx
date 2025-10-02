@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -62,10 +63,10 @@ export default function RegisterPage() {
       
       // Redirect after 2 seconds
       setTimeout(() => {
-        router.push("/login")
+        router.push("/auth/login")
       }, 2000)
-    } catch (error: unknown) {
-      setError(error.message || "Error al crear la cuenta")
+    } catch (error) {
+      setError("Error al crear la cuenta")
     } finally {
       setLoading(false)
     }
@@ -73,8 +74,8 @@ export default function RegisterPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md shadow-xl border-0">
+      <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: '#cde8fe' }}>
+        <Card className="w-full max-w-md shadow-xl border-0 bg-white/90 backdrop-blur-sm">
           <CardContent className="flex flex-col items-center justify-center py-12">
             <CheckCircle className="w-16 h-16 text-green-500 mb-4" />
             <h2 className="text-2xl font-bold text-green-600 mb-2">¡Cuenta creada!</h2>
@@ -91,22 +92,35 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-blue-600 mb-2">Cimenta</h1>
-          <p className="text-gray-600">Crea tu cuenta y comienza a gestionar</p>
-        </div>
+    <div className="min-h-screen flex">
+      {/* Left Side - Image */}
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
+        <Image 
+          src="/loginWolf.png" 
+          alt="Cimenta Mascot" 
+          fill
+          className="object-cover"
+          priority
+        />
+      </div>
 
-        {/* Register Form */}
-        <Card className="shadow-xl border-0">
-          <CardHeader className="space-y-1 pb-6">
-            <CardTitle className="text-2xl font-bold text-center">Crear Cuenta</CardTitle>
-            <CardDescription className="text-center">
-              Completa los datos para registrarte
-            </CardDescription>
-          </CardHeader>
+      {/* Right Side - Form */}
+      <div className="w-full lg:w-1/2 flex items-center p-4 lg:p-12" style={{ backgroundColor: '#cee8ff' }}>
+        <div className="w-full max-w-md" style={{ marginLeft: '20px' }}>
+          {/* Mobile Logo - Only visible on small screens */}
+          <div className="text-center mb-8 lg:hidden">
+            <h1 className="text-4xl font-bold text-blue-600 mb-2">Cimenta</h1>
+            <p className="text-gray-600">Crea tu cuenta y comienza a gestionar</p>
+          </div>
+
+          {/* Register Form */}
+          <Card className="shadow-xl border-0 bg-white/80 backdrop-blur-sm">
+            <CardHeader className="space-y-1 pb-6">
+              <CardTitle className="text-2xl font-bold text-center">Crear Cuenta</CardTitle>
+              <CardDescription className="text-center">
+                Completa los datos para registrarte
+              </CardDescription>
+            </CardHeader>
           
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -243,6 +257,7 @@ export default function RegisterPage() {
             </form>
           </CardContent>
         </Card>
+        </div>
       </div>
     </div>
   )
