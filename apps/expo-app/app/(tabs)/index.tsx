@@ -157,7 +157,7 @@ export default function HomeScreen() {
         })
         .sort((a, b) => a.startTime.localeCompare(b.startTime)); // Ordenar por hora de inicio
 
-      setTodayEvents(events.slice(0, 4)); // Mostrar máximo 4 eventos
+      setTodayEvents(events); // Mostrar todos los eventos (sin límite de 4)
     } else {
       setTodayEvents([]);
     }
@@ -293,21 +293,19 @@ export default function HomeScreen() {
                     const eventMaxWidth = containerWidth - 45; // Usar casi todo el ancho menos un pequeño margen para los bordes redondeados
                     
                     if (numOverlapping === 1) {
-                      // Evento único - usar todo el ancho disponible hasta las líneas
+                      // Evento único - usar todo el ancho disponible
                       eventWidth = eventMaxWidth;
+                      leftOffset = 0;
                     } else {
-                      // Eventos superpuestos - ajustar proporcionalmente al tamaño de pantalla
-                      const baseWidth = eventMaxWidth * 0.85; // Base ligeramente reducida para superpuestos
-                      const offsetScale = Math.max(0.5, Math.min(1, width / 375)); // Escala entre 0.5 y 1
-                      
-                      eventWidth = baseWidth;
-                      leftOffset = eventIndex * (12 * offsetScale); // Offset escalado
-                      eventWidth = Math.max(eventWidth - leftOffset, eventMaxWidth * 0.60); // Mínimo 60%
+                      // Eventos superpuestos - crear columnas separadas
+                      const columnWidth = eventMaxWidth / numOverlapping;
+                      eventWidth = columnWidth - 4; // Pequeño gap entre columnas
+                      leftOffset = eventIndex * columnWidth;
                     }
                     
                     return {
-                      left: Math.max(0, Math.min(leftOffset, availableWidth * 0.3)), // Asegurar que no salga del contenedor
-                      width: Math.max(eventWidth, eventMaxWidth * 0.45), // Usar ancho fijo basado en containerWidth
+                      left: leftOffset,
+                      width: eventWidth,
                       zIndex: index + 1
                     };
                   };
@@ -357,7 +355,7 @@ export default function HomeScreen() {
                           ]}
                         >
                           <Text style={styles.eventTitle} numberOfLines={1}>{event.title}</Text>
-                          {layout.width >= 60 && position.height >= TIME_SLOT_HEIGHT && (
+                          {layout.width >= 50 && position.height >= TIME_SLOT_HEIGHT * 1.5 && (
                             <Text style={styles.eventTime}>{event.startTime} - {event.endTime}</Text>
                           )}
                         </View>
@@ -527,25 +525,28 @@ const styles = StyleSheet.create({
   eventContent: {
     position: 'absolute',
     justifyContent: 'flex-start',
-    paddingHorizontal: Math.max(6, SCALED_VALUES.eventPadding),
-    paddingVertical: Math.max(4, SCALED_VALUES.eventPadding * 0.6),
-    paddingTop: Math.max(6, SCALED_VALUES.eventPadding * 0.8),
+    paddingHorizontal: Math.max(4, SCALED_VALUES.eventPadding * 0.8),
+    paddingVertical: Math.max(3, SCALED_VALUES.eventPadding * 0.5),
+    paddingTop: Math.max(4, SCALED_VALUES.eventPadding * 0.6),
+    overflow: 'hidden',
   },
   eventTitle: {
-    fontSize: SCALED_VALUES.eventTitleFontSize,
+    fontSize: Math.max(10, SCALED_VALUES.eventTitleFontSize),
     fontWeight: '700',
     color: '#1E293B',
-    lineHeight: SCALED_VALUES.eventTitleFontSize * 1.2,
-    marginBottom: Math.max(1, SCALED_VALUES.eventTitleFontSize * 0.2),
+    lineHeight: Math.max(12, SCALED_VALUES.eventTitleFontSize * 1.1),
+    marginBottom: Math.max(0, SCALED_VALUES.eventTitleFontSize * 0.1),
     letterSpacing: -0.2,
+    flexShrink: 1,
   },
   eventTime: {
-    fontSize: SCALED_VALUES.eventTimeFontSize,
+    fontSize: Math.max(9, SCALED_VALUES.eventTimeFontSize),
     color: '#64748B',
     fontWeight: '600',
     letterSpacing: -0.1,
-    lineHeight: SCALED_VALUES.eventTimeFontSize * 1.3,
-    marginTop: SCALED_VALUES.eventTimeFontSize > 10 ? 1 : 0,
+    lineHeight: Math.max(11, SCALED_VALUES.eventTimeFontSize * 1.2),
+    marginTop: Math.max(1, SCALED_VALUES.eventTimeFontSize * 0.1),
+    flexShrink: 1,
   },
   sectionTitle: {
     fontSize: 24,
