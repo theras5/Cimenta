@@ -1,0 +1,18 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "moduleResolution": "node",
+    "outDir": "dist",
+    "rootDir": "./src",
+    "allowSyntheticDefaultImports": true,
+  },
+  "include": ["src/**/*"],
+  "references": [
+    {
+      "path": "../packages/dtos",
+    },
+        {
+      "path": "../packages/utils",
+    }
+  ]
+}

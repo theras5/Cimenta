@@ -10,6 +10,9 @@
     "paths": {
       "@cimenta/dtos": [
         "packages/dtos/src"
+      ],
+      "@cimenta/utils": [
+        "packages/utils/src"
       ]
     }
   },

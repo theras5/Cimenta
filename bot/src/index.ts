@@ -7,6 +7,7 @@ import makeWASocket, {
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
 import { Task } from '@cimenta/dtos';
+import { api } from './config';
 
 
 export function parseTaskMessage(text: string, userUID: string): Omit<Task, 'id' | 'created_at'> {
@@ -18,11 +19,11 @@ export function parseTaskMessage(text: string, userUID: string): Omit<Task, 'id'
     // --- 1. Extraer Título (Obligatorio) ---
     const titleLine = lines.shift();
     if (!titleLine || !titleLine.toLowerCase().startsWith('crear tarea:')) {
-        throw new AppError("Formato incorrecto. La primera línea debe ser 'crear tarea: [nombre]'.", 400);
+        throw new Error("Formato incorrecto. La primera línea debe ser 'crear tarea: [nombre]'.");
     }
     taskData.title = titleLine.substring('crear tarea:'.length).trim();
     if (!taskData.title) {
-        throw new AppError("El nombre de la tarea no puede estar vacío.", 400);
+        throw new Error("El nombre de la tarea no puede estar vacío.");
     }
 
     // --- 2. Extraer otros campos del resto de las líneas ---
@@ -30,9 +31,6 @@ export function parseTaskMessage(text: string, userUID: string): Omit<Task, 'id'
         const formattedLine = line.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         if (formattedLine.startsWith('descripcion:')) {
             taskData.description = line.substring('descripcion:'.length).trim();
-        } else if (formattedLine.startsWith('urgente:')) {
-            const urgentValue = formattedLine.substring('urgente:'.length).trim().toLowerCase();
-            taskData.is_urgent = (urgentValue === 'si' || urgentValue === 'sí');
         } else if (formattedLine.startsWith('estado:')) {
             const statusValue = formattedLine.substring('estado:'.length).trim().toLowerCase();
             // chequear que statusValue sea uno de los permitidos
@@ -48,8 +46,8 @@ export function parseTaskMessage(text: string, userUID: string): Omit<Task, 'id'
 
     });
 
-    if (!taskData.category || !taskData.title || taskData.is_urgent === undefined) {
-        throw new AppError("Campos obligatorios faltantes. Asegúrate de incluir 'categoria', 'titulo' y 'urgente'.", 400);
+    if (!taskData.category || !taskData.title) {
+        throw new Error("Campos obligatorios faltantes. Asegúrate de incluir 'categoria', 'titulo' y 'urgente'.");
     }
 
     // --- 4. Ensamblar el objeto final con valores por defecto ---
@@ -59,7 +57,6 @@ export function parseTaskMessage(text: string, userUID: string): Omit<Task, 'id'
         // user_id: userUID,
         category: taskData.category,
         user_id: "64d7e369-7b00-4bcd-952a-8c4d0978e949",
-        is_urgent: taskData.is_urgent || false, // Default a no urgente
         status: taskData.status || 'pending'
     };
 
@@ -118,9 +115,9 @@ export default async function connectToWhatsApp() {
         } else if (lowerMessage.includes('cambiar estado:')) {
             const parts = messageText.split(':');
             if (parts.length === 3) {
-                const taskId = parseInt(parts[1].trim());
+                const taskId = parts[1].trim();
                 const newState = parts[2].trim().toLowerCase();
-                if (isNaN(taskId) || !["changes", "pending", "in_progress", "completed", "blocked"].includes(newState)) {
+                if (!["changes", "pending", "in_progress", "completed", "blocked"].includes(newState)) {
                     await sock.sendMessage(senderNumber, { text: 'Formato incorrecto. Usa: cambiar estado: [ID] : [nuevo_estado].' });
                 } else {
                     handleTaskStateUpdate(taskId, newState, senderNumber, sock);
@@ -136,11 +133,10 @@ async function handleTaskCreation(messageText: string, senderNumber: string, soc
         const parsedData = parseTaskMessage(messageText, senderNumber);
 
         // Llamada al service
-        // const createdTask = await createTaskService(parsedData);
+        const createdTask = await api.TaskService.createTask(parsedData);
 
         await sock.sendMessage(senderNumber, {
-            // text: `✅ Tarea creada con éxito:\nTítulo: ${createdTask.title}\n`
-            text: `✅ Tarea creada con éxito:\nTítulo: \n`
+            text: `✅ Tarea creada con éxito:\nTítulo: ${createdTask.title}\n`
         });
 
     } catch (error: any) {
@@ -150,11 +146,10 @@ async function handleTaskCreation(messageText: string, senderNumber: string, soc
     }
 }
 
-async function handleTaskStateUpdate(taskId: number, newState: string, senderNumber: string, sock: WASocket) {
+async function handleTaskStateUpdate(taskId: string, newState: string, senderNumber: string, sock: WASocket) {
     try {
-        // const originalTask = await getTaskByIdService(taskId);
-        // originalTask.status = newState as Task['status'];
-        // await updateTaskByIdService(taskId, originalTask);
+        const status = newState as Task['status'];
+        await api.TaskService.updateTaskStatus(taskId, status);
         await sock.sendMessage(senderNumber, {
             text: `✅ El estado de la tarea ${taskId} ha sido actualizado a "${newState}".`
         });
