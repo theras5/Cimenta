@@ -8,8 +8,8 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@shared/*": [
-        "packages/shared/*"
+      "@cimenta/dtos": [
+        "packages/dtos/src"
       ]
     }
   },
