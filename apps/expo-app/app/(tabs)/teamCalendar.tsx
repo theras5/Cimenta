@@ -142,7 +142,8 @@ const CalendarSchedule = () => {
     const firstDayOfWeek = new Date(currentYear, currentMonthIndex, 1).getDay();
     const dayNames = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
     
-    const isCurrentMonth = currentYear === 2025 && currentMonthIndex === 8;
+    // Verificar si estamos viendo el mes y año actual
+    const isCurrentMonth = currentYear === todayYear && currentMonthIndex === todayMonth;
     
     const calendarDays = [];
     for (let day = 1; day <= daysInMonth; day++) {
@@ -150,7 +151,7 @@ const CalendarSchedule = () => {
       calendarDays.push({
         date: day,
         dayName: dayNames[dayOfWeek],
-        isToday: isCurrentMonth && day === 30
+        isToday: isCurrentMonth && day === todayDate
       });
     }
     return calendarDays;
@@ -465,15 +466,19 @@ const CalendarSchedule = () => {
             <TouchableOpacity
               style={[
                 styles.dateButton,
-                dayInfo.date === selectedDate && styles.selectedDate,
-                dayInfo.isToday && styles.todayDate
+                // Solo aplicar estilo de selección normal si NO es el día actual
+                dayInfo.date === selectedDate && !dayInfo.isToday && styles.selectedDate,
+                // Aplicar estilo del día actual cuando es hoy (seleccionado o no, pero solo círculo si está seleccionado)
+                dayInfo.isToday && dayInfo.date === selectedDate && styles.todayDate
               ]}
               onPress={() => setSelectedDate(dayInfo.date)}
               activeOpacity={1}
             >
               <Text style={[
                 styles.dateText,
-                dayInfo.date === selectedDate && styles.selectedDateText,
+                // Estilo de texto seleccionado solo para días que no son el actual
+                dayInfo.date === selectedDate && !dayInfo.isToday && styles.selectedDateText,
+                // Texto naranja para el día actual siempre
                 dayInfo.isToday && styles.todayDateText
               ]}>
                 {dayInfo.date}

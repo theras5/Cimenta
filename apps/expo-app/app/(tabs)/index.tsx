@@ -235,10 +235,16 @@ export default function HomeScreen() {
                     const startMinutes = timeToMinutes(startTime);
                     const endMinutes = timeToMinutes(endTime);
                     const calendarStartMinutes = 8 * 60; // 8:00 AM en minutos
+                    const calendarEndMinutes = 20 * 60; // 8:00 PM en minutos - límite del calendario
+                    
+                    // No mostrar eventos que empiecen después de las 20:00
+                    if (startMinutes >= calendarEndMinutes) {
+                      return { top: -1000, height: 0 }; // Posición fuera de vista
+                    }
                     
                     // Calcular la posición relativa desde las 8:00 AM (igual que calendario real)
                     const relativeStartMinutes = startMinutes - calendarStartMinutes;
-                    const durationMinutes = endMinutes - startMinutes;
+                    const durationMinutes = Math.min(endMinutes, calendarEndMinutes) - startMinutes;
                     
                     // Usar la misma proporción que el calendario real pero escalada
                     const pixelsPerMinute = TIME_SLOT_HEIGHT / 60; // Escalado según nuestro TIME_SLOT_HEIGHT
@@ -252,6 +258,11 @@ export default function HomeScreen() {
                   };
                   
                   const position = getEventPosition(event.startTime, event.endTime);
+                  
+                  // No renderizar eventos fuera del horario del calendario
+                  if (position.top < 0) {
+                    return null;
+                  }
                   
                   // Lógica que usa todo el ancho disponible del contenedor con responsive design
                   const getEventLayout = (index: number) => {
@@ -447,6 +458,8 @@ const styles = StyleSheet.create({
     position: 'relative',
     borderWidth: 1,
     borderColor: '#E5E7EB',
+    // Debug: Agregar borde temporal para identificar el contenedor
+    // borderColor: '#00FF00', // Verde para debug
   },
   gridContainer: {
     position: 'absolute',
@@ -488,6 +501,9 @@ const styles = StyleSheet.create({
     paddingLeft: SCALED_VALUES.eventsContainerPadding,
     overflow: 'hidden',
     zIndex: 3,
+    // Debug: Agregar borde temporal para identificar el contenedor de eventos
+    // borderWidth: 2,
+    // borderColor: '#FF0000', // Rojo para debug
   },
   // Estilos para eventos - igual que el calendario real pero escalado
   eventBackground: {
