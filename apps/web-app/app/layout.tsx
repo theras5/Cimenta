@@ -9,7 +9,7 @@ import "./globals.css";
 import Sidebar from "@/components/SideBar";
 
 export const metadata: Metadata = {
-  title: "Cimenta - Gestión de Proyectos",
+  title: "Cimenta",
   description:
     "Plataforma de gestión de proyectos que impulsa la productividad",
   generator: "v0.app",
