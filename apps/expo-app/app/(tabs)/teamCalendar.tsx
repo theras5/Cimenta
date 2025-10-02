@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Dimensions,
   RefreshControl,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { useTasks } from '../../hooks/useTasks';
 import { Task } from '../../services/taskService';
@@ -27,19 +28,28 @@ interface CalendarEvent {
   status: string;
 }
 
-// Interfaz para eventos posicionados
-interface PositionedEvent extends CalendarEvent {
-  column: number;
-  totalColumns: number;
-}
+// Interface ya no es necesaria con el nuevo algoritmo
 
 const CalendarSchedule = () => {
   const router = useRouter();
   const { tasks, isLoading, fetchTasks } = useTasks();
-  const [selectedDate, setSelectedDate] = useState(30);
-  const [currentYear, setCurrentYear] = useState(2025);
-  const [currentMonthIndex, setCurrentMonthIndex] = useState(8);
+  
+  // Obtener la fecha actual dinámicamente
+  const today = React.useMemo(() => new Date(), []);
+  const todayDate = today.getDate();
+  const todayMonth = today.getMonth();
+  const todayYear = today.getFullYear();
+  
+  // Inicializar con la fecha actual
+  const [selectedDate, setSelectedDate] = useState(() => {
+    return todayDate;
+  });
+  const [currentYear, setCurrentYear] = useState(todayYear);
+  const [currentMonthIndex, setCurrentMonthIndex] = useState(todayMonth);
   const [showMonthPicker, setShowMonthPicker] = useState(false);
+  
+  // Ref para rastrear si venimos de una navegación a tarea
+  const navigationFromTask = useRef(false);
   
   const months = [
     'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -62,12 +72,30 @@ const CalendarSchedule = () => {
   };
 
   const handleTaskPress = (taskId: string) => {
+    // Marcar que estamos navegando a una tarea para no resetear cuando regresemos
+    navigationFromTask.current = true;
     router.push(`/tasks/${taskId}`);
   };
 
   useEffect(() => {
     fetchTasks();
   }, [currentYear, currentMonthIndex, fetchTasks]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      // Solo resetear si NO venimos de ver una tarea
+      if (!navigationFromTask.current) {
+        setSelectedDate(todayDate);
+        setCurrentMonthIndex(todayMonth);
+        setCurrentYear(todayYear);
+      }
+      // Resetear el flag después de procesar
+      navigationFromTask.current = false;
+      
+      // Fetch tasks cuando la pantalla recibe foco
+      fetchTasks();
+    }, [todayDate, todayMonth, todayYear, fetchTasks])
+  );
 
   const convertTasksToEvents = (): CalendarEvent[] => {
     if (!tasks || tasks.length === 0) return [];
@@ -87,16 +115,9 @@ const CalendarSchedule = () => {
         const endHour = endDate.getHours();
         const endMinute = endDate.getMinutes();
         
-        const hasStartTime = startHour !== 0 || startMinute !== 0;
-        const hasEndTime = endHour !== 0 || endMinute !== 0;
-        
-        const taskStartTime = hasStartTime 
-          ? `${startHour.toString().padStart(2, '0')}:${startMinute.toString().padStart(2, '0')}`
-          : '09:00';
-        
-        const taskEndTime = hasEndTime 
-          ? `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`
-          : '17:00';
+        // Usar SIEMPRE los horarios reales de las tareas
+        const taskStartTime = `${startHour.toString().padStart(2, '0')}:${startMinute.toString().padStart(2, '0')}`;
+        const taskEndTime = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
         
         return [{
           id: `${task.id}_${startDate.getDate()}`,
@@ -155,7 +176,7 @@ const CalendarSchedule = () => {
   };
   
   const calendarDays = generateCalendarDays();
-  const hours = Array.from({ length: 13 }, (_, i) => `${String(8 + i).padStart(2, '0')}:00`);
+    const hours = Array.from({ length: 14 }, (_, i) => `${String(8 + i).padStart(2, '0')}:00`); // De 8:00 a 21:00
 
   const todayEvents = events.filter(event => event.date === selectedDate);
   
@@ -165,7 +186,7 @@ const CalendarSchedule = () => {
       color: getCategoryColor(category)
     }));
   
-  const isSimplifiedView = activeCategories.length <= 2;
+  const isSimplifiedView = true; // Siempre usar vista simplificada
 
   const timeToMinutes = (time: string) => {
     const [hours, minutes] = time.split(':').map(Number);
@@ -179,205 +200,80 @@ const CalendarSchedule = () => {
   const getEventPosition = (startTime: string, endTime: string) => {
     const startMinutes = timeToMinutes(startTime);
     const endMinutes = timeToMinutes(endTime);
-    const startHour = 8 * 60;
+    const calendarStartMinutes = 8 * 60; // 8:00 AM en minutos
     
-    const top = ((startMinutes - startHour) / 60) * 55;
-    const height = ((endMinutes - startMinutes) / 60) * 55;
+    // Calcular la posición relativa desde las 8:00 AM
+    const relativeStartMinutes = startMinutes - calendarStartMinutes;
+    const durationMinutes = endMinutes - startMinutes;
+    
+    // Cada hora ocupa 55px, entonces cada minuto ocupa 55/60 px
+    const pixelsPerMinute = 55 / 60;
+    const top = relativeStartMinutes * pixelsPerMinute;
+    
+    // Si la duración es 0 (misma hora), usar altura mínima pequeña, sino usar altura mínima normal
+    const minHeight = durationMinutes === 0 ? 25 : 30;
+    const height = Math.max(durationMinutes * pixelsPerMinute, minHeight);
     
     return { top, height };
   };
 
-  // Algoritmo mejorado para detectar y posicionar eventos superpuestos
-  const calculateEventPositions = (events: CalendarEvent[]): PositionedEvent[] => {
-    if (events.length === 0) return [];
+  // No necesitamos cálculo complejo de posiciones con el nuevo algoritmo
 
-    // Paso 1: Ordenar eventos por inicio
-    const sortedEvents = [...events].sort((a, b) => {
-      const startA = timeToMinutes(a.startTime);
-      const startB = timeToMinutes(b.startTime);
-      if (startA !== startB) return startA - startB;
-      // Si empiezan igual, ordenar por fin (más largos primero)
-      const endA = timeToMinutes(a.endTime);
-      const endB = timeToMinutes(b.endTime);
-      return endB - endA;
-    });
 
-    // Algoritmo simple: asignar cada evento a una columna
-    const columns: number[] = []; // Hora de fin de cada columna
-    const result: PositionedEvent[] = [];
-    
-    for (const event of sortedEvents) {
-      const eventStart = timeToMinutes(event.startTime);
-      const eventEnd = timeToMinutes(event.endTime);
-      
-      // Encontrar la primera columna donde el evento no se superponga
-      let columnIndex = 0;
-      while (columnIndex < columns.length && columns[columnIndex] > eventStart) {
-        columnIndex++;
-      }
-      
-      // Si necesitamos una nueva columna
-      if (columnIndex === columns.length) {
-        columns.push(eventEnd);
-      } else {
-        columns[columnIndex] = eventEnd;
-      }
-      
-      console.log(`Evento ${event.title} (${event.startTime}-${event.endTime}) -> Columna ${columnIndex + 1}/${columns.length}`);
-      
-      result.push({
-        ...event,
-        column: columnIndex,
-        totalColumns: columns.length
-      });
-    }
-    
-    // Actualizar totalColumns para todos los eventos con el número final de columnas
-    const finalColumns = columns.length;
-    return result.map(event => ({
-      ...event,
-      totalColumns: finalColumns
-    }));
-  };
 
-  const positionedEvents = calculateEventPositions(sortedTodayEvents);
 
-  // Debug temporal para ver qué está pasando
-  if (sortedTodayEvents.length > 0) {
-    console.log('=== DEBUG EVENTOS ===');
-    console.log('Eventos originales:', sortedTodayEvents.map(e => ({
-      title: e.title,
-      start: e.startTime,
-      end: e.endTime
-    })));
-    console.log('Eventos posicionados:', positionedEvents.map(e => ({
-      title: e.title,
-      start: e.startTime,
-      end: e.endTime,
-      column: e.column,
-      totalColumns: e.totalColumns
-    })));
-  }
 
-  const renderLegend = () => {
-    if (isSimplifiedView || activeCategories.length === 0) return null;
-    
-    return (
-      <View style={styles.legend}>
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.legendScrollContent}
-        >
-          <View style={styles.legendContainer}>
-            {activeCategories.map((category) => (
-              <View key={category.name} style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: category.color }]} />
-                <Text style={styles.legendText}>{category.name.charAt(0).toUpperCase() + category.name.slice(1)}</Text>
-              </View>
-            ))}
-          </View>
-        </ScrollView>
-      </View>
-    );
-  };
-
-  const renderSimplifiedEvent = (event: PositionedEvent) => {
+  const renderSimplifiedEvent = (event: CalendarEvent, eventIndex: number) => {
     const { top, height } = getEventPosition(event.startTime, event.endTime);
     
-    const availableWidth = width - 95;
-    const columnSpacing = 15; // Espacio visible entre columnas
-    const totalSpacing = (event.totalColumns - 1) * columnSpacing;
-    const eventWidth = (availableWidth - totalSpacing) / event.totalColumns;
-    const leftPosition = 75 + (event.column * (eventWidth + columnSpacing));
+    // Detectar si hay otros eventos que se superponen con este
+    const currentEventStart = timeToMinutes(event.startTime);
+    const currentEventEnd = timeToMinutes(event.endTime);
     
-    // Asegurar ancho mínimo
-    const adjustedEventWidth = Math.max(eventWidth, 70);
+    const overlappingEvents = sortedTodayEvents.filter(otherEvent => {
+      if (otherEvent.id === event.id) return false;
+      const otherStart = timeToMinutes(otherEvent.startTime);
+      const otherEnd = timeToMinutes(otherEvent.endTime);
+      return currentEventStart < otherEnd && currentEventEnd > otherStart;
+    });
     
-    // Debug para ver posiciones
-    console.log(`📅 Renderizando ${event.title}: columna ${event.column + 1}/${event.totalColumns}, left: ${leftPosition.toFixed(1)}, width: ${adjustedEventWidth.toFixed(1)}`);
+    // Calcular ancho consistente para todos los eventos
+    const availableWidth = width - 95; // Espacio disponible para eventos únicos (75px inicio + 20px final)
+    let eventWidth;
+    let leftPosition;
+    
+    if (overlappingEvents.length === 0) {
+      // Si no hay superposición, ocupar el 100% del ancho disponible (como estaba antes)
+      eventWidth = availableWidth;
+      leftPosition = 75;
+    } else {
+      // EVENTOS SUPERPUESTOS: usar el MISMO espacio base que eventos únicos
+      const totalOverlappingEvents = overlappingEvents.length + 1;
+      const spacing = 4; // Espacio normal entre eventos
+      const totalSpacing = (totalOverlappingEvents - 1) * spacing;
+      
+      // Usar el mismo availableWidth que eventos únicos, distribuido entre todos los eventos superpuestos
+      eventWidth = (availableWidth - totalSpacing) / totalOverlappingEvents;
+      
+      // Encontrar la posición de este evento entre los superpuestos
+      const allOverlappingEvents = [event, ...overlappingEvents].sort((a, b) => {
+        const timeDiff = timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
+        if (timeDiff !== 0) return timeDiff;
+        return a.id.localeCompare(b.id);
+      });
+      const eventPosition = allOverlappingEvents.findIndex(e => e.id === event.id);
+      leftPosition = 75 + eventPosition * (eventWidth + spacing); // Usar la misma posición base que eventos únicos
+    }
     
     return (
       <TouchableOpacity key={event.id} onPress={() => handleTaskPress(event.taskId)} activeOpacity={0.7}>
+        {/* Fondo del evento */}
         <View
           style={[
             styles.simplifiedEventBackground,
             {
               top: top + 20,
-              height: Math.max(height, 80),
-              left: leftPosition,
-              width: adjustedEventWidth,
-              backgroundColor: event.categoryColor + '15',
-              shadowColor: event.categoryColor,
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.1,
-              shadowRadius: 4,
-              elevation: 2,
-            }
-          ]}
-        />
-        
-        <View
-          style={[
-            styles.simplifiedEventBar,
-            {
-              top: top + 20,
-              height: Math.max(height, 80),
-              left: leftPosition,
-              backgroundColor: event.categoryColor,
-            }
-          ]}
-        />
-        
-        <View
-          style={[
-            styles.simplifiedEventText,
-            {
-              top: top + 35,
-              left: leftPosition + 15,
-              maxWidth: adjustedEventWidth - 20,
-            }
-          ]}
-        >
-          <Text style={styles.eventPersonName} numberOfLines={event.totalColumns > 2 ? 1 : 2}>
-            {event.title}
-          </Text>
-          <Text style={styles.eventCategory}>
-            {event.category.charAt(0).toUpperCase() + event.category.slice(1)}
-          </Text>
-          <Text style={styles.eventTime}>{event.startTime} - {event.endTime}</Text>
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
-  const renderComplexEvent = (event: PositionedEvent) => {
-    const { top, height } = getEventPosition(event.startTime, event.endTime);
-
-    // En vista compleja, usar tanto la categoría como la columna para posicionamiento
-    const categoryIndex = activeCategories.findIndex(cat => cat.name === event.category);
-    const totalWidth = width - 80;
-    const categoryWidth = totalWidth / activeCategories.length;
-    
-    // Dentro de cada categoría, dividir por número de columnas si hay superposición
-    const columnSpacing = 3;
-    const eventWidth = event.totalColumns > 1 
-      ? Math.max((categoryWidth - (event.totalColumns - 1) * columnSpacing) / event.totalColumns, 25)
-      : Math.max(categoryWidth - 10, 30);
-    
-    const categoryStartPosition = 75 + (categoryIndex * categoryWidth);
-    const leftPosition = event.totalColumns > 1
-      ? categoryStartPosition + (event.column * (eventWidth + columnSpacing))
-      : categoryStartPosition;
-    
-    return (
-      <TouchableOpacity key={event.id} onPress={() => handleTaskPress(event.taskId)} activeOpacity={0.7}>
-        <View
-          style={[
-            styles.complexEventBackground,
-            {
-              top: top + 20,
-              height: Math.max(height, 30),
+              height: event.startTime === event.endTime ? Math.max(height, 25) : Math.max(height, 50),
               left: leftPosition,
               width: eventWidth,
               backgroundColor: event.categoryColor + '20',
@@ -385,35 +281,107 @@ const CalendarSchedule = () => {
           ]}
         />
         
+        {/* Barra lateral de color */}
         <View
           style={[
-            styles.complexEventBar,
+            styles.simplifiedEventBar,
             {
               top: top + 20,
-              height: Math.max(height, 30),
+              height: event.startTime === event.endTime ? Math.max(height, 25) : Math.max(height, 50),
               left: leftPosition,
               backgroundColor: event.categoryColor,
             }
           ]}
         />
         
-        {/* Mostrar título solo si hay espacio suficiente */}
-        {eventWidth > 40 && height > 20 && (
+        {/* Texto del evento - adaptativo según el ancho */}
+        {eventWidth >= 30 && ( // Solo mostrar texto si hay suficiente espacio
           <View
             style={[
-              styles.complexEventText,
+              styles.simplifiedEventText,
               {
-                top: top + 25,
-                left: leftPosition + 8,
+                top: top + (event.startTime === event.endTime ? 22 : 26),
+                left: leftPosition + 6,
                 maxWidth: eventWidth - 12,
+                height: event.startTime === event.endTime ? Math.max(height - 4, 20) : Math.max(height - 10, 40),
               }
-            ]}
+            ]}          
           >
-            <Text style={styles.complexEventTitle} numberOfLines={1}>
-              {event.title}
-            </Text>
+            {eventWidth >= 80 ? (
+              // Ancho suficiente: mostrar todo el texto
+              <>
+                <Text style={styles.eventPersonName} numberOfLines={1}>
+                  {event.title}
+                </Text>
+                {event.startTime !== event.endTime && (
+                  <>
+                    <Text style={styles.eventCategory} numberOfLines={1}>
+                      {event.category.charAt(0).toUpperCase() + event.category.slice(1)}
+                    </Text>
+                    <Text style={styles.eventTime} numberOfLines={1}>{event.startTime} - {event.endTime}</Text>
+                  </>
+                )}
+              </>
+            ) : eventWidth >= 50 ? (
+              // Ancho medio: solo título y tiempo
+              <>
+                <Text style={styles.eventPersonName} numberOfLines={1}>
+                  {event.title.length > 8 ? event.title.substring(0, 8) + '...' : event.title}
+                </Text>
+                {event.startTime !== event.endTime && (
+                  <Text style={styles.eventTime} numberOfLines={1}>{event.startTime}</Text>
+                )}
+              </>
+            ) : (
+              // Ancho pequeño: solo título muy corto o iniciales
+              <Text style={styles.eventPersonName} numberOfLines={1}>
+                {event.title.length > 3 ? event.title.substring(0, 3) + '...' : event.title}
+              </Text>
+            )}
           </View>
         )}
+      </TouchableOpacity>
+    );
+  };
+
+  const renderComplexEvent = (event: CalendarEvent, eventIndex: number) => {
+    const { top, height } = getEventPosition(event.startTime, event.endTime);
+
+    // Calcular posición horizontal simple por categoría
+    const categoryIndex = activeCategories.findIndex(cat => cat.name === event.category);
+    const totalWidth = width - 80;
+    const baseColumnWidth = totalWidth / activeCategories.length;
+    const eventWidth = Math.max(baseColumnWidth - 10, 30);
+    const leftPosition = 75 + (categoryIndex * baseColumnWidth); // Ajustado para evitar horas
+    
+    return (
+      <TouchableOpacity key={event.id} onPress={() => handleTaskPress(event.taskId)} activeOpacity={0.7}>
+        {/* Fondo del evento */}
+        <View
+          style={[
+            styles.complexEventBackground,
+            {
+              top: top + 20,
+              height: Math.max(height, 25),
+              left: leftPosition,
+              width: eventWidth,
+              backgroundColor: event.categoryColor + '20',
+            }
+          ]}
+        />
+        
+        {/* Barra de color */}
+        <View
+          style={[
+            styles.complexEventBar,
+            {
+              top: top + 20,
+              height: Math.max(height, 25),
+              left: leftPosition,
+              backgroundColor: event.categoryColor,
+            }
+          ]}
+        />
       </TouchableOpacity>
     );
   };
@@ -424,6 +392,8 @@ const CalendarSchedule = () => {
         <TouchableOpacity 
           style={styles.navButton}
           onPress={() => changeMonth('prev')}
+          activeOpacity={0.7}
+          delayLongPress={100}
         >
           <Text style={styles.navButtonText}>‹</Text>
         </TouchableOpacity>
@@ -439,6 +409,8 @@ const CalendarSchedule = () => {
         <TouchableOpacity 
           style={styles.navButton}
           onPress={() => changeMonth('next')}
+          activeOpacity={0.7}
+          delayLongPress={100}
         >
           <Text style={styles.navButtonText}>›</Text>
         </TouchableOpacity>
@@ -478,7 +450,7 @@ const CalendarSchedule = () => {
         </View>
       )}
 
-      {renderLegend()}
+
 
       <View style={styles.calendarContainer}>
         <ScrollView 
@@ -497,6 +469,7 @@ const CalendarSchedule = () => {
                 dayInfo.isToday && styles.todayDate
               ]}
               onPress={() => setSelectedDate(dayInfo.date)}
+              activeOpacity={1}
             >
               <Text style={[
                 styles.dateText,
@@ -533,10 +506,8 @@ const CalendarSchedule = () => {
                 <Text style={styles.loadingText}>Cargando tareas...</Text>
               </View>
             ) : (
-              positionedEvents.map((event) => 
-                isSimplifiedView 
-                  ? renderSimplifiedEvent(event)
-                  : renderComplexEvent(event)
+              sortedTodayEvents.map((event, index) => 
+                renderSimplifiedEvent(event, index)
               )
             )}
           </View>
@@ -750,7 +721,7 @@ const styles = StyleSheet.create({
   },
   eventsContainer: {
     position: 'relative',
-    minHeight: 715,
+    minHeight: 770, // 14 hours * 55px (de 8:00 a 21:00)
   },
   simplifiedEventBackground: {
     position: 'absolute',
@@ -764,23 +735,25 @@ const styles = StyleSheet.create({
   simplifiedEventText: {
     position: 'absolute',
     paddingLeft: 8,
+    overflow: 'hidden',
+    justifyContent: 'flex-start',
   },
   eventPersonName: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 2,
+    marginBottom: 1,
   },
   eventTime: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#666',
     fontWeight: '500',
   },
   eventCategory: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#888',
     fontWeight: '500',
-    marginBottom: 2,
+    marginBottom: 1,
   },
   complexEventBackground: {
     position: 'absolute',

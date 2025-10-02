@@ -7,17 +7,79 @@ import { useTasks } from '../../hooks/useTasks';
 
 const { width, height } = Dimensions.get('window');
 
-// Calcular dimensiones responsivas
+// Calcular dimensiones responsivas para todos los dispositivos
 const SCREEN_WIDTH = width;
 const SCREEN_HEIGHT = height;
-const IS_SMALL_DEVICE = width < 375;
-const IS_LARGE_DEVICE = width > 414;
 
-// Dimensiones del calendario basadas en el dispositivo
-const CALENDAR_HEIGHT = Math.max(380, height * 0.45);
-const TIME_SLOT_HEIGHT = IS_SMALL_DEVICE ? 28 : 30;
-const CALENDAR_PADDING = IS_SMALL_DEVICE ? 16 : 20;
-const TIME_COLUMN_WIDTH = IS_SMALL_DEVICE ? 50 : 55;
+// Categorías de dispositivos más completas
+const IS_VERY_SMALL = width < 350;  // iPhone SE, dispositivos muy pequeños
+const IS_SMALL_DEVICE = width < 375; // iPhone 8, pequeños
+const IS_MEDIUM_DEVICE = width >= 375 && width <= 414; // iPhone estándar
+const IS_LARGE_DEVICE = width > 414 && width < 768; // iPhone Plus, Android grandes
+const IS_TABLET = width >= 768; // iPads, tablets
+
+// Función para calcular dimensiones adaptivas
+const getResponsiveDimensions = () => {
+  if (IS_VERY_SMALL) {
+    return {
+      calendarHeight: Math.max(280, height * 0.35),
+      timeSlotHeight: 20,
+      calendarPadding: 10,
+      timeColumnWidth: 38,
+    };
+  } else if (IS_SMALL_DEVICE) {
+    return {
+      calendarHeight: Math.max(300, height * 0.38),
+      timeSlotHeight: 22,
+      calendarPadding: 12,
+      timeColumnWidth: 42,
+    };
+  } else if (IS_MEDIUM_DEVICE) {
+    return {
+      calendarHeight: Math.max(320, height * 0.40),
+      timeSlotHeight: 24,
+      calendarPadding: 14,
+      timeColumnWidth: 48,
+    };
+  } else if (IS_LARGE_DEVICE) {
+    return {
+      calendarHeight: Math.max(360, height * 0.42),
+      timeSlotHeight: 26,
+      calendarPadding: 16,
+      timeColumnWidth: 52,
+    };
+  } else { // IS_TABLET
+    return {
+      calendarHeight: Math.max(400, height * 0.45),
+      timeSlotHeight: 30,
+      calendarPadding: 20,
+      timeColumnWidth: 60,
+    };
+  }
+};
+
+const dimensions = getResponsiveDimensions();
+const CALENDAR_HEIGHT = dimensions.calendarHeight;
+const TIME_SLOT_HEIGHT = dimensions.timeSlotHeight;
+const CALENDAR_PADDING = dimensions.calendarPadding;
+const TIME_COLUMN_WIDTH = dimensions.timeColumnWidth;
+
+// Calcular valores escalados para el diseño responsivo
+const scale = width / 375; // Escala basada en iPhone 8 (375px)
+const verticalScale = height / 667; // Escala vertical basada en iPhone 8 (667px)
+
+// Valores escalados para diferentes elementos
+const SCALED_VALUES = {
+  eventTitleFontSize: Math.max(10, Math.min(16, 12 * scale)),
+  eventTimeFontSize: Math.max(8, Math.min(14, 10 * scale)),
+  timeTextFontSize: Math.max(8, Math.min(13, 10 * scale)),
+  eventPadding: Math.max(6, Math.min(12, 8 * scale)),
+  eventBorderRadius: Math.max(12, Math.min(20, 16 * scale)), // Aún más redondeado
+  eventBorderWidth: Math.max(3, Math.min(5, 4 * scale)), // Un poco más ancho
+  eventMinHeight: Math.max(35, Math.min(60, 45 * verticalScale)),
+  containerPadding: Math.max(4, Math.min(15, CALENDAR_PADDING * 0.8)),
+  eventsContainerPadding: Math.max(2, Math.min(5, 3 * scale)),
+};
 
 export default function HomeScreen() {
   const { tasks, isLoading, fetchTasks } = useTasks();
@@ -140,7 +202,7 @@ export default function HomeScreen() {
         {/* Today's Schedule - Clickeable para ir al calendario */}
         <TouchableOpacity onPress={navigateToCalendar} activeOpacity={0.7}>
           <View style={styles.scheduleCard}>
-            {/* Time Column */}
+            {/* Time Column - igual que el calendario real */}
             <View style={[styles.timeColumn, { top: CALENDAR_PADDING }]}>
               {['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00'].map((time, index) => (
                 <View key={time} style={[styles.timeSlot, { height: TIME_SLOT_HEIGHT }]}>
@@ -149,21 +211,21 @@ export default function HomeScreen() {
               ))}
             </View>
 
-            {/* Grid Lines Background */}
+            {/* Grid Lines Background - mismo patrón que el calendario real */}
             <View style={[styles.gridContainer, { left: TIME_COLUMN_WIDTH }]}>
               {['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00'].map((time, index) => (
-                <View key={time} style={[styles.gridLine, { top: index * TIME_SLOT_HEIGHT }]} />
+                <View key={time} style={[styles.gridLine, { top: index * TIME_SLOT_HEIGHT + CALENDAR_PADDING }]} />
               ))}
             </View>
 
             {/* Events - Mostrar datos reales */}
             <View style={[styles.eventsContainer, { 
               marginLeft: TIME_COLUMN_WIDTH, 
-              height: CALENDAR_HEIGHT - CALENDAR_PADDING * 2 
+              height: CALENDAR_HEIGHT - CALENDAR_PADDING * 2,
+              width: SCREEN_WIDTH - TIME_COLUMN_WIDTH - CALENDAR_PADDING * 2 - (IS_TABLET ? 50 : IS_LARGE_DEVICE ? 40 : 35)
             }]}>
               {todayEvents.length > 0 ? (
                 todayEvents.map((event, index) => {
-                  // COPIAR EXACTAMENTE del teamCalendar.tsx
                   const timeToMinutes = (time: string) => {
                     const [hours, minutes] = time.split(':').map(Number);
                     return hours * 60 + minutes;
@@ -172,91 +234,69 @@ export default function HomeScreen() {
                   const getEventPosition = (startTime: string, endTime: string) => {
                     const startMinutes = timeToMinutes(startTime);
                     const endMinutes = timeToMinutes(endTime);
-                    const startHour = 8 * 60; // 8:00 AM en minutos
+                    const calendarStartMinutes = 8 * 60; // 8:00 AM en minutos
                     
-                    // Alinear exactamente con las líneas de tiempo y el timeColumn
-                    const top = ((startMinutes - startHour) / 60) * TIME_SLOT_HEIGHT;
-                    const height = ((endMinutes - startMinutes) / 60) * TIME_SLOT_HEIGHT;
+                    // Calcular la posición relativa desde las 8:00 AM (igual que calendario real)
+                    const relativeStartMinutes = startMinutes - calendarStartMinutes;
+                    const durationMinutes = endMinutes - startMinutes;
+                    
+                    // Usar la misma proporción que el calendario real pero escalada
+                    const pixelsPerMinute = TIME_SLOT_HEIGHT / 60; // Escalado según nuestro TIME_SLOT_HEIGHT
+                    const top = relativeStartMinutes * pixelsPerMinute;
+                    
+                    // Si la duración es 0, usar altura mínima pequeña, sino usar altura mínima normal (igual que calendario real)
+                    const minHeight = durationMinutes === 0 ? Math.max(TIME_SLOT_HEIGHT * 0.5, 15) : Math.max(TIME_SLOT_HEIGHT * 0.8, 20);
+                    const height = Math.max(durationMinutes * pixelsPerMinute, minHeight);
                     
                     return { top, height };
                   };
                   
                   const position = getEventPosition(event.startTime, event.endTime);
                   
-                  // Algoritmo optimizado para distribución de eventos superpuestos
+                  // Lógica que usa todo el ancho disponible del contenedor con responsive design
                   const getEventLayout = (index: number) => {
-                    const availableWidth = SCREEN_WIDTH - TIME_COLUMN_WIDTH - CALENDAR_PADDING * 3;
-                    const currentStart = timeToMinutes(event.startTime);
-                    const currentEnd = timeToMinutes(event.endTime);
+                    // Calcular el ancho real disponible basado en el tipo de dispositivo
+                    const marginSafety = IS_TABLET ? 50 : IS_LARGE_DEVICE ? 45 : IS_MEDIUM_DEVICE ? 40 : 35;
+                    const availableWidth = SCREEN_WIDTH - TIME_COLUMN_WIDTH - CALENDAR_PADDING * 2 - marginSafety;
                     
-                    // Agrupar eventos que se superponen entre sí
-                    const findOverlappingGroup = () => {
-                      const group: number[] = [index];
-                      const checked = new Set<number>([index]);
-                      const toCheck = [index];
+                    // Verificar eventos superpuestos
+                    const overlappingEvents = todayEvents.filter((otherEvent, otherIndex) => {
+                      if (otherIndex === index) return true;
                       
-                      while (toCheck.length > 0) {
-                        const current = toCheck.pop()!;
-                        const currentEvent = todayEvents[current];
-                        const currStart = timeToMinutes(currentEvent.startTime);
-                        const currEnd = timeToMinutes(currentEvent.endTime);
-                        
-                        todayEvents.forEach((otherEvent, otherIndex) => {
-                          if (checked.has(otherIndex)) return;
-                          
-                          const otherStart = timeToMinutes(otherEvent.startTime);
-                          const otherEnd = timeToMinutes(otherEvent.endTime);
-                          
-                          // Verificar si hay superposición
-                          if (currStart < otherEnd && currEnd > otherStart) {
-                            group.push(otherIndex);
-                            checked.add(otherIndex);
-                            toCheck.push(otherIndex);
-                          }
-                        });
-                      }
+                      const currentStart = timeToMinutes(event.startTime);
+                      const currentEnd = timeToMinutes(event.endTime);
+                      const otherStart = timeToMinutes(otherEvent.startTime);
+                      const otherEnd = timeToMinutes(otherEvent.endTime);
                       
-                      return group.sort((a, b) => a - b);
-                    };
+                      return currentStart < otherEnd && currentEnd > otherStart;
+                    });
                     
-                    const overlappingGroup = findOverlappingGroup();
+                    const numOverlapping = overlappingEvents.length;
+                    const eventIndex = overlappingEvents.findIndex(e => e.id === event.id);
                     
-                    if (overlappingGroup.length === 1) {
-                      // Sin superposiciones - ocupar exactamente el mismo ancho que dos columnas juntas
-                      const totalColumns = 2;
-                      const columnWidth = (availableWidth - (totalColumns - 1) * 10) / totalColumns;
-                      const eventWidth = Math.min(columnWidth, 140);
-                      const totalWidth = (eventWidth * 2) + 10; // Dos columnas + gap
-                      return { 
-                        left: 0, 
-                        width: totalWidth,
-                        zIndex: 1
-                      };
-                    }
+                    let eventWidth: number;
+                    let leftOffset = 0;
                     
-                    // Calcular cuántas columnas necesitamos (máximo 2)
-                    const totalColumns = Math.min(2, overlappingGroup.length);
-                    const columnWidth = (availableWidth - (totalColumns - 1) * 10) / totalColumns;
-                    const eventWidth = Math.min(columnWidth, 140);
+                    // Calcular ancho de contenedor dinámicamente
+                    const containerWidth = width - TIME_COLUMN_WIDTH - (CALENDAR_PADDING * 2);
+                    const eventMaxWidth = containerWidth - 45; // Usar casi todo el ancho menos un pequeño margen para los bordes redondeados
                     
-                    // Asignar columna basado en la posición en el grupo
-                    const positionInGroup = overlappingGroup.indexOf(index);
-                    const column = positionInGroup % totalColumns;
-                    
-                    // Si hay más de 2 eventos, alternar columnas de manera inteligente
-                    let adjustedColumn = column;
-                    if (overlappingGroup.length > 2) {
-                      // Para el tercer evento en adelante, buscar la columna con menos eventos
-                      if (positionInGroup >= 2) {
-                        const eventsInCol0 = overlappingGroup.filter((i, pos) => pos % 2 === 0 && pos < positionInGroup).length;
-                        const eventsInCol1 = overlappingGroup.filter((i, pos) => pos % 2 === 1 && pos < positionInGroup).length;
-                        adjustedColumn = eventsInCol0 <= eventsInCol1 ? 0 : 1;
-                      }
+                    if (numOverlapping === 1) {
+                      // Evento único - usar todo el ancho disponible hasta las líneas
+                      eventWidth = eventMaxWidth;
+                    } else {
+                      // Eventos superpuestos - ajustar proporcionalmente al tamaño de pantalla
+                      const baseWidth = eventMaxWidth * 0.85; // Base ligeramente reducida para superpuestos
+                      const offsetScale = Math.max(0.5, Math.min(1, width / 375)); // Escala entre 0.5 y 1
+                      
+                      eventWidth = baseWidth;
+                      leftOffset = eventIndex * (12 * offsetScale); // Offset escalado
+                      eventWidth = Math.max(eventWidth - leftOffset, eventMaxWidth * 0.60); // Mínimo 60%
                     }
                     
                     return {
-                      left: adjustedColumn * (eventWidth + 10),
-                      width: eventWidth,
+                      left: Math.max(0, Math.min(leftOffset, availableWidth * 0.3)), // Asegurar que no salga del contenedor
+                      width: Math.max(eventWidth, eventMaxWidth * 0.45), // Usar ancho fijo basado en containerWidth
                       zIndex: index + 1
                     };
                   };
@@ -264,26 +304,53 @@ export default function HomeScreen() {
                   const layout = getEventLayout(index);
                   
                   return (
-                    <View
-                      key={event.id}
-                      style={[
-                        styles.eventBlock,
-                        {
-                          backgroundColor: event.color + '30',
-                          borderLeftColor: event.color,
-                          left: layout.left,
-                          top: position.top,
-                          width: layout.width,
-                          height: position.height,
-                          zIndex: layout.zIndex,
-                        }
-                      ]}
-                    >
-                      <View style={[styles.eventBar, { backgroundColor: event.color }]} />
-                      <View style={styles.eventContent}>
-                        <Text style={styles.eventTitle} numberOfLines={1}>{event.title}</Text>
-                        <Text style={styles.eventTime}>{event.startTime} - {event.endTime}</Text>
-                      </View>
+                    <View key={event.id}>
+                      {/* Fondo del evento - igual que calendario real */}
+                      <View
+                        style={[
+                          styles.eventBackground,
+                          {
+                            top: position.top + CALENDAR_PADDING,
+                            height: position.height,
+                            left: layout.left,
+                            width: layout.width, // Ancho completo como en la imagen
+                            backgroundColor: event.color + '20',
+                          }
+                        ]}
+                      />
+                      
+                      {/* Barra lateral de color - igual que calendario real */}
+                      <View
+                        style={[
+                          styles.eventBar,
+                          {
+                            top: position.top + CALENDAR_PADDING + 2, // Menos separación desde arriba
+                            height: position.height - 4, // Menos reducción de altura
+                            left: layout.left + 1, // Un pixel más a la izquierda
+                            backgroundColor: event.color,
+                          }
+                        ]}
+                      />
+                      
+                      {/* Texto del evento - adaptativo según el ancho (igual que calendario real) */}
+                      {layout.width >= 30 && (
+                        <View
+                          style={[
+                            styles.eventContent,
+                            {
+                              top: position.top + CALENDAR_PADDING,
+                              height: position.height,
+                              left: layout.left + Math.max(12, SCALED_VALUES.eventBorderWidth + 6), // Espacio para la barra más ancha
+                              width: layout.width - Math.max(16, SCALED_VALUES.eventBorderWidth + 10), // Compensar correctamente
+                            }
+                          ]}
+                        >
+                          <Text style={styles.eventTitle} numberOfLines={1}>{event.title}</Text>
+                          {layout.width >= 60 && position.height >= TIME_SLOT_HEIGHT && (
+                            <Text style={styles.eventTime}>{event.startTime} - {event.endTime}</Text>
+                          )}
+                        </View>
+                      )}
                     </View>
                   );
                 })
@@ -386,6 +453,7 @@ const styles = StyleSheet.create({
     right: CALENDAR_PADDING,
     top: CALENDAR_PADDING,
     bottom: 0,
+    left: 0, // Asegurar que las líneas ocupen todo el ancho disponible
   },
   gridLine: {
     position: 'absolute',
@@ -396,8 +464,9 @@ const styles = StyleSheet.create({
   },
   timeColumn: {
     position: 'absolute',
-    left: 16,
+    left: CALENDAR_PADDING,
     zIndex: 2,
+    width: TIME_COLUMN_WIDTH,
   },
   timeSlot: {
     height: TIME_SLOT_HEIGHT,
@@ -405,61 +474,62 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   timeText: {
-    fontSize: 11,
+    fontSize: SCALED_VALUES.timeTextFontSize,
     color: '#64748B',
     fontWeight: '600',
     letterSpacing: -0.2,
     position: 'absolute',
-    top: -7,
+    top: -(SCALED_VALUES.timeTextFontSize * 0.5) + (TIME_SLOT_HEIGHT / 2), // Centrado en la línea
   },
   eventsContainer: {
     flex: 1,
     position: 'relative',
-    paddingRight: 15,
+    paddingRight: SCALED_VALUES.containerPadding,
+    paddingLeft: SCALED_VALUES.eventsContainerPadding,
     overflow: 'hidden',
     zIndex: 3,
   },
-  eventBlock: {
+  // Estilos para eventos - igual que el calendario real pero escalado
+  eventBackground: {
     position: 'absolute',
-    borderRadius: 12,
-    borderLeftWidth: 4,
-    paddingLeft: 14,
-    paddingTop: 12,
-    paddingRight: 14,
-    paddingBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.8)',
-    minWidth: 140,
-    minHeight: 55,
-    justifyContent: 'space-between',
+    borderRadius: 6, // Exactamente igual que el calendario completo
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 1,
+    elevation: 2,
+    overflow: 'hidden',
   },
   eventBar: {
     position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: 4,
-    borderTopLeftRadius: 12,
-    borderBottomLeftRadius: 12,
+    width: 6, // Exactamente igual que el calendario completo
+    borderRadius: 3, // Exactamente igual que el calendario completo
   },
   eventContent: {
-    flex: 1,
-    marginLeft: 4,
+    position: 'absolute',
+    justifyContent: 'flex-start',
+    paddingHorizontal: Math.max(6, SCALED_VALUES.eventPadding),
+    paddingVertical: Math.max(4, SCALED_VALUES.eventPadding * 0.6),
+    paddingTop: Math.max(6, SCALED_VALUES.eventPadding * 0.8),
   },
   eventTitle: {
-    fontSize: 14,
+    fontSize: SCALED_VALUES.eventTitleFontSize,
     fontWeight: '700',
     color: '#1E293B',
-    lineHeight: 18,
-    marginBottom: 4,
+    lineHeight: SCALED_VALUES.eventTitleFontSize * 1.2,
+    marginBottom: Math.max(1, SCALED_VALUES.eventTitleFontSize * 0.2),
     letterSpacing: -0.2,
   },
   eventTime: {
-    fontSize: 12,
+    fontSize: SCALED_VALUES.eventTimeFontSize,
     color: '#64748B',
     fontWeight: '600',
     letterSpacing: -0.1,
-    lineHeight: 16,
+    lineHeight: SCALED_VALUES.eventTimeFontSize * 1.3,
+    marginTop: SCALED_VALUES.eventTimeFontSize > 10 ? 1 : 0,
   },
   sectionTitle: {
     fontSize: 24,
@@ -536,18 +606,21 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 40,
+    paddingVertical: Math.max(25, height * 0.05),
+    paddingHorizontal: SCALED_VALUES.containerPadding,
   },
   noEventsText: {
-    fontSize: 16,
+    fontSize: SCALED_VALUES.eventTitleFontSize * 1.1,
     color: '#6B7280',
     fontWeight: '500',
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: Math.max(4, SCALED_VALUES.eventTitleFontSize * 0.5),
+    lineHeight: SCALED_VALUES.eventTitleFontSize * 1.4,
   },
   noEventsSubtext: {
-    fontSize: 12,
+    fontSize: SCALED_VALUES.eventTimeFontSize * 1.1,
     color: '#9CA3AF',
     textAlign: 'center',
+    lineHeight: SCALED_VALUES.eventTimeFontSize * 1.4,
   },
 });
