@@ -10,6 +10,7 @@ import {
   Check,
   Upload,
   RotateCcw,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,9 +29,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import TaskSection from "@/components/TaskSection";
-import Sidebar from "@/components/SideBar";
+import { useTasks } from "@/hooks/useTasks";
+import { Task } from "@/lib/api";
 
-interface Task {
+// Adaptar la interfaz local a la interfaz de la API
+interface LocalTask {
   id: number;
   title: string;
   description: string;
@@ -39,97 +42,6 @@ interface Task {
   categoryColor: string;
   assignedMembers: string[];
 }
-
-// Mock data for tasks
-const initialTasks: Task[] = [
-  {
-    id: 1,
-    title: "Instalación eléctrica",
-    description: "Completar la instalación eléctrica del segundo piso",
-    status: "pending" as const,
-    category: "ELECTRICIDAD",
-    categoryColor: "bg-blue-500",
-    assignedMembers: ["Juan", "Pedro"],
-  },
-  {
-    id: 2,
-    title: "Pintura de paredes",
-    description: "Aplicar pintura base en todas las paredes del comedor",
-    status: "in_progress" as const,
-    category: "PINTURA",
-    categoryColor: "bg-pink-500",
-    assignedMembers: ["María"],
-  },
-  {
-    id: 3,
-    title: "Revisión de plomería",
-    description: "Verificar todas las conexiones de agua",
-    status: "completed" as const,
-    category: "PLOMERÍA",
-    categoryColor: "bg-orange-500",
-    assignedMembers: ["Carlos", "Ana"],
-  },
-  {
-    id: 4,
-    title: "Cambio de diseño cocina",
-    description:
-      "Modificar el diseño original de la cocina según nuevas especificaciones",
-    status: "changes" as const,
-    category: "CONSTRUCCIÓN",
-    categoryColor: "bg-gray-500",
-    assignedMembers: ["Luis"],
-  },
-  {
-    id: 5,
-    title: "Cambio de diseño cocina",
-    description:
-      "Modificar el diseño original de la cocina según nuevas especificaciones",
-    status: "changes" as const,
-    category: "CONSTRUCCIÓN",
-    categoryColor: "bg-gray-500",
-    assignedMembers: ["Luis"],
-  },
-  {
-    id: 6,
-    title: "Cambio de diseño cocina",
-    description:
-      "Modificar el diseño original de la cocina según nuevas especificaciones",
-    status: "changes" as const,
-    category: "CONSTRUCCIÓN",
-    categoryColor: "bg-gray-500",
-    assignedMembers: ["Luis"],
-  },
-  {
-    id: 7,
-    title: "Cambio de diseño cocina",
-    description:
-      "Modificar el diseño original de la cocina según nuevas especificaciones",
-    status: "changes" as const,
-    category: "CONSTRUCCIÓN",
-    categoryColor: "bg-gray-500",
-    assignedMembers: ["Luis"],
-  },
-  {
-    id: 8,
-    title: "Cambio de diseño cocina",
-    description:
-      "Modificar el diseño original de la cocina según nuevas especificaciones",
-    status: "changes" as const,
-    category: "CONSTRUCCIÓN",
-    categoryColor: "bg-gray-500",
-    assignedMembers: ["Luis"],
-  },
-  {
-    id: 9,
-    title: "Cambio de diseño cocina",
-    description:
-      "Modificar el diseño original de la cocina según nuevas especificaciones",
-    status: "changes" as const,
-    category: "CONSTRUCCIÓN",
-    categoryColor: "bg-gray-500",
-    assignedMembers: ["Luis"],
-  },
-];
 
 const categoryColors = {
   ELECTRICIDAD: "bg-blue-500",
@@ -153,6 +65,17 @@ const teamMembers = [
   "Roberto",
   "Elena",
 ];
+
+// Función para convertir Task de API a LocalTask para la UI
+const convertApiTaskToLocal = (apiTask: Task): LocalTask => ({
+  id: parseInt(apiTask.id) || Math.random(),
+  title: apiTask.title,
+  description: apiTask.description || "",
+  status: apiTask.status,
+  category: apiTask.category || "construccion",
+  categoryColor: categoryColors[apiTask.category as keyof typeof categoryColors] || "bg-gray-500",
+  assignedMembers: [], // Por ahora vacío, puedes expandir esto según tu backend
+});
 
 // Wrapper component for TaskSection with horizontal scroll
 const ScrollableTaskSection = ({
@@ -224,7 +147,18 @@ const ScrollableTaskSection = ({
 };
 
 const TasksScreen = () => {
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  // Reemplazar useState local por useTasks hook
+  const { 
+    tasks: apiTasks, 
+    loading, 
+    error, 
+    createTask, 
+    updateTask, 
+    deleteTask, 
+    fetchTasks,
+    clearError 
+  } = useTasks();
+
   const [showModal, setShowModal] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showChangeModal, setShowChangeModal] = useState(false);
@@ -243,10 +177,18 @@ const TasksScreen = () => {
     reason: "",
   });
 
+  // Convertir tareas de API a formato local para la UI
+  const tasks: LocalTask[] = apiTasks.map(convertApiTaskToLocal);
+
   const handleRefresh = async () => {
     setRefreshing(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setRefreshing(false);
+    try {
+      await fetchTasks();
+    } catch (error) {
+      console.error("Error refreshing tasks:", error);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const resetTaskForm = () => {
@@ -279,51 +221,45 @@ const TasksScreen = () => {
     setShowChangeModal(true);
   };
 
-  const handleAddTask = () => {
+  const handleAddTask = async () => {
     if (
       newTask.title &&
-      newTask.description &&
-      newTask.category &&
-      selectedMembers.length > 0
+      newTask.category
     ) {
-      const task: Task = {
-        id: Math.max(...tasks.map((t) => t.id), 0) + 1,
-        title: newTask.title,
-        description: newTask.description,
-        status: newTask.status,
-        category: newTask.category,
-        categoryColor:
-          categoryColors[newTask.category as keyof typeof categoryColors] ||
-          "bg-gray-500",
-        assignedMembers: selectedMembers,
-      };
-      setTasks([...tasks, task]);
-      resetTaskForm();
-      setShowTaskModal(false);
+      try {
+        await createTask({
+          title: newTask.title,
+          description: newTask.description,
+          status: newTask.status,
+          category: newTask.category,
+          user_id: "ad4d74ba-beac-4741-9ec1-978d564a971c",
+          site_id: "e43d720c-8b2f-454f-8b41-55019ffef012"
+        });
+        resetTaskForm();
+        setShowTaskModal(false);
+      } catch (error) {
+        console.error("Error creating task:", error);
+      }
     }
   };
 
-  const handleAddChange = () => {
+  const handleAddChange = async () => {
     if (
       newChange.title &&
-      newChange.description &&
-      newChange.category &&
-      selectedMembers.length > 0
+      newChange.category
     ) {
-      const changeRequest: Task = {
-        id: Math.max(...tasks.map((t) => t.id), 0) + 1,
-        title: newChange.title,
-        description: `${newChange.description}\n\nRazón del cambio: ${newChange.reason}`,
-        status: "changes",
-        category: newChange.category,
-        categoryColor:
-          categoryColors[newChange.category as keyof typeof categoryColors] ||
-          "bg-gray-500",
-        assignedMembers: selectedMembers,
-      };
-      setTasks([...tasks, changeRequest]);
-      resetChangeForm();
-      setShowChangeModal(false);
+      try {
+        await createTask({
+          title: newChange.title,
+          description: newChange.description,
+          status: "changes",
+          category: newChange.category,
+        });
+        resetChangeForm();
+        setShowChangeModal(false);
+      } catch (error) {
+        console.error("Error creating change request:", error);
+      }
     }
   };
 
@@ -335,6 +271,38 @@ const TasksScreen = () => {
     }
   };
 
+  // Mostrar loading state
+  if (loading) {
+    return (
+      <div className="flex h-screen bg-gray-50 items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Cargando tareas...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Mostrar error state
+  if (error) {
+    return (
+      <div className="flex h-screen bg-gray-50 items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <p className="text-red-600 mb-4">{error}</p>
+          <div className="space-x-4">
+            <Button onClick={() => window.location.reload()}>
+              Recargar página
+            </Button>
+            <Button variant="outline" onClick={clearError}>
+              Intentar de nuevo
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Group tasks by status
   const changes = tasks.filter((task) => task.status === "changes");
   const pendingTasks = tasks.filter((task) => task.status === "pending");
@@ -342,13 +310,14 @@ const TasksScreen = () => {
   const completedTasks = tasks.filter((task) => task.status === "completed");
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
-
+    <div className="bg-gray-50">
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200 flex-shrink-0">
-          <h1 className="text-2xl font-bold text-gray-800">Tareas</h1>
+        <div className="fixed top-0 left-64 right-0 z-40 flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200">
+          <h1 className="text-2xl font-bold text-gray-800">
+            Tareas ({tasks.length})
+          </h1>
           <Button
             onClick={() => setShowModal(true)}
             className="rounded-full bg-blue-600 hover:bg-blue-700 shadow-lg px-6 h-10"
@@ -357,6 +326,24 @@ const TasksScreen = () => {
             Nueva Tarea
           </Button>
         </div>
+
+        {/* Error banner */}
+        {error && (
+          <div className="bg-red-50 border-l-4 border-red-400 p-4 mx-6 mt-4">
+            <div className="flex items-center">
+              <AlertCircle className="w-5 h-5 text-red-400 mr-2" />
+              <p className="text-red-700">{error}</p>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={clearError}
+                className="ml-auto"
+              >
+                Cerrar
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Selection Modal */}
         <Dialog open={showModal} onOpenChange={setShowModal}>
@@ -374,7 +361,7 @@ const TasksScreen = () => {
               >
                 <div className="flex items-center">
                   <div className="bg-blue-500 p-3 rounded-4xl mr-4">
-                      <Check className="text-white"/>
+                    <Check className="text-white" />
                   </div>
                   <div className="text-left">
                     <div className="font-semibold">Tarea</div>
@@ -392,7 +379,7 @@ const TasksScreen = () => {
               >
                 <div className="flex items-center">
                   <div className="bg-orange-500 p-3 rounded-full mr-4">
-                    <RotateCcw className="text-white"/>
+                    <RotateCcw className="text-white" />
                   </div>
                   <div className="text-left">
                     <div className="font-semibold">Cambio</div>
@@ -446,12 +433,10 @@ const TasksScreen = () => {
                   <SelectValue placeholder="Seleccionar categoría" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ELECTRICIDAD">ELECTRICIDAD</SelectItem>
-                  <SelectItem value="PINTURA">PINTURA</SelectItem>
-                  <SelectItem value="PLOMERÍA">PLOMERÍA</SelectItem>
-                  <SelectItem value="CONSTRUCCIÓN">CONSTRUCCIÓN</SelectItem>
-                  <SelectItem value="ALBAÑILERÍA">ALBAÑILERÍA</SelectItem>
-                  <SelectItem value="CARPINTERÍA">CARPINTERÍA</SelectItem>
+                  <SelectItem value="electricidad">ELECTRICIDAD</SelectItem>
+                  <SelectItem value="pintura">PINTURA</SelectItem>
+                  <SelectItem value="plomeria">PLOMERÍA</SelectItem>
+                  <SelectItem value="construccion">CONSTRUCCIÓN</SelectItem>
                 </SelectContent>
               </Select>
               <Select
@@ -497,9 +482,7 @@ const TasksScreen = () => {
                 className="w-full"
                 disabled={
                   !newTask.title ||
-                  !newTask.description ||
-                  !newTask.category ||
-                  selectedMembers.length === 0
+                  !newTask.category
                 }
               >
                 Crear Tarea
@@ -538,14 +521,6 @@ const TasksScreen = () => {
                 }
                 rows={3}
               />
-              <Textarea
-                placeholder="Razón o justificación del cambio"
-                value={newChange.reason}
-                onChange={(e) =>
-                  setNewChange({ ...newChange, reason: e.target.value })
-                }
-                rows={2}
-              />
               <Select
                 value={newChange.category}
                 onValueChange={(value) =>
@@ -556,12 +531,10 @@ const TasksScreen = () => {
                   <SelectValue placeholder="Categoría afectada" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ELECTRICIDAD">ELECTRICIDAD</SelectItem>
-                  <SelectItem value="PINTURA">PINTURA</SelectItem>
-                  <SelectItem value="PLOMERÍA">PLOMERÍA</SelectItem>
-                  <SelectItem value="CONSTRUCCIÓN">CONSTRUCCIÓN</SelectItem>
-                  <SelectItem value="ALBAÑILERÍA">ALBAÑILERÍA</SelectItem>
-                  <SelectItem value="CARPINTERÍA">CARPINTERÍA</SelectItem>
+                  <SelectItem value="electricidad">ELECTRICIDAD</SelectItem>
+                  <SelectItem value="pintura">PINTURA</SelectItem>
+                  <SelectItem value="plomeria">PLOMERÍA</SelectItem>
+                  <SelectItem value="construccion">CONSTRUCCIÓN</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -593,10 +566,7 @@ const TasksScreen = () => {
                 className="w-full bg-orange-600 hover:bg-orange-700"
                 disabled={
                   !newChange.title ||
-                  !newChange.description ||
-                  !newChange.reason ||
-                  !newChange.category ||
-                  selectedMembers.length === 0
+                  !newChange.category
                 }
               >
                 Crear Solicitud de Cambio

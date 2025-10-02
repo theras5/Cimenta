@@ -23,7 +23,7 @@ export default function CimentaDashboard() {
       <main className="flex-1 p-6 flex flex-col items-center">
         <div className="max-w-6xl w-full">
           {/* Hero Section - Más compacto */}
-          <div className="mb-6">
+          <div className="mb-6 mt-20">
             <div className="grid lg:grid-cols-2 gap-6 items-center">
               <div className="text-center lg:text-left">
                 <h1 className="text-3xl font-bold text-gray-900 mb-2">
@@ -34,7 +34,7 @@ export default function CimentaDashboard() {
                   productividad de tu equipo. Organiza tareas, colabora
                   eficientemente y alcanza tus objetivos.
                 </p>
-                <div className="flex gap-4 justify-center lg:justify-start">
+                {/* <div className="flex gap-4 justify-center lg:justify-start">
                   <Button
                     onClick={() => router.push("/tasks/new-task")}
                     className="bg-blue-600 hover:bg-blue-700 text-white"
@@ -49,7 +49,7 @@ export default function CimentaDashboard() {
                     <LayoutGridIcon className="w-4 h-4 mr-2" />
                     Ver Tableros
                   </Button>
-                </div>
+                </div> */}
               </div>
               <div className="relative flex justify-center">
                 <div className="rounded-2xl p-4 relative overflow-hidden">

@@ -21,18 +21,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, CheckCircle } from "lucide-react";
 import Sidebar from "@/components/SideBar";
-
-interface Task {
-  id: number;
-  title: string;
-  description: string;
-  status: "pending" | "in_progress" | "completed" | "changes";
-  category: string;
-  categoryColor: string;
-  assignedMembers: string[];
-}
+import { useTasks } from "@/hooks/useTasks";
+import { Task } from "@/lib/api";
 
 const categoryColors = {
   ELECTRICIDAD: "bg-blue-500",
@@ -43,30 +35,18 @@ const categoryColors = {
   CARPINTERÍA: "bg-brown-500",
 };
 
-const teamMembers = [
-  "Juan",
-  "Pedro",
-  "María",
-  "Carlos",
-  "Ana",
-  "Luis",
-  "Sofia",
-  "Miguel",
-  "Carmen",
-  "Roberto",
-  "Elena",
-];
-
 export default function NewChangePage() {
   const router = useRouter();
+  const { createTask, loading: tasksLoading, error: tasksError } = useTasks();
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const [newChange, setNewChange] = useState({
     title: "",
     description: "",
-    category: "",
-    reason: "",
+    category: ""
   });
 
   const toggleMember = (member: string) => {
@@ -77,51 +57,77 @@ export default function NewChangePage() {
     }
   };
 
+  const resetForm = () => {
+    setNewChange({
+      title: "",
+      description: "",
+      category: ""
+    });
+    setSelectedMembers([]);
+    setError("");
+    setSuccess(false);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Validación
-    if (
-      !newChange.title ||
-      !newChange.description ||
-      !newChange.category ||
-      !newChange.reason ||
-      selectedMembers.length === 0
-    ) {
-      setError(
-        "Por favor completa todos los campos y selecciona al menos un responsable"
-      );
+    if (!newChange.title || !newChange.category) {
+      setError("Por favor completa todos los campos obligatorios");
       return;
     }
 
     try {
       setLoading(true);
       setError("");
+      setSuccess(false);
 
-      // Aquí integrarás con tu backend más adelante
-      const changeRequest: Task = {
-        id: Math.floor(Math.random() * 10000), // Temporal
+      // Crear la solicitud de cambio usando la API real
+      const changeData = {
         title: newChange.title,
-        description: `${newChange.description}\n\nRazón del cambio: ${newChange.reason}`,
-        status: "changes",
+        description: newChange.description,
+        status: "changes" as Task["status"],
         category: newChange.category,
-        categoryColor:
-          categoryColors[newChange.category as keyof typeof categoryColors] ||
-          "bg-gray-500",
-        assignedMembers: selectedMembers,
       };
 
-      // Simular llamada al backend
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await createTask(changeData);
 
-      // Redirigir a la página de tareas
-      router.push("/tasks");
+      // Mostrar éxito
+      setSuccess(true);
+
+      // Redirigir después de 2 segundos
+      setTimeout(() => {
+        router.push("/tasks");
+      }, 2000);
+
     } catch (error: any) {
+      console.error("Error creating change request:", error);
       setError(error.message || "Error al crear la solicitud de cambio");
     } finally {
       setLoading(false);
     }
   };
+
+  // Si se creó exitosamente, mostrar mensaje de éxito
+  if (success) {
+    return (
+      <div className="flex h-screen bg-gray-50 overflow-hidden">
+        <Sidebar />
+        <main className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <CheckCircle className="w-16 h-16 text-orange-500 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">
+              ¡Solicitud de cambio creada exitosamente!
+            </h2>
+            <p className="text-gray-600 mb-4">
+              Redirigiendo a la lista de tareas...
+            </p>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600 mx-auto"></div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
@@ -131,15 +137,12 @@ export default function NewChangePage() {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200 flex-shrink-0">
           <div className="flex items-center gap-4">
-            <Link href="/tasks">
+            <Link href="/dashboard">
               <Button variant="ghost" size="sm" className="gap-2">
                 <ArrowLeft className="w-4 h-4" />
                 Volver
               </Button>
             </Link>
-            <h1 className="text-2xl font-bold text-gray-800">
-              Solicitar Cambio
-            </h1>
           </div>
         </div>
 
@@ -149,7 +152,7 @@ export default function NewChangePage() {
             <Card className="border-orange-200 shadow-lg">
               <CardHeader className="bg-orange-50">
                 <CardTitle className="text-xl text-orange-800">
-                  Solicitud de Cambio
+                  Nueva Solicitud de Cambio
                 </CardTitle>
                 <CardDescription className="text-orange-700">
                   Completa los detalles para solicitar un cambio en el proyecto
@@ -159,9 +162,11 @@ export default function NewChangePage() {
               <CardContent className="pt-6">
                 <form onSubmit={handleSubmit} className="space-y-6">
                   {/* Error Alert */}
-                  {error && (
+                  {(error || tasksError) && (
                     <Alert variant="destructive">
-                      <AlertDescription>{error}</AlertDescription>
+                      <AlertDescription>
+                        {error || tasksError}
+                      </AlertDescription>
                     </Alert>
                   )}
 
@@ -177,7 +182,7 @@ export default function NewChangePage() {
                         setNewChange({ ...newChange, title: e.target.value })
                       }
                       className="h-12"
-                      disabled={loading}
+                      disabled={loading || tasksLoading}
                     />
                   </div>
 
@@ -196,76 +201,37 @@ export default function NewChangePage() {
                         })
                       }
                       rows={4}
-                      disabled={loading}
+                      disabled={loading || tasksLoading}
                     />
                   </div>
 
-                  {/* Razón del cambio */}
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">
-                      Razón o justificación del cambio *
-                    </label>
-                    <Textarea
-                      placeholder="Explica por qué es necesario este cambio..."
-                      value={newChange.reason}
-                      onChange={(e) =>
-                        setNewChange({ ...newChange, reason: e.target.value })
-                      }
-                      rows={3}
-                      disabled={loading}
-                    />
-                  </div>
-
-                  {/* Categoría */}
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">
-                      Categoría afectada *
-                    </label>
-                    <Select
-                      value={newChange.category}
-                      onValueChange={(value) =>
-                        setNewChange({ ...newChange, category: value })
-                      }
-                      disabled={loading}
-                    >
-                      <SelectTrigger className="h-12">
-                        <SelectValue placeholder="Seleccionar categoría" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ELECTRICIDAD">
-                          ELECTRICIDAD
-                        </SelectItem>
-                        <SelectItem value="PINTURA">PINTURA</SelectItem>
-                        <SelectItem value="PLOMERÍA">PLOMERÍA</SelectItem>
-                        <SelectItem value="CONSTRUCCIÓN">
-                          CONSTRUCCIÓN
-                        </SelectItem>
-                        <SelectItem value="ALBAÑILERÍA">ALBAÑILERÍA</SelectItem>
-                        <SelectItem value="CARPINTERÍA">CARPINTERÍA</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Responsables del cambio */}
-                  <div className="space-y-3">
-                    <label className="text-sm font-medium text-gray-700">
-                      Responsables del cambio * ({selectedMembers.length}{" "}
-                      seleccionados)
-                    </label>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 p-4 border rounded-lg bg-gray-50 max-h-48 overflow-y-auto">
-                      {teamMembers.map((member) => (
-                        <div
-                          key={member}
-                          className={`cursor-pointer p-3 rounded-lg text-sm font-medium transition-all ${
-                            selectedMembers.includes(member)
-                              ? "bg-orange-500 text-white shadow-md"
-                              : "bg-white hover:bg-gray-100 border border-gray-200"
-                          } ${loading ? "pointer-events-none opacity-50" : ""}`}
-                          onClick={() => !loading && toggleMember(member)}
-                        >
-                          {member}
-                        </div>
-                      ))}
+                  {/* Categoría y Prioridad */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">
+                        Categoría afectada *
+                      </label>
+                      <Select
+                        value={newChange.category}
+                        onValueChange={(value) =>
+                          setNewChange({ ...newChange, category: value })
+                        }
+                        disabled={loading || tasksLoading}
+                      >
+                        <SelectTrigger className="h-12">
+                          <SelectValue placeholder="Seleccionar categoría" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="electricidad">
+                            ELECTRICIDAD
+                          </SelectItem>
+                          <SelectItem value="pintura">PINTURA</SelectItem>
+                          <SelectItem value="plomeria">PLOMERÍA</SelectItem>
+                          <SelectItem value="construccion">
+                            CONSTRUCCIÓN
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
 
@@ -274,25 +240,31 @@ export default function NewChangePage() {
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => router.push("/tasks")}
-                      disabled={loading}
+                      onClick={() => router.push("/dashboard")}
+                      disabled={loading || tasksLoading}
                       className="flex-1"
                     >
                       Cancelar
                     </Button>
                     <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={resetForm}
+                      disabled={loading || tasksLoading}
+                    >
+                      Limpiar
+                    </Button>
+                    <Button
                       type="submit"
                       disabled={
                         !newChange.title ||
-                        !newChange.description ||
-                        !newChange.reason ||
                         !newChange.category ||
-                        selectedMembers.length === 0 ||
-                        loading
+                        loading ||
+                        tasksLoading
                       }
                       className="flex-1 bg-orange-600 hover:bg-orange-700"
                     >
-                      {loading ? (
+                      {loading || tasksLoading ? (
                         <>
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                           Creando...

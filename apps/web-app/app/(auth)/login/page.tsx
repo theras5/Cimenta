@@ -1,3 +1,4 @@
+// apps/web-app/app/(auth)/login/page.tsx
 "use client"
 
 import { useState } from "react"
@@ -9,37 +10,40 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, Eye, EyeOff } from "lucide-react"
-//import { useAuth } from "@/context/AuthContext"
+import { useAuth } from "@/hooks/useAuth"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
   
-  //const { signIn } = useAuth()
+  const { login, loading, error, clearError } = useAuth()
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
     if (!email || !password) {
-      setError("Por favor completa todos los campos")
       return
     }
 
     try {
-      setLoading(true)
-      setError("")
-      // Simular login exitoso - reemplazar con lógica real
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      await login({ email, password })
       router.push("/dashboard") // Redirect to dashboard
     } catch (error) {
-      setError("Error al iniciar sesión")
-    } finally {
-      setLoading(false)
+      // El error ya se maneja en el hook useAuth
+      console.error('Login failed:', error)
     }
+  }
+
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setEmail(e.target.value)
+    if (error) clearError() // Limpiar error cuando el usuario empiece a escribir
+  }
+
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPassword(e.target.value)
+    if (error) clearError() // Limpiar error cuando el usuario empiece a escribir
   }
 
   return (
@@ -91,9 +95,10 @@ export default function LoginPage() {
                   type="email"
                   placeholder="tu@email.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={handleEmailChange}
                   className="h-12"
                   disabled={loading}
+                  required
                 />
               </div>
 
@@ -107,9 +112,10 @@ export default function LoginPage() {
                     type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={handlePasswordChange}
                     className="h-12 pr-12"
                     disabled={loading}
+                    required
                   />
                   <Button
                     type="button"
@@ -132,7 +138,7 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 className="w-full h-12 bg-blue-600 hover:bg-blue-700"
-                disabled={loading}
+                disabled={loading || !email || !password}
               >
                 {loading ? (
                   <>

@@ -1,31 +1,23 @@
+// apps/web-app/app/(auth)/layout.tsx
 import type React from "react";
 import type { Metadata } from "next";
-import { GeistSans } from "geist/font/sans";
-import { GeistMono } from "geist/font/mono";
-import { Analytics } from "@vercel/analytics/next";
 import { Suspense } from "react";
 
-import "../globals.css";
-import Sidebar from "@/components/SideBar";
-
 export const metadata: Metadata = {
-  title: "Cimenta",
-  description:
-    "Plataforma de gestión de proyectos que impulsa la productividad",
-  generator: "v0.app",
+  title: "Cimenta - Autenticación",
+  description: "Inicia sesión o regístrate en Cimenta",
 };
 
-export default function RootLayout({
+export default function AuthLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
+    <div className="min-h-screen bg-gray-50">
+      <Suspense fallback={<div>Cargando...</div>}>
         {children}
-        <Analytics />
-      </body>
-    </html>
+      </Suspense>
+    </div>
   );
 }

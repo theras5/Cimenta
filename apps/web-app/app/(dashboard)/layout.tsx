@@ -1,36 +1,27 @@
+// apps/web-app/app/(dashboard)/layout.tsx
 import type React from "react";
 import type { Metadata } from "next";
-import { GeistSans } from "geist/font/sans";
-import { GeistMono } from "geist/font/mono";
-import { Analytics } from "@vercel/analytics/next";
-import { Suspense } from "react";
-
-import "../globals.css";
 import Sidebar from "@/components/SideBar";
 
 export const metadata: Metadata = {
-  title: "Cimenta",
-  description:
-    "Plataforma de gestión de proyectos que impulsa la productividad",
-  generator: "v0.app",
+  title: "Dashboard - Cimenta",
+  description: "Panel de control de Cimenta",
 };
 
-export default function RootLayout({
+export default function DashboardLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
-        <Sidebar/>
-        <main className="ml-64 min-h-screen">
-          <Suspense fallback={<div className="p-6">Cargando…</div>}>
-            {children}
-          </Suspense>
-        </main>
-        <Analytics />
-      </body>
-    </html>
+    <div className="min-h-screen bg-gray-50">
+      <Sidebar />
+      {/* Contenido con margen izquierdo para compensar el sidebar */}
+      <main className="ml-64 min-h-screen overflow-auto">
+        <div className="p-6">
+          {children}
+        </div>
+      </main>
+    </div>
   );
 }

@@ -8,7 +8,6 @@ interface Task {
   description: string
   status: "pending" | "in_progress" | "completed" | "blocked" | "changes"
   category: string
-  categoryColor?: string
   assignedMembers?: string[]
 }
 
@@ -77,7 +76,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, changes }) => {
             )}
           </div>
 
-          <div className={`${task.categoryColor || getCategoryColor(task.category)} px-3 py-1 rounded-full`}>
+          <div className={`${getCategoryColor(task.category)} px-3 py-1 rounded-full`}>
             <span className="text-white text-xs font-medium">{task.category}</span>
           </div>
         </div>

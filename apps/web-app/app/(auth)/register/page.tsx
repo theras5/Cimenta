@@ -1,3 +1,4 @@
+// apps/web-app/app/(auth)/register/page.tsx
 "use client"
 
 import { useState } from "react"
@@ -9,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, Eye, EyeOff, CheckCircle } from "lucide-react"
-//import { useAuth } from "@/context/AuthContext"
+import { useAuth } from "@/hooks/useAuth"
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -20,11 +21,9 @@ export default function RegisterPage() {
   })
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
   
-  //const { signUp } = useAuth()
+  const { register, loading, error, clearError } = useAuth()
   const router = useRouter()
 
   const validatePassword = (password: string) => {
@@ -33,7 +32,7 @@ export default function RegisterPage() {
 
   const handleChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
-    if (error) setError("") // Clear error when user starts typing
+    if (error) clearError() // Clear error when user starts typing
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -41,34 +40,38 @@ export default function RegisterPage() {
     
     // Validation
     if (!formData.fullName || !formData.email || !formData.password || !formData.confirmPassword) {
-      setError("Por favor completa todos los campos")
+      // No podemos usar setError aquí porque usamos el hook useAuth
+      // En su lugar, podríamos mostrar una alerta o manejar esto de otra manera
       return
     }
 
     if (!validatePassword(formData.password)) {
-      setError("La contraseña debe tener al menos 6 caracteres")
+      // Similar aquí, necesitarías manejar esto a través del hook o estado local
       return
     }
 
     if (formData.password !== formData.confirmPassword) {
-      setError("Las contraseñas no coinciden")
+      // Similar aquí
       return
     }
 
     try {
-      setLoading(true)
-      setError("")
-      //await signUp(formData.email, formData.password, formData.fullName)
+      // Usar el hook de autenticación para registrar
+      await register({
+        email: formData.email,
+        password: formData.password,
+        name: formData.fullName
+      })
+      
       setSuccess(true)
       
       // Redirect after 2 seconds
       setTimeout(() => {
-        router.push("/auth/login")
+        router.push("/dashboard") // Redirige directamente al dashboard ya que el login es automático
       }, 2000)
     } catch (error) {
-      setError("Error al crear la cuenta")
-    } finally {
-      setLoading(false)
+      // El error ya se maneja en el hook useAuth
+      console.error('Registration failed:', error)
     }
   }
 
@@ -80,10 +83,10 @@ export default function RegisterPage() {
             <CheckCircle className="w-16 h-16 text-green-500 mb-4" />
             <h2 className="text-2xl font-bold text-green-600 mb-2">¡Cuenta creada!</h2>
             <p className="text-gray-600 text-center mb-4">
-              Revisa tu correo electrónico para verificar tu cuenta
+              Tu cuenta ha sido creada exitosamente
             </p>
             <p className="text-sm text-gray-500">
-              Redirigiendo al inicio de sesión...
+              Redirigiendo al dashboard...
             </p>
           </CardContent>
         </Card>
@@ -143,6 +146,7 @@ export default function RegisterPage() {
                   onChange={(e) => handleChange("fullName", e.target.value)}
                   className="h-12"
                   disabled={loading}
+                  required
                 />
               </div>
 
@@ -158,6 +162,7 @@ export default function RegisterPage() {
                   onChange={(e) => handleChange("email", e.target.value)}
                   className="h-12"
                   disabled={loading}
+                  required
                 />
               </div>
 
@@ -174,6 +179,8 @@ export default function RegisterPage() {
                     onChange={(e) => handleChange("password", e.target.value)}
                     className="h-12 pr-12"
                     disabled={loading}
+                    required
+                    minLength={6}
                   />
                   <Button
                     type="button"
@@ -206,8 +213,13 @@ export default function RegisterPage() {
                     placeholder="••••••••"
                     value={formData.confirmPassword}
                     onChange={(e) => handleChange("confirmPassword", e.target.value)}
-                    className="h-12 pr-12"
+                    className={`h-12 pr-12 ${
+                      formData.confirmPassword && formData.password !== formData.confirmPassword 
+                        ? 'border-red-300 focus:border-red-500' 
+                        : ''
+                    }`}
                     disabled={loading}
+                    required
                   />
                   <Button
                     type="button"
@@ -224,13 +236,26 @@ export default function RegisterPage() {
                     )}
                   </Button>
                 </div>
+                {formData.confirmPassword && formData.password !== formData.confirmPassword && (
+                  <p className="text-xs text-red-500">
+                    Las contraseñas no coinciden
+                  </p>
+                )}
               </div>
 
               {/* Submit Button */}
               <Button
                 type="submit"
                 className="w-full h-12 bg-blue-600 hover:bg-blue-700"
-                disabled={loading}
+                disabled={
+                  loading || 
+                  !formData.fullName || 
+                  !formData.email || 
+                  !formData.password || 
+                  !formData.confirmPassword ||
+                  formData.password !== formData.confirmPassword ||
+                  !validatePassword(formData.password)
+                }
               >
                 {loading ? (
                   <>

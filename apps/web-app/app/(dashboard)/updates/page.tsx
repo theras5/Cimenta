@@ -70,7 +70,7 @@ const AvancesScreen = () => {
         </div>
 
         {/* Content */}
-        <div className="pt-25 px-6 py-6 space-y-4 pb-20">
+        <div className="pt-25 px-40 py-6 space-y-4 pb-20">
           {updates.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20">
               <Clipboard className="w-16 h-16 text-gray-400 mb-4" />

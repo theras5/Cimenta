@@ -7,6 +7,7 @@ import { Suspense } from "react";
 
 import "./globals.css";
 import Sidebar from "@/components/SideBar";
+import { AuthProvider } from "@/hooks/useAuth";
 
 export const metadata: Metadata = {
   title: "Cimenta",
@@ -23,12 +24,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
-        {/* main con margen igual al ancho de la sidebar */}
-        <main className="min-h-screen">
           <Suspense fallback={<div className="p-6">Cargando…</div>}>
+          <AuthProvider>
             {children}
+          </AuthProvider>
           </Suspense>
-        </main>
         <Analytics />
       </body>
     </html>
