@@ -6,9 +6,19 @@ import makeWASocket, {
 } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
-import { Task } from '@cimenta/dtos';
+import { CreateTaskDTO, Profile, Task } from '@cimenta/dtos';
 import { api } from './config';
 
+const verifiedUsersCache = new Map<string, Profile | null>();
+const chatStates = new Map<string, { state: string; context?: any }>();
+
+function setChatState(userId: string, state: string, context: any = {}) {
+    chatStates.set(userId, { state, context });
+}
+
+function getChatState(userId: string) {
+    return chatStates.get(userId) || { state: 'IDLE', context: {} };
+}
 
 export function parseTaskMessage(text: string, userUID: string): Omit<Task, 'id' | 'created_at'> {
     const lines = text.split('\n').filter(line => line.trim() !== ''); // Filtramos líneas vacías
@@ -106,58 +116,106 @@ export default async function connectToWhatsApp() {
         if (!messageText) return;
 
         console.log(`Mensaje recibido de ${senderNumber}: "${messageText}"`);
-        const lowerMessage = messageText.toLowerCase();
-        if (lowerMessage.startsWith('crear tarea:')) {
-            handleTaskCreation(messageText, senderNumber, sock);
-        } else if (lowerMessage.includes('ayud')) {
-            await sock.sendMessage(senderNumber, { text: '- *Para crear una tarea, usa el siguiente formato:*\n\ncrear tarea: [ título ]\ndescripcion: [ descripción ]\ncategoria: [ electricidad, plomeria, construccion, pintura ]\nurgente: [ si, no ]\nestado: [ changes, pending, in_progress, completed, blocked ]\n\n*Ejemplo*:\ncrear tarea: Reparar fuga de agua\ndescripcion: Hay una fuga en la cocina\ncategoria: plomeria\nurgente: si\nestado: pending\n\n- *Para editar el estado de una tarea usa el siguiente formato:*\n\ncambiar estado: [ID] : [nuevo_estado] ' });
-        } else if (lowerMessage.startsWith('hola')) {
-            await sock.sendMessage(senderNumber, { text: '¡Hola! ¿En qué puedo ayudarte hoy?' });
-        } else if (lowerMessage.includes('cambiar estado:')) {
-            const parts = messageText.split(':');
-            if (parts.length === 3) {
-                const taskId = parts[1].trim();
-                const newState = parts[2].trim().toLowerCase();
-                if (!["changes", "pending", "in_progress", "completed", "blocked"].includes(newState)) {
-                    await sock.sendMessage(senderNumber, { text: 'Formato incorrecto. Usa: cambiar estado: [ID] : [nuevo_estado].' });
-                } else {
-                    handleTaskStateUpdate(taskId, newState, senderNumber, sock);
-                }
-            }
+
+        console.log(senderNumber);
+        const user = await getVerifiedUser(senderNumber);
+        if (!user) {
+            await sock.sendMessage(senderNumber, { text: "Hola, para usar el bot, primero agrega tu número de WhatsApp en tu perfil de la app Cimenta." });
+            return;
         }
-    });
 
+        const { state, context } = getChatState(senderNumber);
+
+        // Si el usuario quiere cancelar en cualquier momento
+        if (messageText.toLowerCase() === 'cancelar') {
+            setChatState(senderNumber, 'IDLE');
+            await sock.sendMessage(senderNumber, { text: "Proceso cancelado. Vuelves al menú principal." });
+            return;
+        }
+
+        switch (state) {
+            case 'IDLE':
+                if (messageText.toLowerCase() === '!crear tarea') {
+                    await sock.sendMessage(senderNumber, { text: '¡Genial! Vamos a crear una tarea. Primero, dime el título.' });
+                    setChatState(senderNumber, 'AWAITING_TASK_TITLE');
+                } else {
+                    // Aquí puedes manejar otros comandos como !ver tareas, !ayuda, etc.
+                    await sock.sendMessage(senderNumber, { text: `Hola ${user.name}. Envía '!crear tarea' para empezar.` });
+                }
+                break;
+
+            case 'AWAITING_TASK_TITLE':
+                await sock.sendMessage(senderNumber, { text: 'Título guardado. Ahora, por favor, envíame la descripción.' });
+                setChatState(senderNumber, 'AWAITING_TASK_DESCRIPTION', { title: messageText });
+                break;
+
+            case 'AWAITING_TASK_DESCRIPTION':
+                await sock.sendMessage(senderNumber, { text: 'Descripción guardada. ¿Cuál es la categoría? (Ej: Obra, Oficina, Cliente)' });
+                setChatState(senderNumber, 'AWAITING_TASK_CATEGORY', { ...context, description: messageText });
+                break;
+
+            case 'AWAITING_TASK_CATEGORY':
+                await sock.sendMessage(senderNumber, { text: 'Categoría guardada. Finalmente, ¿cuál es el estado inicial? (Ej: Pendiente, En Proceso, Finalizada)' });
+                setChatState(senderNumber, 'AWAITING_TASK_STATUS', { ...context, category: messageText });
+                break;
+
+            case 'AWAITING_TASK_STATUS':
+                const finalContext = { ...context, status: messageText };
+
+                await sock.sendMessage(senderNumber, { text: '¡Perfecto! Recibí toda la información. Creando tarea...' });
+
+                await handleTaskCreation(finalContext as CreateTaskDTO, senderNumber, sock);
+
+                // La conversación terminó, volvemos al estado inicial
+                setChatState(senderNumber, 'IDLE');
+                break;
+
+        }
+    })
 }
 
-async function handleTaskCreation(messageText: string, senderNumber: string, sock: WASocket) {
-    try {
-        const parsedData = parseTaskMessage(messageText, senderNumber);
+    async function getVerifiedUser(senderNumber: string) {
+        if (verifiedUsersCache.has(senderNumber)) {
+            return verifiedUsersCache.get(senderNumber);
+        }
 
-        // Llamada al service
-        const createdTask = await api.TaskService.createTask(parsedData);
-
-        await sock.sendMessage(senderNumber, {
-            text: `✅ Tarea creada con éxito:\nTítulo: ${createdTask.title}\n`
-        });
-
-    } catch (error: any) {
-        console.error('Error al procesar el mensaje:', error.message);
-        // Enviamos el mensaje de error al usuario para que sepa qué salió mal
-        await sock.sendMessage(senderNumber, { text: `❌ Error: ${error.message}` });
+        try {
+            const user = await api.AuthService.getProfileByWhatsapp(senderNumber);
+            verifiedUsersCache.set(senderNumber, user);
+            return user;
+        } catch (error) {
+            verifiedUsersCache.set(senderNumber, null);
+            return null;
+        }
     }
-}
 
-async function handleTaskStateUpdate(taskId: string, newState: string, senderNumber: string, sock: WASocket) {
-    try {
-        const status = newState as Task['status'];
-        await api.TaskService.updateTaskStatus(taskId, status);
-        await sock.sendMessage(senderNumber, {
-            text: `✅ El estado de la tarea ${taskId} ha sido actualizado a "${newState}".`
-        });
-    } catch (error: any) {
-        console.error('Error al actualizar el estado de la tarea:', error.message);
-        await sock.sendMessage(senderNumber, { text: `❌ Error al actualizar la tarea: ${error.message}` });
+    async function handleTaskCreation(task: CreateTaskDTO, senderNumber: string, sock: WASocket) {
+        try {
+            // Llamada al service
+            const createdTask = await api.TaskService.createTask(task);
+
+            await sock.sendMessage(senderNumber, {
+                text: `✅ Tarea creada con éxito:\nTítulo: ${createdTask.title}\n`
+            });
+
+        } catch (error: any) {
+            console.error('Error al procesar el mensaje:', error.message);
+            // Enviamos el mensaje de error al usuario para que sepa qué salió mal
+            await sock.sendMessage(senderNumber, { text: `❌ Error: ${error.message}` });
+        }
     }
-}
 
-connectToWhatsApp();
+    async function handleTaskStateUpdate(taskId: string, newState: string, senderNumber: string, sock: WASocket) {
+        try {
+            const status = newState as Task['status'];
+            await api.TaskService.updateTaskStatus(taskId, status);
+            await sock.sendMessage(senderNumber, {
+                text: `✅ El estado de la tarea ${taskId} ha sido actualizado a "${newState}".`
+            });
+        } catch (error: any) {
+            console.error('Error al actualizar el estado de la tarea:', error.message);
+            await sock.sendMessage(senderNumber, { text: `❌ Error al actualizar la tarea: ${error.message}` });
+        }
+    }
+
+    connectToWhatsApp();
