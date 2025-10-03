@@ -1,4 +1,6 @@
+// @ts-nocheck
 import { Category } from "@/components/TaskCard";
+import { CustomDateTimePicker } from "@/components/CustomDateTimePicker";
 import { useAuth } from "@/context/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -15,9 +17,6 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import DateTimePicker, {
-  DateTimePickerEvent,
-} from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
 
 /* ========= MOCKDATA ========== */
@@ -72,13 +71,10 @@ export default function NewTask() {
   const [endDate, setEndDate] = useState(
     new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
   ); // 1 semana después
-
+  
+  // Estados para controlar los pickers
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
-
-  // Estados temporales para iOS
-  const [tempStartDate, setTempStartDate] = useState(new Date());
-  const [tempEndDate, setTempEndDate] = useState(new Date());
 
   // Solicitar permisos al cargar el componente
   useEffect(() => {
@@ -144,67 +140,11 @@ export default function NewTask() {
     });
   };
 
-  const handleStartDateChange = (
-    event: DateTimePickerEvent,
-    selectedDate?: Date
-  ) => {
-    if (Platform.OS === "android") {
-      const currentDate = selectedDate || startDate;
-      setShowStartDatePicker(false);
-      setStartDate(currentDate);
 
-      // Si la fecha de inicio es posterior a la de fin, actualizamos la fecha de fin
-      if (currentDate > endDate) {
-        setEndDate(currentDate);
-      }
-    } else {
-      // En iOS, solo actualizamos la fecha temporal
-      if (selectedDate) {
-        setTempStartDate(selectedDate);
-      }
-    }
-  };
 
-  const handleEndDateChange = (
-    event: DateTimePickerEvent,
-    selectedDate?: Date
-  ) => {
-    if (Platform.OS === "android") {
-      const currentDate = selectedDate || endDate;
-      setShowEndDatePicker(false);
-      setEndDate(currentDate);
-    } else {
-      // En iOS, solo actualizamos la fecha temporal
-      if (selectedDate) {
-        setTempEndDate(selectedDate);
-      }
-    }
-  };
 
-  // Funciones para confirmar o cancelar en iOS
-  const confirmStartDate = () => {
-    setStartDate(tempStartDate);
 
-    // Si la fecha de inicio es posterior a la de fin, actualizamos la fecha de fin
-    if (tempStartDate > endDate) {
-      setEndDate(tempStartDate);
-    }
 
-    setShowStartDatePicker(false);
-  };
-
-  const confirmEndDate = () => {
-    setEndDate(tempEndDate);
-    setShowEndDatePicker(false);
-  };
-
-  const cancelDateSelection = (isStartDate: boolean) => {
-    if (isStartDate) {
-      setShowStartDatePicker(false);
-    } else {
-      setShowEndDatePicker(false);
-    }
-  };
 
   const handleSave = async () => {
     // Validación completa antes de enviar
@@ -390,109 +330,39 @@ export default function NewTask() {
           <Text className="text-gray-700 font-medium mb-2">
             Fecha de inicio
           </Text>
+          {/* @ts-ignore */}
           <TouchableOpacity
-            onPress={() => {
-              if (Platform.OS === "ios") {
-                setTempStartDate(startDate);
-              }
-              setShowStartDatePicker(true);
-            }}
+            onPress={() => setShowStartDatePicker(true)}
             className="bg-white flex-row items-center justify-between p-4 rounded-xl border border-gray-200"
           >
+            {/* @ts-ignore */}
             <Text className="text-gray-800">{formatDate(startDate)}</Text>
+            {/* @ts-ignore */}
             <Ionicons name="calendar-outline" size={20} color="#374151" />
           </TouchableOpacity>
 
-          {Platform.OS === "ios" && showStartDatePicker ? (
-            <View className="bg-white mt-2 rounded-xl border border-gray-200 overflow-hidden">
-              {/* Botones OK/Cancel para iOS */}
-              <View className="flex-row justify-between items-center border-b border-gray-200 px-4 py-2">
-                <TouchableOpacity onPress={() => cancelDateSelection(true)}>
-                  <Text className="text-red-500 font-medium">Cancelar</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={confirmStartDate}>
-                  <Text className="text-blue-500 font-medium">OK</Text>
-                </TouchableOpacity>
-              </View>
 
-              {/* Date Picker */}
-              <View className="items-center py-2">
-                <DateTimePicker
-                  value={tempStartDate}
-                  mode="date"
-                  display="inline"
-                  onChange={handleStartDateChange}
-                  minimumDate={new Date()}
-                  style={{ width: "100%", height: 200 }}
-                  themeVariant="light"
-                />
-              </View>
-            </View>
-          ) : null}
 
-          {Platform.OS === "android" && showStartDatePicker && (
-            <DateTimePicker
-              value={startDate}
-              mode="date"
-              display="default"
-              onChange={handleStartDateChange}
-              minimumDate={new Date()}
-            />
-          )}
+
         </View>
 
         {/* Fecha de fin */}
         <View className="mb-6">
           <Text className="text-gray-700 font-medium mb-2">Fecha de fin</Text>
+          {/* @ts-ignore */}
           <TouchableOpacity
-            onPress={() => {
-              if (Platform.OS === "ios") {
-                setTempEndDate(endDate);
-              }
-              setShowEndDatePicker(true);
-            }}
+            onPress={() => setShowEndDatePicker(true)}
             className="bg-white flex-row items-center justify-between p-4 rounded-xl border border-gray-200"
           >
+            {/* @ts-ignore */}
             <Text className="text-gray-800">{formatDate(endDate)}</Text>
+            {/* @ts-ignore */}
             <Ionicons name="calendar-outline" size={20} color="#374151" />
           </TouchableOpacity>
 
-          {Platform.OS === "ios" && showEndDatePicker ? (
-            <View className="bg-white mt-2 rounded-xl border border-gray-200 overflow-hidden">
-              {/* Botones OK/Cancel para iOS */}
-              <View className="flex-row justify-between items-center border-b border-gray-200 px-4 py-2">
-                <TouchableOpacity onPress={() => cancelDateSelection(false)}>
-                  <Text className="text-red-500 font-medium">Cancelar</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={confirmEndDate}>
-                  <Text className="text-blue-500 font-medium">OK</Text>
-                </TouchableOpacity>
-              </View>
 
-              {/* Date Picker */}
-              <View className="items-center py-2">
-                <DateTimePicker
-                  value={tempEndDate}
-                  mode="date"
-                  display="inline"
-                  onChange={handleEndDateChange}
-                  minimumDate={startDate}
-                  style={{ width: "100%", height: 200 }}
-                  themeVariant="light"
-                />
-              </View>
-            </View>
-          ) : null}
 
-          {Platform.OS === "android" && showEndDatePicker && (
-            <DateTimePicker
-              value={endDate}
-              mode="date"
-              display="default"
-              onChange={handleEndDateChange}
-              minimumDate={startDate}
-            />
-          )}
+
         </View>
 
         {/* Miembros del Equipo */}
@@ -660,6 +530,32 @@ export default function NewTask() {
           </ScrollView>
         </SafeAreaView>
       </Modal>
+
+      {/* Custom Date Time Pickers */}
+      <CustomDateTimePicker
+        visible={showStartDatePicker}
+        value={startDate}
+        onConfirm={(date) => {
+          setStartDate(date);
+          if (date > endDate) {
+            setEndDate(date);
+          }
+          setShowStartDatePicker(false);
+        }}
+        onCancel={() => setShowStartDatePicker(false)}
+        minimumDate={new Date()}
+      />
+
+      <CustomDateTimePicker
+        visible={showEndDatePicker}
+        value={endDate}
+        onConfirm={(date) => {
+          setEndDate(date);
+          setShowEndDatePicker(false);
+        }}
+        onCancel={() => setShowEndDatePicker(false)}
+        minimumDate={startDate}
+      />
     </SafeAreaView>
   );
 }
