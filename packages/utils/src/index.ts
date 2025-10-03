@@ -1,3 +1,4 @@
+import { createAuthService } from "./services/authService";
 import { createChangeService } from "./services/changeService";
 import { createSiteService } from "./services/siteService";
 import { createTaskService } from "./services/taskService";
@@ -18,5 +19,6 @@ export const createApiClient = (apiUrl: string, options?: ApiClientOptions) => {
         TaskService: createTaskService(apiUrl, baseHeaders),
         ChangeService: createChangeService(apiUrl, baseHeaders),
         UpdateService: createUpdateService(apiUrl, baseHeaders),
+        AuthService: createAuthService(apiUrl, baseHeaders),
     }
 };
