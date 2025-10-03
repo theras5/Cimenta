@@ -202,18 +202,25 @@ const CalendarSchedule = () => {
     const startMinutes = timeToMinutes(startTime);
     const endMinutes = timeToMinutes(endTime);
     const calendarStartMinutes = 8 * 60; // 8:00 AM en minutos
+    const calendarEndMinutes = 21 * 60; // 9:00 PM en minutos - límite del calendario
     
-    // Calcular la posición relativa desde las 8:00 AM
+    // No mostrar eventos que empiecen después de las 21:00
+    if (startMinutes >= calendarEndMinutes) {
+      return { top: -1000, height: 0 }; // Posición fuera de vista
+    }
+    
+    // Calcular la posición relativa desde las 8:00 AM (igual que index)
     const relativeStartMinutes = startMinutes - calendarStartMinutes;
-    const durationMinutes = endMinutes - startMinutes;
+    // Limitar el endTime a las 21:00 para ambos cálculos (igual que index)
+    const effectiveEndMinutes = Math.min(endMinutes, calendarEndMinutes);
+    const durationMinutes = effectiveEndMinutes - startMinutes;
     
-    // Cada hora ocupa 55px, entonces cada minuto ocupa 55/60 px
-    const pixelsPerMinute = 55 / 60;
+    // Calcular píxeles por minuto basado en el valor fijo del teamCalendar (55px por hora)
+    const pixelsPerMinute = 55 / 60; // Cada hora = 55 píxeles
     const top = relativeStartMinutes * pixelsPerMinute;
     
-    // Si la duración es 0 (misma hora), usar altura mínima pequeña, sino usar altura mínima normal
-    const minHeight = durationMinutes === 0 ? 25 : 30;
-    const height = Math.max(durationMinutes * pixelsPerMinute, minHeight);
+    // Altura completamente proporcional - sin alturas mínimas (igual que index)
+    const height = durationMinutes * pixelsPerMinute;
     
     return { top, height };
   };
@@ -224,46 +231,102 @@ const CalendarSchedule = () => {
 
 
 
-  const renderSimplifiedEvent = (event: CalendarEvent, eventIndex: number) => {
-    const { top, height } = getEventPosition(event.startTime, event.endTime);
+  // Memoización para evitar recalcular grupos de superposición
+  const overlappingGroupsCache = React.useMemo(() => {
+    const cache = new Map<string, CalendarEvent[]>();
+    const processed = new Set<string>();
     
-    // Detectar si hay otros eventos que se superponen con este
-    const currentEventStart = timeToMinutes(event.startTime);
-    const currentEventEnd = timeToMinutes(event.endTime);
-    
-    const overlappingEvents = sortedTodayEvents.filter(otherEvent => {
-      if (otherEvent.id === event.id) return false;
-      const otherStart = timeToMinutes(otherEvent.startTime);
-      const otherEnd = timeToMinutes(otherEvent.endTime);
-      return currentEventStart < otherEnd && currentEventEnd > otherStart;
-    });
-    
-    // Calcular ancho consistente para todos los eventos
-    const availableWidth = width - 95; // Espacio disponible para eventos únicos (75px inicio + 20px final)
-    let eventWidth;
-    let leftPosition;
-    
-    if (overlappingEvents.length === 0) {
-      // Si no hay superposición, ocupar el 100% del ancho disponible (como estaba antes)
-      eventWidth = availableWidth;
-      leftPosition = 75;
-    } else {
-      // EVENTOS SUPERPUESTOS: usar el MISMO espacio base que eventos únicos
-      const totalOverlappingEvents = overlappingEvents.length + 1;
-      const spacing = 4; // Espacio normal entre eventos
-      const totalSpacing = (totalOverlappingEvents - 1) * spacing;
+    sortedTodayEvents.forEach(event => {
+      if (processed.has(event.id)) return;
       
-      // Usar el mismo availableWidth que eventos únicos, distribuido entre todos los eventos superpuestos
-      eventWidth = (availableWidth - totalSpacing) / totalOverlappingEvents;
+      // Encontrar todos los eventos que se superponen con este
+      const group: CalendarEvent[] = [event];
+      const eventStart = timeToMinutes(event.startTime);
+      const eventEnd = timeToMinutes(event.endTime);
       
-      // Encontrar la posición de este evento entre los superpuestos
-      const allOverlappingEvents = [event, ...overlappingEvents].sort((a, b) => {
+      // Buscar eventos superpuestos usando un enfoque más eficiente
+      for (let i = 0; i < sortedTodayEvents.length; i++) {
+        const otherEvent = sortedTodayEvents[i];
+        if (otherEvent.id === event.id || processed.has(otherEvent.id)) continue;
+        
+        const otherStart = timeToMinutes(otherEvent.startTime);
+        const otherEnd = timeToMinutes(otherEvent.endTime);
+        
+        // Verificar superposición directa
+        if (eventStart < otherEnd && eventEnd > otherStart) {
+          group.push(otherEvent);
+        }
+      }
+      
+      // Si hay más de un evento, verificar superposiciones transitivas
+      if (group.length > 1) {
+        let changed = true;
+        while (changed) {
+          changed = false;
+          const currentSize = group.length;
+          
+          for (const groupEvent of [...group]) {
+            const groupStart = timeToMinutes(groupEvent.startTime);
+            const groupEnd = timeToMinutes(groupEvent.endTime);
+            
+            for (const candidate of sortedTodayEvents) {
+              if (group.some(g => g.id === candidate.id) || processed.has(candidate.id)) continue;
+              
+              const candidateStart = timeToMinutes(candidate.startTime);
+              const candidateEnd = timeToMinutes(candidate.endTime);
+              
+              if (groupStart < candidateEnd && groupEnd > candidateStart) {
+                group.push(candidate);
+                changed = true;
+              }
+            }
+          }
+          
+          if (group.length === currentSize) break;
+        }
+      }
+      
+      // Ordenar el grupo por hora de inicio y luego por ID para consistencia
+      group.sort((a, b) => {
         const timeDiff = timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
         if (timeDiff !== 0) return timeDiff;
         return a.id.localeCompare(b.id);
       });
-      const eventPosition = allOverlappingEvents.findIndex(e => e.id === event.id);
-      leftPosition = 75 + eventPosition * (eventWidth + spacing); // Usar la misma posición base que eventos únicos
+      
+      // Cachear el grupo para todos sus miembros
+      group.forEach(groupEvent => {
+        cache.set(groupEvent.id, group);
+        processed.add(groupEvent.id);
+      });
+    });
+    
+    return cache;
+  }, [sortedTodayEvents]);
+
+  const renderSimplifiedEvent = (event: CalendarEvent, eventIndex: number) => {
+    const { top, height } = getEventPosition(event.startTime, event.endTime);
+    
+    // Obtener el grupo de eventos superpuestos desde el cache
+    const overlappingGroup = overlappingGroupsCache.get(event.id) || [event];
+    
+    // Calcular ancho y posición
+    const availableWidth = width - 95; // Espacio disponible (75px inicio + 20px final)
+    let eventWidth: number;
+    let leftPosition: number;
+    
+    if (overlappingGroup.length === 1) {
+      // Evento único sin superposición
+      eventWidth = availableWidth;
+      leftPosition = 75;
+    } else {
+      // Eventos superpuestos
+      const spacing = 4; // Espacio entre eventos
+      const totalSpacing = (overlappingGroup.length - 1) * spacing;
+      eventWidth = (availableWidth - totalSpacing) / overlappingGroup.length;
+      
+      // El grupo ya está ordenado desde el cache
+      const eventPosition = overlappingGroup.findIndex((e: CalendarEvent) => e.id === event.id);
+      leftPosition = 75 + eventPosition * (eventWidth + spacing);
     }
     
     return (
@@ -274,7 +337,7 @@ const CalendarSchedule = () => {
             styles.simplifiedEventBackground,
             {
               top: top + 20,
-              height: event.startTime === event.endTime ? Math.max(height, 25) : Math.max(height, 50),
+              height: height, // Altura completamente proporcional
               left: leftPosition,
               width: eventWidth,
               backgroundColor: event.categoryColor + '20',
@@ -288,15 +351,18 @@ const CalendarSchedule = () => {
             styles.simplifiedEventBar,
             {
               top: top + 20,
-              height: event.startTime === event.endTime ? Math.max(height, 25) : Math.max(height, 50),
+              height: height, // Altura completamente proporcional
               left: leftPosition,
               backgroundColor: event.categoryColor,
             }
           ]}
         />
         
-        {/* Texto del evento - adaptativo según el ancho */}
-        {eventWidth >= 30 && ( // Solo mostrar texto si hay suficiente espacio
+        {/* Texto del evento - solo mostrar cuando sea realmente útil */}
+        {(() => {
+          const eventDurationMinutes = timeToMinutes(event.endTime) - timeToMinutes(event.startTime);
+          return eventWidth >= 40 && eventDurationMinutes >= 30; // Solo mostrar texto para eventos de 30+ minutos
+        })() && (
           <View
             style={[
               styles.simplifiedEventText,
@@ -304,41 +370,41 @@ const CalendarSchedule = () => {
                 top: top + (event.startTime === event.endTime ? 22 : 26),
                 left: leftPosition + 6,
                 maxWidth: eventWidth - 12,
-                height: event.startTime === event.endTime ? Math.max(height - 4, 20) : Math.max(height - 10, 40),
+                height: height - 4, // Altura proporcional con pequeño ajuste
               }
             ]}          
           >
-            {eventWidth >= 80 ? (
-              // Ancho suficiente: mostrar todo el texto
-              <>
-                <Text style={styles.eventPersonName} numberOfLines={1}>
-                  {event.title}
-                </Text>
-                {event.startTime !== event.endTime && (
+            {(() => {
+              const eventDurationMinutes = timeToMinutes(event.endTime) - timeToMinutes(event.startTime);
+              
+              if (eventWidth >= 80) {
+                // Ancho suficiente: mostrar todo el texto
+                return (
                   <>
-                    <Text style={styles.eventCategory} numberOfLines={1}>
-                      {event.category.charAt(0).toUpperCase() + event.category.slice(1)}
+                    <Text style={styles.eventPersonName} numberOfLines={1}>
+                      {event.title}
                     </Text>
-                    <Text style={styles.eventTime} numberOfLines={1}>{event.startTime} - {event.endTime}</Text>
+                    {event.startTime !== event.endTime && (
+                      <>
+                        <Text style={styles.eventCategory} numberOfLines={1}>
+                          {event.category.charAt(0).toUpperCase() + event.category.slice(1)}
+                        </Text>
+                        {eventDurationMinutes >= 60 && (
+                          <Text style={styles.eventTime} numberOfLines={1}>{event.startTime} - {event.endTime}</Text>
+                        )}
+                      </>
+                    )}
                   </>
-                )}
-              </>
-            ) : eventWidth >= 50 ? (
-              // Ancho medio: solo título y tiempo
-              <>
-                <Text style={styles.eventPersonName} numberOfLines={1}>
-                  {event.title.length > 8 ? event.title.substring(0, 8) + '...' : event.title}
-                </Text>
-                {event.startTime !== event.endTime && (
-                  <Text style={styles.eventTime} numberOfLines={1}>{event.startTime}</Text>
-                )}
-              </>
-            ) : (
-              // Ancho pequeño: solo título muy corto o iniciales
-              <Text style={styles.eventPersonName} numberOfLines={1}>
-                {event.title.length > 3 ? event.title.substring(0, 3) + '...' : event.title}
-              </Text>
-            )}
+                );
+              } else {
+                // Ancho medio: solo título
+                return (
+                  <Text style={styles.eventPersonName} numberOfLines={1}>
+                    {event.title.length > 8 ? event.title.substring(0, 8) + '...' : event.title}
+                  </Text>
+                );
+              }
+            })()}
           </View>
         )}
       </TouchableOpacity>
@@ -363,7 +429,7 @@ const CalendarSchedule = () => {
             styles.complexEventBackground,
             {
               top: top + 20,
-              height: Math.max(height, 25),
+              height: height, // Altura completamente proporcional
               left: leftPosition,
               width: eventWidth,
               backgroundColor: event.categoryColor + '20',
@@ -377,7 +443,7 @@ const CalendarSchedule = () => {
             styles.complexEventBar,
             {
               top: top + 20,
-              height: Math.max(height, 25),
+              height: height, // Altura completamente proporcional
               left: leftPosition,
               backgroundColor: event.categoryColor,
             }

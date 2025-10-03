@@ -93,10 +93,13 @@ export const CustomDateTimePicker: React.FC<CustomDateTimePickerProps> = ({
         const index = items.findIndex(item => item === selectedValue);
         if (index !== -1 && scrollRef?.current) {
           setTimeout(() => {
-            scrollRef.current.scrollToOffset({
-              offset: index * ITEM_HEIGHT,
-              animated: false,
-            });
+            // Verificar nuevamente que scrollRef.current existe antes de usar scrollToOffset
+            if (scrollRef.current && scrollRef.current.scrollToOffset) {
+              scrollRef.current.scrollToOffset({
+                offset: index * ITEM_HEIGHT,
+                animated: false,
+              });
+            }
             setInitialized(true);
           }, 100);
         }
