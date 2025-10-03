@@ -338,24 +338,24 @@ async function handleTaskCreation(task: CreateTaskDTO, senderNumber: string, soc
             text: `✅ Tarea creada con éxito:\nTítulo: ${createdTask.title}`
         });
 
-    } catch (error: any) {
-        console.error('Error al procesar el mensaje:', error.message);
-        // Enviamos el mensaje de error al usuario para que sepa qué salió mal
-        await sock.sendMessage(senderNumber, { text: `❌ Error: ${error.message}` });
+        } catch (error: any) {
+            console.error('Error al procesar el mensaje:', error.message);
+            // Enviamos el mensaje de error al usuario para que sepa qué salió mal
+            await sock.sendMessage(senderNumber, { text: `❌ Error: ${error.message}` });
+        }
     }
-}
 
-async function handleTaskStateUpdate(taskId: string, newState: string, senderNumber: string, sock: WASocket) {
-    try {
-        const status = newState as Task['status'];
-        await api.TaskService.updateTaskStatus(taskId, status);
-        await sock.sendMessage(senderNumber, {
-            text: `✅ El estado de la tarea ${taskId} ha sido actualizado a "${newState}".`
-        });
-    } catch (error: any) {
-        console.error('Error al actualizar el estado de la tarea:', error.message);
-        await sock.sendMessage(senderNumber, { text: `❌ Error al actualizar la tarea: ${error.message}` });
+    async function handleTaskStateUpdate(taskId: string, newState: string, senderNumber: string, sock: WASocket) {
+        try {
+            const status = newState as Task['status'];
+            await api.TaskService.updateTaskStatus(taskId, status);
+            await sock.sendMessage(senderNumber, {
+                text: `✅ El estado de la tarea ${taskId} ha sido actualizado a "${newState}".`
+            });
+        } catch (error: any) {
+            console.error('Error al actualizar el estado de la tarea:', error.message);
+            await sock.sendMessage(senderNumber, { text: `❌ Error al actualizar la tarea: ${error.message}` });
+        }
     }
-}
 
-connectToWhatsApp();
+    connectToWhatsApp();
