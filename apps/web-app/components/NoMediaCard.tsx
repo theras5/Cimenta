@@ -4,7 +4,7 @@ import type React from "react"
 
 interface NoMediaCardProps {
   title: string
-  description: string
+  description?: string
   author: string
   timeAgo: string
   onPress?: () => void

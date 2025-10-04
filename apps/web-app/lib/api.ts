@@ -19,7 +19,8 @@ export interface Update {
   description?: string;
   image_url?: string;
   user_id?: string;
-  created_at?: string;
+  site_id: string;
+  created_at: string;
   updated_at?: string;
 }
 
