@@ -1,7 +1,6 @@
 import { Category } from "@/components/TaskCard";
 import { Ionicons } from "@expo/vector-icons";
-import { router, useLoca    } catch (error) {
-      Alert.alert("Error", "No se pudo seleccionar la imagen");archParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useState, useEffect } from "react";
 import {
   Alert,
