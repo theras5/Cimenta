@@ -2,6 +2,7 @@ import { Category } from "@/components/TaskCard";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useState, useEffect } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   Image,
   ScrollView,
@@ -102,20 +103,27 @@ export default function NewRequest() {
       return;
     }
 
+    const site_id = await AsyncStorage.getItem("selectedSiteId");
+    if (!site_id) {
+      alert("Debes seleccionar una obra antes de crear la solicitud");
+      return;
+    }
+
     const nuevaSolicitud = {
       title,
       description,
       category,
       status: "changes",
-      is_urgent: false,
+      // is_urgent: false,
       user_id: "ad4d74ba-beac-4741-9ec1-978d564a971c",
+      site_id,
     };
 
     // Muestra en consola lo que se envía
     console.log("Enviando solicitud al backend:", nuevaSolicitud);
 
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/task`, {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/tasks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(nuevaSolicitud),
@@ -228,7 +236,7 @@ export default function NewRequest() {
                     category === cat.name ? "text-white" : "text-gray-800"
                   }`}
                 >
-                  {cat.name === "Construccion" ? "Construcción" : cat.name === "Plomeria" ? "Plomería" : cat.name}
+                  {cat.name === "construccion" ? "construcción" : cat.name === "plomeria" ? "plomería" : cat.name}
                 </Text>
               </TouchableOpacity>
             ))}

@@ -1,7 +1,10 @@
 {
-  "name": "@cimenta/server",
+  "name": "@cimenta/bot",
   "version": "1.0.0",
   "description": "",
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -9,20 +12,18 @@
     "build": "tsc --build",
     "start": "node dist/index.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
+    "@cimenta/bot": "file:",
     "@cimenta/dtos": "^1.0.0",
-    "@supabase/supabase-js": "^2.56.0",
-    "cors": "^2.8.5",
-    "dotenv": "^17.2.1",
-    "express": "^5.1.0"
+    "@cimenta/utils": "^1.0.0",
+    "@whiskeysockets/baileys": "^6.7.18",
+    "pino": "^9.11.0"
   },
   "devDependencies": {
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.3",
     "@types/node": "^24.3.0",
+    "@types/qrcode-terminal": "^0.12.2",
+    "dotenv": "^17.2.3",
+    "qrcode-terminal": "^0.12.0",
     "tsx": "^4.20.4",
     "typescript": "^5.9.2"
   }

@@ -73,7 +73,7 @@ export default function ChangeDetail() {
         category: task.category,
         status: task.status as any,
         images: task.mediaFiles || [],
-        createdAt: task.startDate ? new Date(task.startDate) : new Date(),
+        createdAt: task.start_date ? new Date(task.start_date) : new Date(),
         taskId: task.id || undefined  // Usamos el ID de la tarea actual como relación
       };
       

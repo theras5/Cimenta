@@ -4,17 +4,16 @@ import {
     getSiteByIdService, 
     createSiteService, 
     updateSiteByIdService, 
-    deleteSiteByIdService 
+    deleteSiteByIdService,
+    createBelongsToService,
+    getSitesByUserService 
 } from "../services/siteService";
 
 export const getAllSites = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        // console.log('Controller getAllSites llamado...');
         const data = await getAllSitesService();
-        // console.log('Data a devolver:', data);
         res.status(200).json(data);
     } catch (err) {
-        // console.error('Error en controller getAllSites:', err);
         next(err);
     }
 };
@@ -31,15 +30,24 @@ export const getSiteById = async (req: Request, res: Response, next: NextFunctio
 
 export const createSite = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const siteToCreate = req.body;
-        
-        if (!siteToCreate.address) {
-            return res.status(400).json({ 
-                error: "address is required" 
-            });
+        const { address, role, user_id } = req.body;
+
+        if (!address) {
+            return res.status(400).json({ error: "address is required" });
         }
+        if (!role) {
+            return res.status(400).json({ error: "role is required" });
+        }
+        if (!user_id) {
+            return res.status(400).json({ error: "user_id is required" });
+        }
+
         
-        const data = await createSiteService(siteToCreate);
+        const data = await createSiteService({ address });
+
+        // 2. Crear belongs_to
+        await createBelongsToService({ user_id, site_id: data.id, role });
+
         res.status(201).json(data);
     } catch (error) {
         next(error);
@@ -64,5 +72,17 @@ export const deleteSiteById = async (req: Request, res: Response, next: NextFunc
         res.status(204).send();
     } catch (error) {
         next(error);
+    }
+};
+
+
+export const getSitesByUser = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const userId = req.params.userId;        
+        const sites = await getSitesByUserService(userId);
+        
+        res.status(200).json(sites);
+    } catch (err) {
+        next(err);
     }
 };

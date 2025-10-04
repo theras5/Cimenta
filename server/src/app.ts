@@ -18,6 +18,11 @@ app.use(express.json());
 
 app.use(cors());
 
+app.use((req, res, next) => {
+    console.log('🌍 PETICIÓN GLOBAL - Método:', req.method, 'URL completa:', req.url, 'Path:', req.path);
+    next();
+});
+
 app.use("/sites", sites);
 
 app.use("/tasks", tasks);

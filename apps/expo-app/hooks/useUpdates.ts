@@ -1,23 +1,31 @@
 import { CreateUpdateDTO, Update, UpdateService } from "@/services/updateService";
 import { useCallback, useEffect, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
 
 export function useUpdates() {
   const [updates, setUpdates] = useState<Update[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchUpdates = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const data = await UpdateService.getUpdates();
-      setUpdates(data);
-    } catch (err: any) {
-      setError(err.message || "Error al cargar los avances");
-    } finally {
+const fetchUpdates = useCallback(async () => {
+  try {
+    setIsLoading(true);
+    setError(null);
+    const siteId = await AsyncStorage.getItem("selectedSiteId");
+    if (!siteId) {
+      setUpdates([]);
       setIsLoading(false);
+      return;
     }
-  }, []);
+    const data = await UpdateService.getUpdatesBySite(siteId);
+    setUpdates(data);
+  } catch (err: any) {
+    setError(err.message || "Error al cargar los avances");
+  } finally {
+    setIsLoading(false);
+  }
+}, []);
 
   // Cargar updates al iniciar
   useEffect(() => {
@@ -38,7 +46,7 @@ export function useUpdates() {
 
   // Actualizar un update
   const updateUpdate = async (
-    id: number,
+    id: string,
     updateData: Partial<CreateUpdateDTO>
   ): Promise<Update> => {
     try {
@@ -54,7 +62,7 @@ export function useUpdates() {
   };
 
   // Eliminar update
-  const deleteUpdate = async (id: number): Promise<boolean> => {
+  const deleteUpdate = async (id: string): Promise<boolean> => {
     try {
       await UpdateService.deleteUpdate(id);
       setUpdates((prev) => prev.filter((update) => update.id !== id));
@@ -76,7 +84,7 @@ export function useUpdates() {
   };
 }
 
-export function useUpdate(id: number | undefined) {
+export function useUpdate(id: string | undefined) {
   const [update, setUpdate] = useState<Update | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

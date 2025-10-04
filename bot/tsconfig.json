@@ -9,7 +9,10 @@
   "include": ["src/**/*"],
   "references": [
     {
-      "path": "../packages/dtos"
+      "path": "../packages/dtos",
+    },
+        {
+      "path": "../packages/utils",
     }
   ]
 }

@@ -70,11 +70,11 @@ export default function TabLayout() {
         }}
       />
             <Tabs.Screen
-        name="summary"
+        name="avances"
         options={{
           title: "Summary",
           tabBarIcon: ({ focused }) => (
-            <TabBarIcon title="Resumen" icon={images.resumen} focused={focused} />
+            <TabBarIcon title="Avances" icon={images.resumen} focused={focused} />
           ),
         }}
       />

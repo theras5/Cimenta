@@ -8,11 +8,13 @@ export interface Site {
 
 export interface CreateSiteRequest {
   address: string;
-}
+  role?: string;
+  user_id?: string;}
 
 export interface UpdateSiteRequest {
-  address?: string;
-}
+  address: string;
+  role?: string;
+  user_id?: string;}
 
 const handleApiError = (error: any): never => {
   console.error('API Error:', error);
@@ -26,7 +28,7 @@ const handleApiError = (error: any): never => {
 export const SiteService = {
   async getSites(): Promise<Site[]> {
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/sites`); 
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/sites`); 
       
       if (!response.ok) {
         throw new Error(`Error ${response.status}: ${response.statusText}`);
@@ -40,7 +42,7 @@ export const SiteService = {
   
   async getSite(id: string): Promise<Site> {
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/sites/${id}`);
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/sites/${id}`);
       
       if (!response.ok) {
         throw new Error(`Error ${response.status}: ${response.statusText}`);
@@ -54,7 +56,7 @@ export const SiteService = {
   
   async createSite(site: CreateSiteRequest): Promise<Site> {
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/sites`, {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/sites`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -74,7 +76,7 @@ export const SiteService = {
   
   async updateSite(id: string, site: UpdateSiteRequest): Promise<Site> {
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/sites/${id}`, {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/sites/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -94,7 +96,7 @@ export const SiteService = {
   
   async deleteSite(id: string): Promise<boolean> {
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/sites/${id}`, {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/sites/${id}`, {
         method: 'DELETE',
       });
       
@@ -106,5 +108,19 @@ export const SiteService = {
     } catch (error) {
       return handleApiError(error);
     }
+  },
+
+
+async getSitesForUser(userId: string): Promise<Site[]> {
+  try {
+    const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/sites/user/${userId}`);
+    if (!response.ok) {
+      throw new Error(`Error ${response.status}: ${response.statusText}`);
+    }
+    return await response.json();
+  } catch (error) {
+    return handleApiError(error);
   }
+}
+
 };

@@ -2,12 +2,13 @@ import { NextFunction, Request, Response } from "express";
 import { supabase } from "../config/supabase";
 
 interface Update {
-  id: number;
+  id: string;
   created_at: string;
   user_id: string;
   title: string;
   description?: string;
   image_url?: string;
+  site_id?: string; 
 }
 
 //@desc get all updates
@@ -18,8 +19,15 @@ export const getUpdates = async (
   next: NextFunction
 ) => {
   try {
-    // Consultar la tabla correcta: "updates"
-    const { data, error } = await supabase.from("updates").select("*").order('created_at', { ascending: false });
+    const { site_id } = req.query;
+
+    let query = supabase.from("updates").select("*").order('created_at', { ascending: false });
+
+    if (site_id) {
+      query = query.eq("site_id", site_id);
+    }    
+
+    const { data, error } = await query;
 
     if (error) {
       return next(error);

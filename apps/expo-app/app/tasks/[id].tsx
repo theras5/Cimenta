@@ -21,6 +21,7 @@ import { useTask } from "@/hooks/useTasks";
 
 // Reuse the mock data from new-task.tsx
 const electricidad: Category = { name: "electricidad", color: "bg-blue-500" };
+
 const plomeria: Category = { name: "plomeria", color: "bg-orange-500" };
 const construccion: Category = { name: "construccion", color: "bg-gray-500" };
 const pintura: Category = { name: "pintura", color: "bg-pink-500" };
@@ -52,7 +53,7 @@ const mockTasks = [
     category: "ELECTRICIDAD",
     categoryColor: "bg-blue-500",
     bgColor: "bg-blue-100",
-    startDate: new Date(),
+    start_date: new Date(),
     endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     assignedMembers: ["1", "3", "5"], // IDs of team members
     mediaFiles: [],
@@ -65,8 +66,8 @@ const mockTasks = [
     category: "PLOMERÍA",
     categoryColor: "bg-orange-500",
     bgColor: "bg-orange-100",
-    startDate: new Date(),
-    endDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
+    start_date: new Date(),
+    end_date: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
     assignedMembers: ["2", "6"],
     mediaFiles: [],
     status: "in_progress",
@@ -114,8 +115,8 @@ export default function TaskDetail() {
       setSelectedStatus(taskData.status);
 
       // Usar el nombre correcto según tu API (camelCase o snake_case)
-      const startDateValue = taskData.startDate;
-      const endDateValue = taskData.endDate;
+      const startDateValue = taskData.start_date;
+      const endDateValue = taskData.end_date;
 
       // Manejar fecha de inicio
       if (startDateValue) {
@@ -267,8 +268,8 @@ export default function TaskDetail() {
         title,
         description,
         category,
-        startDate: formatDate(startDate),
-        endDate: formatDate(endDate),
+        start_date: formatDate(startDate),
+        end_date: formatDate(endDate),
         status: selectedStatus,
       };
 

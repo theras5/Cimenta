@@ -8,8 +8,11 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@shared/*": [
-        "packages/shared/*"
+      "@cimenta/dtos": [
+        "packages/dtos/src"
+      ],
+      "@cimenta/utils": [
+        "packages/utils/src"
       ]
     }
   },
@@ -20,5 +23,4 @@
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
   ],
-  "extends": "expo/tsconfig.base"
 }

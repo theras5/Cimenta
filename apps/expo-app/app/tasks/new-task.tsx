@@ -2,6 +2,8 @@ import { Category } from "@/components/TaskCard";
 import { useAuth } from "@/context/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
 import React, { useState, useEffect } from "react";
 import {
   Image,
@@ -242,24 +244,30 @@ export default function NewTask() {
       return;
     }
 
+    const site_id = await AsyncStorage.getItem("selectedSiteId");
+    if (!site_id) {
+      alert("Debes seleccionar una obra antes de crear una tarea");
+      return;
+    }
     const nuevaTarea = {
       title,
       description,
       category,
       status: "pending",
-      is_urgent: false,
+      // is_urgent: false,
       user_id: user.id,
 
       // Si tienes campos de fecha en la base, agrégalos aquí
-      startDate: formatDate(startDate),
-      endDate: formatDate(endDate),
+      start_date: formatDate(startDate),
+      end_date: formatDate(endDate),
+      site_id,
     };
 
     // Muestra en consola lo que se envía
     console.log("Enviando al backend:", nuevaTarea);
 
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/task`, {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/tasks`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",

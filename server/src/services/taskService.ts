@@ -1,22 +1,9 @@
 import { supabase } from "../config/supabase";
 import { AppError } from "../errors/AppError";
+import { Task } from "@cimenta/dtos";
 
 const DEFAULT_SITE_ID = 'e43d720c-8b2f-454f-8b41-55019ffef012';
 const DEFAULT_USER_ID = 'bf118bdb-6c44-469e-bdc9-0c46a4aa6737';
-
-export interface Task {
-    id: number;
-    created_at: string;
-    title: string;
-    category: "electricidad" | "plomeria" | "construccion" | "pintura";
-    description?: string;
-    is_urgent: boolean;
-    status: "changes" | "pending" | "in_progress" | "completed" | "blocked";
-    start_date?: string;
-    end_date?: string;
-    site_id: string;
-    user_id: string; 
-}
 
 export async function getAllTasksService() {
     const { data, error } = await supabase.from("tasks").select(`
@@ -66,8 +53,10 @@ export async function createTaskService(newTask: Omit<Task, 'id' | 'created_at'>
             description: newTask.description,
             category: newTask.category,
             status: newTask.status,
-            site_id: newTask.site_id || DEFAULT_SITE_ID,
-            user_id: newTask.user_id || DEFAULT_USER_ID
+            start_date: newTask.start_date,
+            end_date: newTask.end_date,                
+            site_id: newTask.site_id,
+            user_id: newTask.user_id
         }])
         .select(`
             *,
