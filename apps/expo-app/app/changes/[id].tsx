@@ -1,6 +1,7 @@
 import { Category } from "@/components/TaskCard";
 import { Ionicons } from "@expo/vector-icons";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLoca    } catch (error) {
+      Alert.alert("Error", "No se pudo seleccionar la imagen");archParams } from "expo-router";
 import React, { useState, useEffect } from "react";
 import {
   Alert,
@@ -18,10 +19,10 @@ import * as ImagePicker from 'expo-image-picker';
 import { useTask } from "@/hooks/useTasks"; // Importamos el hook para obtener los datos reales
 
 // Reuse the same categories from task-detail.tsx
-const electricidad: Category = { name: "electricidad", color: "bg-blue-500" };
-const plomeria: Category = { name: "plomeria", color: "bg-orange-500" };
-const construccion: Category = { name: "construccion", color: "bg-gray-500" };
-const pintura: Category = { name: "pintura", color: "bg-pink-500" };
+const electricidad: Category = { name: "electricidad", color: '#007AFF' };
+const plomeria: Category = { name: "plomeria", color: '#FF9500' };
+const construccion: Category = { name: "construccion", color: '#8A2BE2' };
+const pintura: Category = { name: "pintura", color: '#FF2D92' };
 const categories: Category[] = [electricidad, plomeria, construccion, pintura];
 
 // Mock data for change request
@@ -104,9 +105,9 @@ export default function ChangeDetail() {
 
   // Helper para obtener el color de la categoría
   const getCategoryColor = (categoryName: string) => {
-    const normalizedCategory = categoryName?.toUpperCase();
-    const category = categories.find((cat) => cat.name.toUpperCase() === normalizedCategory);
-    return category?.color || "bg-gray-500";
+    const normalizedCategory = categoryName?.toLowerCase();
+    const category = categories.find((cat) => cat.name.toLowerCase() === normalizedCategory);
+    return category?.color || '#999999';
   };
 
   const handleImagePicker = async () => {
@@ -199,7 +200,6 @@ export default function ChangeDetail() {
         }, 1000);
       }
     } catch (error) {
-      console.error("Error al guardar los cambios:", error);
       Alert.alert("Error", "No se pudo guardar la solicitud de cambio");
     } finally {
       setIsLoading(false);
@@ -245,7 +245,6 @@ export default function ChangeDetail() {
                 }, 1000);
               }
             } catch (error) {
-              console.error("Error al aprobar el cambio:", error);
               Alert.alert("Error", "No se pudo aprobar la solicitud de cambio");
             } finally {
               setIsLoading(false);
@@ -299,7 +298,6 @@ export default function ChangeDetail() {
                 }, 1000);
               }
             } catch (error) {
-              console.error("Error al rechazar el cambio:", error);
               Alert.alert("Error", "No se pudo rechazar la solicitud de cambio");
             } finally {
               setIsLoading(false);
@@ -439,35 +437,37 @@ export default function ChangeDetail() {
           <Text className="text-gray-700 font-medium mb-2">Categoría</Text>
           {isEditing ? (
             <View className="flex-row flex-wrap gap-2">
-              {categories.map((cat) => (
-                <TouchableOpacity
-                  key={cat.name}
-                  onPress={() => setCategory(cat.name)}
-                  className={`px-3 py-2 rounded-full ${
-                    category.toUpperCase() === cat.name.toUpperCase()
-                      ? getCategoryColor(category)
-                      : "bg-gray-200"
-                  }`}
-                >
-                  <Text
-                    className={`text-xs font-medium ${
-                      category.toUpperCase() === cat.name.toUpperCase()
-                        ? "text-white"
-                        : "text-gray-800"
-                    }`}
+              {categories.map((cat) => {
+                const isSelected = category === cat.name;
+                return (
+                  <TouchableOpacity
+                    key={cat.name}
+                    onPress={() => setCategory(cat.name)}
+                    className="px-3 py-2 rounded-full"
+                    style={{
+                      backgroundColor: isSelected ? cat.color : '#E5E7EB'
+                    }}
+                    activeOpacity={0.9}
                   >
-                    {cat.name.toLowerCase()}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <Text
+                      className={`text-xs font-medium ${
+                        isSelected ? "text-white" : "text-gray-800"
+                      }`}
+                    >
+                      {cat.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           ) : (
             <View className="flex-row">
               <View
-                className={`${getCategoryColor(category)} px-3 py-2 rounded-full`}
+                className="px-3 py-2 rounded-full"
+                style={{ backgroundColor: getCategoryColor(category) }}
               >
                 <Text className="text-white text-xs font-medium">
-                  {category.toLowerCase()}
+                  {category}
                 </Text>
               </View>
             </View>

@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { Category } from "@/components/TaskCard";
-import { CustomDateTimePicker } from "@/components/CustomDateTimePicker";
+import { QuickDateSelector } from "@/components/QuickDateSelector";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState, useEffect } from "react";
@@ -19,12 +19,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useTask } from "@/hooks/useTasks";
 import { Task, ISODateString } from "@/services/taskService";
 
-// Reuse the mock data from new-task.tsx
-const electricidad: Category = { name: "electricidad", color: "bg-blue-500" };
-
-const plomeria: Category = { name: "plomeria", color: "bg-orange-500" };
-const construccion: Category = { name: "construccion", color: "bg-gray-500" };
-const pintura: Category = { name: "pintura", color: "bg-pink-500" };
+// Categories with hex colors matching teamCalendar
+const electricidad: Category = { name: "electricidad", color: '#007AFF' };
+const plomeria: Category = { name: "plomeria", color: '#FF9500' };
+const construccion: Category = { name: "construccion", color: '#8A2BE2' };
+const pintura: Category = { name: "pintura", color: '#FF2D92' };
 const categories: Category[] = [electricidad, plomeria, construccion, pintura];
 
 // Mock data for team members
@@ -100,9 +99,7 @@ export default function TaskDetail() {
     "changes" | "pending" | "in_progress" | "completed" | "blocked" | "rejected"
   >("pending");
   
-  // Estados para controlar los pickers
-  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
-  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+  // Estados para controlar los pickers - ya no necesarios con QuickDateSelector
 
   // Load task data
   useEffect(() => {
@@ -244,9 +241,9 @@ export default function TaskDetail() {
 
   // Helper para obtener el color de la categoría
   const getCategoryColor = (categoryName: string) => {
-    const normalizedCategory = categoryName?.toUpperCase();
-    const category = categories.find((cat) => cat.name.toUpperCase() === normalizedCategory);
-    return category?.color || "bg-gray-500";
+    const normalizedCategory = categoryName?.toLowerCase();
+    const category = categories.find((cat) => cat.name.toLowerCase() === normalizedCategory);
+    return category?.color || '#999999';
   };
 
   const handleSaveChanges = async () => {
@@ -489,32 +486,34 @@ export default function TaskDetail() {
           <Text className="text-gray-700 font-medium mb-2">Categoría</Text>
           {isEditing ? (
             <View className="flex-row flex-wrap gap-2">
-              {categories.map((cat) => (
-                <TouchableOpacity
-                  key={cat.name}
-                  onPress={() => setCategory(cat.name)}
-                  className={`px-3 py-2 rounded-full ${
-                    category === cat.name
-                      ? getCategoryColor(category)
-                      : "bg-gray-200"
-                  }`}
-                >
-                  <Text
-                    className={`text-xs font-medium ${
-                      category?.toUpperCase() === cat.name
-                        ? "text-white"
-                        : "text-gray-800"
-                    }`}
+              {categories.map((cat) => {
+                const isSelected = category === cat.name;
+                return (
+                  <TouchableOpacity
+                    key={cat.name}
+                    onPress={() => setCategory(cat.name)}
+                    className="px-3 py-2 rounded-full"
+                    style={{
+                      backgroundColor: isSelected ? cat.color : '#E5E7EB'
+                    }}
+                    activeOpacity={0.9}
                   >
-                    {cat.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <Text
+                      className={`text-xs font-medium ${
+                        isSelected ? "text-white" : "text-gray-800"
+                      }`}
+                    >
+                      {cat.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           ) : (
             <View className="flex-row">
               <View
-                className={`${getCategoryColor(category)} px-3 py-2 rounded-full`}
+                className="px-3 py-2 rounded-full"
+                style={{ backgroundColor: getCategoryColor(category) }}
               >
                 <Text className="text-white text-xs font-medium">
                   {category}
@@ -525,53 +524,56 @@ export default function TaskDetail() {
         </View>
 
         {/* Fechas */}
-        <View className="mb-4">
-          <Text className="text-gray-700 font-medium mb-2">
-            Fecha de inicio
-          </Text>
-          {isEditing ? (
-            <TouchableOpacity
-              onPress={() => setShowStartDatePicker(true)}
-              className="bg-white flex-row items-center justify-between p-4 rounded-xl border border-gray-200"
-            >
-              {/* @ts-ignore */}
-              <Text className="text-gray-800">{formatDate(startDate)}</Text>
-              {/* @ts-ignore */}
-              <Ionicons name="calendar-outline" size={20} color="#374151" />
-            </TouchableOpacity>
-          ) : (
-            <View className="bg-white p-4 rounded-xl border border-gray-200">
-              <Text
-                className={`${!startDate ? "text-gray-400 italic" : "text-gray-800"}`}
-              >
-                {formatDate(startDate)}
-              </Text>
-            </View>
-          )}
-        </View>
+        {isEditing ? (
+          <>
+            <QuickDateSelector
+              date={startDate}
+              onDateChange={(date) => {
+                setStartDate(date);
+                if (endDate && date > endDate) {
+                  setEndDate(date);
+                }
+              }}
+              label="Fecha de inicio"
+              minimumDate={new Date()}
+              placeholder="Seleccionar fecha de inicio"
+            />
 
-        <View className="mb-4">
-          <Text className="text-gray-700 font-medium mb-2">Fecha de fin</Text>
-          {isEditing ? (
-            <TouchableOpacity
-              onPress={() => setShowEndDatePicker(true)}
-              className="bg-white flex-row items-center justify-between p-4 rounded-xl border border-gray-200"
-            >
-              {/* @ts-ignore */}
-              <Text className="text-gray-800">{formatDate(endDate)}</Text>
-              {/* @ts-ignore */}
-              <Ionicons name="calendar-outline" size={20} color="#374151" />
-            </TouchableOpacity>
-          ) : (
-            <View className="bg-white p-4 rounded-xl border border-gray-200">
-              <Text
-                className={`${!endDate ? "text-gray-400 italic" : "text-gray-800"}`}
-              >
-                {formatDate(endDate)}
+            <QuickDateSelector
+              date={endDate}
+              onDateChange={setEndDate}
+              label="Fecha de finalización"
+              minimumDate={startDate || new Date()}
+              placeholder="Seleccionar fecha de finalización"
+            />
+          </>
+        ) : (
+          <>
+            <View className="mb-4">
+              <Text className="text-gray-700 font-medium mb-2">
+                Fecha de inicio
               </Text>
+              <View className="bg-white p-4 rounded-xl border border-gray-200">
+                <Text
+                  className={`${!startDate ? "text-gray-400 italic" : "text-gray-800"}`}
+                >
+                  {formatDate(startDate)}
+                </Text>
+              </View>
             </View>
-          )}
-        </View>
+
+            <View className="mb-4">
+              <Text className="text-gray-700 font-medium mb-2">Fecha de fin</Text>
+              <View className="bg-white p-4 rounded-xl border border-gray-200">
+                <Text
+                  className={`${!endDate ? "text-gray-400 italic" : "text-gray-800"}`}
+                >
+                  {formatDate(endDate)}
+                </Text>
+              </View>
+            </View>
+          </>
+        )}
 
         {/* Miembros asignados */}
 {/*         <View className="mb-4">
@@ -610,31 +612,7 @@ export default function TaskDetail() {
         </View>
       </ScrollView>
 
-      {/* Custom Date Time Pickers */}
-      <CustomDateTimePicker
-        visible={showStartDatePicker}
-        value={startDate || new Date()}
-        onConfirm={(date) => {
-          setStartDate(date);
-          if (endDate && date > endDate) {
-            setEndDate(date);
-          }
-          setShowStartDatePicker(false);
-        }}
-        onCancel={() => setShowStartDatePicker(false)}
-        minimumDate={new Date()}
-      />
-
-      <CustomDateTimePicker
-        visible={showEndDatePicker}
-        value={endDate || new Date()}
-        onConfirm={(date) => {
-          setEndDate(date);
-          setShowEndDatePicker(false);
-        }}
-        onCancel={() => setShowEndDatePicker(false)}
-        minimumDate={startDate || new Date()}
-      />
+      {/* Date pickers ahora manejados por QuickDateSelector */}
     </SafeAreaView>
   );
 }

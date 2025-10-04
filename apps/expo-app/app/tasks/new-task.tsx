@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { Category } from "@/components/TaskCard";
-import { CustomDateTimePicker } from "@/components/CustomDateTimePicker";
+import { QuickDateSelector } from "@/components/QuickDateSelector";
+// import { MinimalDateSelector } from "@/components/MinimalDateSelector"; // Para un diseño aún más minimalista
 import { useAuth } from "@/context/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -22,10 +23,10 @@ import * as ImagePicker from "expo-image-picker";
 /* ========= MOCKDATA ========== */
 
 /* mock data for categories */
-const Electricidad: Category = { name: "electricidad", color: "bg-blue-500" };
-const Plomeria: Category = { name: "plomeria", color: "bg-orange-500" };
-const Construccion: Category = { name: "construccion", color: "bg-gray-500" };
-const Pintura: Category = { name: "pintura", color: "bg-pink-500" };
+const Electricidad: Category = { name: "electricidad", color: '#007AFF' };
+const Plomeria: Category = { name: "plomeria", color: '#FF9500' };
+const Construccion: Category = { name: "construccion", color: '#8A2BE2' };
+const Pintura: Category = { name: "pintura", color: '#FF2D92' };
 const categories: Category[] = [Electricidad, Plomeria, Construccion, Pintura];
 
 // Mock data para miembros del equipo
@@ -72,9 +73,7 @@ export default function NewTask() {
     new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
   ); // 1 semana después
   
-  // Estados para controlar los pickers
-  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
-  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+  // Estados para controlar los pickers - ya no necesarios con QuickDateSelector
 
   // Solicitar permisos al cargar el componente
   useEffect(() => {
@@ -131,14 +130,7 @@ export default function NewTask() {
     setSelectedMembers(selectedMembers.filter((m) => m.id !== memberId));
   };
 
-  // Función para formatear las fechas
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString("es-ES", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-  };
+  // Formateo de fechas ahora manejado por QuickDateSelector
 
 
 
@@ -195,8 +187,7 @@ export default function NewTask() {
       end_date: formatDate(endDate),
     };
 
-    // Muestra en consola lo que se envía
-    console.log("Enviando al backend:", nuevaTarea);
+
 
     try {
       const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/tasks`, {
@@ -210,14 +201,12 @@ export default function NewTask() {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("Respuesta del backend:", errorText);
         throw new Error("Error al crear la tarea");
       }
 
       router.back();
     } catch (error) {
       alert("No se pudo guardar la tarea");
-      console.error(error);
     }
   };
 
@@ -299,26 +288,33 @@ export default function NewTask() {
             Categoría <Text className="text-red-500">*</Text>
           </Text>
           <View className="flex-row flex-wrap gap-2">
-            {categories.map((cat) => (
-              <TouchableOpacity
-                key={cat.name}
-                onPress={() => {
-                  setCategory(cat.name);
-                  setCategoryError(null); // Limpia el error al seleccionar
-                }}
-                className={`px-3 py-2 rounded-full ${
-                  category === cat.name ? cat.color : "bg-gray-200"
-                }`}
-              >
-                <Text
-                  className={`text-xs font-medium ${
-                    category === cat.name ? "text-white" : "text-gray-800"
-                  }`}
+            {categories.map((cat) => {
+              const isSelected = category === cat.name;
+              return (
+                <TouchableOpacity
+                  key={cat.name}
+                  onPress={() => {
+                    setCategory(cat.name);
+                    setCategoryError(null);
+                  }}
+                  className="px-3 py-2 rounded-full"
+                  style={{
+                    backgroundColor: isSelected ? '#00FF00' : '#E5E7EB',
+                    borderWidth: 2,
+                    borderColor: isSelected ? '#000000' : '#CCCCCC'
+                  }}
+                  activeOpacity={0.9}
                 >
-                  {cat.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text
+                    className={`text-xs font-medium ${
+                      isSelected ? "text-white" : "text-gray-800"
+                    }`}
+                  >
+                    {cat.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
           {categoryError && (
             <Text className="text-red-500 text-sm mt-1">{categoryError}</Text>
@@ -326,44 +322,27 @@ export default function NewTask() {
         </View>
 
         {/* Fecha de inicio */}
-        <View className="mb-4">
-          <Text className="text-gray-700 font-medium mb-2">
-            Fecha de inicio
-          </Text>
-          {/* @ts-ignore */}
-          <TouchableOpacity
-            onPress={() => setShowStartDatePicker(true)}
-            className="bg-white flex-row items-center justify-between p-4 rounded-xl border border-gray-200"
-          >
-            {/* @ts-ignore */}
-            <Text className="text-gray-800">{formatDate(startDate)}</Text>
-            {/* @ts-ignore */}
-            <Ionicons name="calendar-outline" size={20} color="#374151" />
-          </TouchableOpacity>
-
-
-
-
-        </View>
+        <QuickDateSelector
+          date={startDate}
+          onDateChange={(date) => {
+            setStartDate(date);
+            if (date > endDate) {
+              setEndDate(date);
+            }
+          }}
+          label="Fecha de inicio"
+          minimumDate={new Date()}
+          placeholder="Seleccionar fecha de inicio"
+        />
 
         {/* Fecha de fin */}
-        <View className="mb-6">
-          <Text className="text-gray-700 font-medium mb-2">Fecha de fin</Text>
-          {/* @ts-ignore */}
-          <TouchableOpacity
-            onPress={() => setShowEndDatePicker(true)}
-            className="bg-white flex-row items-center justify-between p-4 rounded-xl border border-gray-200"
-          >
-            {/* @ts-ignore */}
-            <Text className="text-gray-800">{formatDate(endDate)}</Text>
-            {/* @ts-ignore */}
-            <Ionicons name="calendar-outline" size={20} color="#374151" />
-          </TouchableOpacity>
-
-
-
-
-        </View>
+        <QuickDateSelector
+          date={endDate}
+          onDateChange={setEndDate}
+          label="Fecha de finalización"
+          minimumDate={startDate}
+          placeholder="Seleccionar fecha de finalización"
+        />
 
         {/* Miembros del Equipo */}
         <View className="mb-4">
@@ -531,31 +510,7 @@ export default function NewTask() {
         </SafeAreaView>
       </Modal>
 
-      {/* Custom Date Time Pickers */}
-      <CustomDateTimePicker
-        visible={showStartDatePicker}
-        value={startDate}
-        onConfirm={(date) => {
-          setStartDate(date);
-          if (date > endDate) {
-            setEndDate(date);
-          }
-          setShowStartDatePicker(false);
-        }}
-        onCancel={() => setShowStartDatePicker(false)}
-        minimumDate={new Date()}
-      />
-
-      <CustomDateTimePicker
-        visible={showEndDatePicker}
-        value={endDate}
-        onConfirm={(date) => {
-          setEndDate(date);
-          setShowEndDatePicker(false);
-        }}
-        onCancel={() => setShowEndDatePicker(false)}
-        minimumDate={startDate}
-      />
+      {/* Date pickers ahora manejados por QuickDateSelector */}
     </SafeAreaView>
   );
 }
