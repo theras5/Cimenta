@@ -22,29 +22,29 @@ const getStatusBgColor = (status: Task["status"]) => {
     case "completed":
       return "bg-green-100";
     case "blocked":
-      return "bg-red-100";
+      return "bg-orange-100";
     case "changes":
       return "bg-purple-100";
+    case "rejected":
+      return "bg-red-100";
     default:
       return "bg-gray-100";
   }
 };
 
 const getCategoryColor = (category: string) => {
-  const normalizedCategory = category.toUpperCase();
+  const normalizedCategory = category.toLowerCase();
   switch (normalizedCategory) {
-    case "ELECTRICIDAD":
-      return "bg-blue-500";
-    case "PLOMERÍA":
-    case "PLOMERIA":
-      return "bg-orange-500";
-    case "CONSTRUCCIÓN":
-    case "CONSTRUCCION":
-      return "bg-gray-500";
-    case "PINTURA":
-      return "bg-pink-500";
+    case "electricidad":
+      return "#007AFF";
+    case "plomeria":
+      return "#FF9500";
+    case "construccion":
+      return "#8A2BE2";
+    case "pintura":
+      return "#FF2D92";
     default:
-      return "bg-purple-500";
+      return "#999999";
   }
 };
 
@@ -76,7 +76,8 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, changes }) => {
           </View>
 
           <View
-            className={`${task.categoryColor || getCategoryColor(task.category)} px-3 py-1 rounded-full`}
+            className="px-3 py-1 rounded-full"
+            style={{ backgroundColor: task.categoryColor || getCategoryColor(task.category) }}
           >
             <Text className="text-white text-xs font-medium">
               {task.category}

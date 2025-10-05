@@ -18,6 +18,7 @@ import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
 import { useTask } from "@/hooks/useTasks";
+import { Task, ISODateString } from "@/services/taskService";
 
 // Reuse the mock data from new-task.tsx
 const electricidad: Category = { name: "electricidad", color: "bg-blue-500" };
@@ -78,7 +79,7 @@ const mockTasks = [
 export default function TaskDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [isEditing, setIsEditing] = useState(false);
-  const [task, setTask] = useState<any>(null);
+  const [task, setTask] = useState<Task | null>(null);
 
   // Usa el hook useTask para cargar la tarea desde el backend
   const {
@@ -101,13 +102,14 @@ export default function TaskDetail() {
   const [tempStartDate, setTempStartDate] = useState(new Date());
   const [tempEndDate, setTempEndDate] = useState(new Date());
   const [selectedStatus, setSelectedStatus] = useState<
-    "changes" | "pending" | "in_progress" | "completed" | "blocked"
+    "changes" | "pending" | "in_progress" | "completed" | "blocked" | "rejected"
   >("pending");
+  
 
   // Load task data
   useEffect(() => {
     if (taskData) {
-      console.log("Datos recibidos:", taskData); // Para depurar
+
       setTask(taskData);
       setTitle(taskData.title);
       setDescription(taskData.description || "");
@@ -192,13 +194,15 @@ export default function TaskDetail() {
     );
   }
 
-  // Format date function
+  // Format date function with time
   const formatDate = (date: Date | null) => {
     if (!date) return "No definida";
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const day = String(date.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+    return `${year}-${month}-${day} ${hours}:${minutes}`;
   };
 
   // Date picker handlers
@@ -255,25 +259,22 @@ export default function TaskDetail() {
 
   const handleSaveChanges = async () => {
     try {
-      // Función para formatear fechas correctamente
-      const formatDate = (date: Date | null) => {
+      // Función para formatear fechas con horarios incluidos
+      const formatDateTime = (date: Date | null) => {
         if (!date) return undefined;
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, "0");
-        const day = String(date.getDate()).padStart(2, "0");
-        return `${year}-${month}-${day}`;
+        return date.toISOString();
       };
 
       const updatedData = {
         title,
         description,
         category,
-        start_date: formatDate(startDate),
-        end_date: formatDate(endDate),
+        start_date: formatDateTime(startDate),
+        end_date: formatDateTime(endDate),
         status: selectedStatus,
       };
 
-      console.log("Datos a enviar:", updatedData);
+
 
       // Llama al método updateTask
       const result = await updateTask(updatedData);
@@ -366,8 +367,12 @@ export default function TaskDetail() {
                 : task.status === "in_progress"
                   ? "bg-blue-500"
                   : task.status === "blocked"
-                    ? "bg-red-500"
-                    : "bg-green-500"
+                    ? "bg-orange-500"
+                    : task.status === "rejected"
+                      ? "bg-red-500"
+                      : task.status === "changes"
+                        ? "bg-purple-500"
+                        : "bg-green-500"
             }`}
           >
             <Text className="text-white text-sm font-medium">
@@ -377,7 +382,11 @@ export default function TaskDetail() {
                   ? "En progreso"
                   : task.status === "blocked"
                     ? "Bloqueado"
-                    : "Completado"}
+                    : task.status === "rejected"
+                      ? "Rechazado"
+                      : task.status === "changes"
+                        ? "Cambios"
+                        : "Completado"}
             </Text>
           </View>
         </View>
@@ -435,11 +444,11 @@ export default function TaskDetail() {
               <TouchableOpacity
                 onPress={() => setSelectedStatus("blocked")}
                 className={`px-3 py-2 rounded-full ${
-                  selectedStatus === "blocked" ? "bg-red-500" : "bg-red-100"
+                  selectedStatus === "blocked" ? "bg-orange-500" : "bg-orange-100"
                 }`}
               >
                 <Text
-                  className={`${selectedStatus === "blocked" ? "text-white" : "text-red-800"}`}
+                  className={`${selectedStatus === "blocked" ? "text-white" : "text-orange-800"}`}
                 >
                   Bloqueado
                 </Text>
@@ -556,8 +565,8 @@ export default function TaskDetail() {
                   <View className="items-center py-2">
                     <DateTimePicker
                       value={tempStartDate}
-                      mode="date"
-                      display="inline"
+                      mode="datetime"
+                      display="compact"
                       onChange={handleStartDateChange}
                       minimumDate={new Date()}
                       style={{ width: "100%", height: 200 }}
@@ -569,7 +578,7 @@ export default function TaskDetail() {
               {Platform.OS === "android" && showStartDatePicker && (
                 <DateTimePicker
                   value={startDate || new Date()}
-                  mode="date"
+                  mode="datetime"
                   display="default"
                   onChange={handleStartDateChange}
                   minimumDate={new Date()}
@@ -619,8 +628,8 @@ export default function TaskDetail() {
                   <View className="items-center py-2">
                     <DateTimePicker
                       value={tempEndDate}
-                      mode="date"
-                      display="inline"
+                      mode="datetime"
+                      display="compact"
                       onChange={handleEndDateChange}
                       minimumDate={startDate || undefined}
                       style={{ width: "100%", height: 200 }}
@@ -632,7 +641,7 @@ export default function TaskDetail() {
               {Platform.OS === "android" && showEndDatePicker && (
                 <DateTimePicker
                   value={endDate || new Date()}
-                  mode="date"
+                  mode="datetime"
                   display="default"
                   onChange={handleEndDateChange}
                   minimumDate={startDate || undefined}

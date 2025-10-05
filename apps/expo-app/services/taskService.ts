@@ -1,5 +1,8 @@
 import { Alert } from 'react-native';
 
+// Tipo para fechas en formato ISO 8601 (compatible con Supabase timestamp)
+export type ISODateString = string;
+
 // Interfaces para los datos
 export interface Task {
   id: string;
@@ -7,15 +10,15 @@ export interface Task {
   description: string;
   category: string;
   categoryColor?: string;
-  status: 'changes' | 'pending' | 'in_progress' | 'completed' | 'blocked';
-  start_date?: string;
-  end_date?: string;
+  status: 'changes' | 'pending' | 'in_progress' | 'completed' | 'blocked' | 'rejected';
+  start_date?: ISODateString;
+  end_date?: ISODateString;
   assignedMembers?: string[];
   mediaFiles?: string[];
-  createdAt?: string;
+  createdAt?: ISODateString;
   site_id?: string;
   user_id?: string;
-//   updatedAt?: string;
+//   updatedAt?: ISODateString;
 }
 
 export interface CreateTaskDTO {
@@ -23,8 +26,8 @@ export interface CreateTaskDTO {
   description: string;
   category: string;
   status: string;
-  start_date?: string;
-  end_date?: string;
+  start_date?: ISODateString;
+  end_date?: ISODateString;
   assignedMembers?: string[];
   mediaFiles?: string[];
 }

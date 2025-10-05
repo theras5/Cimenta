@@ -45,6 +45,7 @@ export default function Tasks() {
 
   // Agrupar tareas por estado
   const changes = tasks.filter((task) => task.status === "changes");
+  const rejectedChanges = tasks.filter((task) => task.status === "rejected");
   const pendingTasks = tasks.filter((task) => task.status === "pending");
   const inProgressTasks = tasks.filter((task) => task.status === "in_progress");
   const completedTasks = tasks.filter((task) => task.status === "completed");
@@ -188,7 +189,7 @@ export default function Tasks() {
               <TaskSection
                 title="Cambios"
                 tasks={changes}
-                onSeeAll={() => console.log("Ver todos cambios")}
+                onSeeAll={() => {}}
                 changes={true}
               />
             )}
@@ -198,7 +199,7 @@ export default function Tasks() {
               <TaskSection
                 title="Pendientes"
                 tasks={pendingTasks}
-                onSeeAll={() => console.log("Ver todos pendientes")}
+                onSeeAll={() => {}}
               />
             )}
 
@@ -207,7 +208,7 @@ export default function Tasks() {
               <TaskSection
                 title="En progreso"
                 tasks={inProgressTasks}
-                onSeeAll={() => console.log("Ver todos en progreso")}
+                onSeeAll={() => {}}
               />
             )}
 
@@ -216,7 +217,7 @@ export default function Tasks() {
               <TaskSection
                 title="Bloqueado"
                 tasks={blockedTasks}
-                onSeeAll={() => console.log("Ver todos bloqueados")}
+                onSeeAll={() => {}}
               />
             )}
 
@@ -225,7 +226,17 @@ export default function Tasks() {
               <TaskSection
                 title="Completadas"
                 tasks={completedTasks}
-                onSeeAll={() => console.log("Ver todos hechos")}
+                onSeeAll={() => {}}
+              />
+            )}
+
+            {/* Cambios Rechazados */}
+            {rejectedChanges.length > 0 && (
+              <TaskSection
+                title="Cambios rechazados"
+                tasks={rejectedChanges}
+                onSeeAll={() => {}}
+                changes={true}
               />
             )}
           </View>
