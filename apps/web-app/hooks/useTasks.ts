@@ -1,38 +1,71 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-import { apiService, Task } from '@/lib/api';
+import { useState, useEffect, useCallback } from "react";
+import { apiService, Task } from "@/lib/api";
 
 export function useTasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchTasks = async () => {
+  const fetchTasks = useCallback(async (siteId?: string) => {
+    if (!siteId) {
+      setError("No hay sitio seleccionado");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
     try {
-      setLoading(true);
-      setError(null);
-      const data = await apiService.getTasks();
+      // Ajustar la URL para filtrar por site_id
+      const response = await fetch(`/api/tasks?site_id=${siteId}`);
+
+      if (!response.ok) {
+        throw new Error(`Error: ${response.status}`);
+      }
+
+      const data = await response.json();
       setTasks(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al cargar las tareas');
-      console.error('Error fetching tasks:', err);
+      console.error("Error fetching tasks:", err);
+      setError(err instanceof Error ? err.message : "Error desconocido");
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const createTask = async (taskData: Omit<Task, 'id' | 'created_at' | 'updated_at'>) => {
-    console.log(`data recibida: ${taskData}`);
+  const createTask = async (taskData: Partial<Task>) => {
+    if (!taskData.site_id) {
+      setError("No hay sitio seleccionado para la tarea");
+      return null;
+    }
+
+    setLoading(true);
+    setError(null);
+
     try {
-      setError(null);
-      const newTask = await apiService.createTask(taskData);
-      setTasks(prev => [...prev, newTask]);
+      const response = await fetch("/api/tasks", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(taskData),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error: ${response.status}`);
+      }
+
+      const newTask = await response.json();
+      setTasks((prev) => [...prev, newTask]);
       return newTask;
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Error al crear la tarea';
-      setError(errorMessage);
-      throw new Error(errorMessage);
+      console.error("Error creating task:", err);
+      setError(err instanceof Error ? err.message : "Error desconocido");
+      return null;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -40,10 +73,13 @@ export function useTasks() {
     try {
       setError(null);
       const updatedTask = await apiService.updateTask(id, updates);
-      setTasks(prev => prev.map(task => task.id === id ? updatedTask : task));
+      setTasks((prev) =>
+        prev.map((task) => (task.id === id ? updatedTask : task))
+      );
       return updatedTask;
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Error al actualizar la tarea';
+      const errorMessage =
+        err instanceof Error ? err.message : "Error al actualizar la tarea";
       setError(errorMessage);
       throw new Error(errorMessage);
     }
@@ -53,15 +89,16 @@ export function useTasks() {
     try {
       setError(null);
       await apiService.deleteTask(id);
-      setTasks(prev => prev.filter(task => task.id !== id));
+      setTasks((prev) => prev.filter((task) => task.id !== id));
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Error al eliminar la tarea';
+      const errorMessage =
+        err instanceof Error ? err.message : "Error al eliminar la tarea";
       setError(errorMessage);
       throw new Error(errorMessage);
     }
   };
 
-  const updateTaskStatus = async (id: string, status: Task['status']) => {
+  const updateTaskStatus = async (id: string, status: Task["status"]) => {
     return updateTask(id, { status });
   };
 

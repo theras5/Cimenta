@@ -10,7 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 export default function Index() {
   // Aquí puedes agregar lógica para verificar si el usuario está autenticado
   // const isAuthenticated  = 
-  const isAuthenticated = true; // Cambia esto por tu lógica de autenticación real
+  const isAuthenticated = false; // Cambia esto por tu lógica de autenticación real
   
   if (isAuthenticated) {
     return <Redirect href="/(tabs)" />;

@@ -1,36 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// Obtener la URL base del servidor desde las variables de entorno
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
-export async function GET(request: NextRequest) {
+// GET - Obtener todos los sitios
+export async function GET() {
   try {
-    // Obtener el site_id de los query params
-    const { searchParams } = new URL(request.url);
-    const siteId = searchParams.get('site_id');
-    
-    if (!siteId) {
-      return NextResponse.json(
-        { error: 'Se requiere site_id' },
-        { status: 400 }
-      );
-    }
-    
-    // Hacer la petición al backend filtrando por site_id
-    const response = await fetch(`${API_URL}/tasks/site/${siteId}`, {
+    const response = await fetch(`${API_URL}/sites`, {
       headers: {
         'Accept': 'application/json',
       },
+      next: { revalidate: 60 }, // Revalidar cada minuto
     });
     
     if (!response.ok) {
-      throw new Error(`Error del servidor: ${response.status}`);
+      return NextResponse.json(
+        { error: 'Error al obtener sitios' },
+        { status: response.status }
+      );
     }
     
     const data = await response.json();
     return NextResponse.json(data);
-    
   } catch (error) {
-    console.error('Error en API de tareas:', error);
+    console.error('Error en la API de sitios:', error);
     return NextResponse.json(
       { error: 'Error interno del servidor' },
       { status: 500 }
@@ -38,20 +31,20 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST para crear tareas
+// POST - Crear un nuevo sitio
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     
-    // Verificar que existe site_id
-    if (!body.site_id) {
+    // Validaciones básicas
+    if (!body.address || !body.user_id) {
       return NextResponse.json(
-        { error: 'Se requiere site_id' },
+        { error: 'Dirección y ID de usuario son obligatorios' },
         { status: 400 }
       );
     }
     
-    const response = await fetch(`${API_URL}/tasks`, {
+    const response = await fetch(`${API_URL}/sites`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -61,14 +54,17 @@ export async function POST(request: NextRequest) {
     });
     
     if (!response.ok) {
-      throw new Error(`Error del servidor: ${response.status}`);
+      const errorData = await response.json().catch(() => ({ message: 'Error desconocido' }));
+      return NextResponse.json(
+        errorData,
+        { status: response.status }
+      );
     }
     
     const data = await response.json();
     return NextResponse.json(data, { status: 201 });
-    
   } catch (error) {
-    console.error('Error en API de tareas (POST):', error);
+    console.error('Error al crear sitio:', error);
     return NextResponse.json(
       { error: 'Error interno del servidor' },
       { status: 500 }

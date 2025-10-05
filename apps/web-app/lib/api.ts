@@ -5,7 +5,7 @@ export interface Task {
   title: string;
   description?: string;
   status: "pending" | "in_progress" | "completed" | "changes";
-  category?: string;
+  category: string;
 //   priority?: "low" | "medium" | "high";
   site_id?: string;
   created_at?: string;

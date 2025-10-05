@@ -5,9 +5,9 @@ import type React from "react"
 import TaskCard from "./TaskCard"
 
 interface Task {
-  id: number
+  id: string
   title: string
-  description: string
+  description?: string
   status: "pending" | "in_progress" | "completed" | "blocked" | "changes"
   category: string
   categoryColor?: string

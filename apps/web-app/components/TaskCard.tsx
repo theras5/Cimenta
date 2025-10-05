@@ -3,9 +3,9 @@
 import type React from "react"
 
 interface Task {
-  id: number
+  id: string
   title: string
-  description: string
+  description?: string
   status: "pending" | "in_progress" | "completed" | "blocked" | "changes"
   category: string
   assignedMembers?: string[]

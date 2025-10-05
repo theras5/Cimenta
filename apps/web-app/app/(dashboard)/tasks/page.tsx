@@ -31,6 +31,7 @@ import {
 import TaskSection from "@/components/TaskSection";
 import { useTasks } from "@/hooks/useTasks";
 import { Task } from "@/lib/api";
+import { useAuth } from "@/hooks/useAuth";
 
 // Adaptar la interfaz local a la interfaz de la API
 interface LocalTask {
@@ -73,7 +74,9 @@ const convertApiTaskToLocal = (apiTask: Task): LocalTask => ({
   description: apiTask.description || "",
   status: apiTask.status,
   category: apiTask.category || "construccion",
-  categoryColor: categoryColors[apiTask.category as keyof typeof categoryColors] || "bg-gray-500",
+  categoryColor:
+    categoryColors[apiTask.category as keyof typeof categoryColors] ||
+    "bg-gray-500",
   assignedMembers: [], // Por ahora vacío, puedes expandir esto según tu backend
 });
 
@@ -84,7 +87,7 @@ const ScrollableTaskSection = ({
   changes = false,
 }: {
   title: string;
-  tasks: unknown[];
+  tasks: Task[];
   changes?: boolean;
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -147,16 +150,19 @@ const ScrollableTaskSection = ({
 };
 
 const TasksScreen = () => {
-  // Reemplazar useState local por useTasks hook
-  const { 
-    tasks: apiTasks, 
-    loading, 
-    error, 
-    createTask, 
-    updateTask, 
-    deleteTask, 
+  // Obtener el ID del sitio seleccionado desde localStorage
+  const [selectedSiteId, setSelectedSiteId] = useState<string>("");
+  const { user } = useAuth();
+
+  const {
+    tasks,
+    loading,
+    error,
+    createTask,
+    updateTask,
+    deleteTask,
     fetchTasks,
-    clearError 
+    clearError,
   } = useTasks();
 
   const [showModal, setShowModal] = useState(false);
@@ -177,13 +183,29 @@ const TasksScreen = () => {
     reason: "",
   });
 
+  // Cargar el sitio seleccionado al iniciar
+  useEffect(() => {
+    // Solo ejecutar en el cliente
+    const siteId = localStorage.getItem("selectedSiteId");
+    if (siteId) {
+      setSelectedSiteId(siteId);
+      // Cargar tareas solo para este sitio
+      fetchTasks(siteId);
+    } else {
+      // Si no hay sitio seleccionado, redirigir a la selección de sitio
+      window.location.href = "/select-site";
+    }
+  }, [fetchTasks]);
+
   // Convertir tareas de API a formato local para la UI
-  const tasks: LocalTask[] = apiTasks.map(convertApiTaskToLocal);
+  // const tasks: Task[] = apiTasks.map(convertApiTaskToLocal);
 
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
-      await fetchTasks();
+      const siteId = localStorage.getItem("selectedSiteId");
+      if(siteId){setSelectedSiteId(siteId)}
+      await fetchTasks(selectedSiteId);
     } catch (error) {
       console.error("Error refreshing tasks:", error);
     } finally {
@@ -222,18 +244,15 @@ const TasksScreen = () => {
   };
 
   const handleAddTask = async () => {
-    if (
-      newTask.title &&
-      newTask.category
-    ) {
+    if (newTask.title && newTask.category) {
       try {
         await createTask({
           title: newTask.title,
           description: newTask.description,
           status: newTask.status,
           category: newTask.category,
-          user_id: "ad4d74ba-beac-4741-9ec1-978d564a971c",
-          site_id: "e43d720c-8b2f-454f-8b41-55019ffef012"
+          user_id: user?.id,
+          site_id: selectedSiteId,
         });
         resetTaskForm();
         setShowTaskModal(false);
@@ -244,16 +263,15 @@ const TasksScreen = () => {
   };
 
   const handleAddChange = async () => {
-    if (
-      newChange.title &&
-      newChange.category
-    ) {
+    if (newChange.title && newChange.category) {
       try {
         await createTask({
           title: newChange.title,
           description: newChange.description,
           status: "changes",
           category: newChange.category,
+          site_id: selectedSiteId,
+          user_id: user?.id,
         });
         resetChangeForm();
         setShowChangeModal(false);
@@ -303,11 +321,29 @@ const TasksScreen = () => {
     );
   }
 
+  // Mensaje si no hay sitio seleccionado
+  if (!selectedSiteId) {
+    return (
+      <div className="flex h-screen bg-gray-50 items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="w-12 h-12 text-orange-500 mx-auto mb-4" />
+          <p className="text-gray-700 mb-4">No has seleccionado una obra</p>
+          <Button onClick={() => (window.location.href = "/select-site")}>
+            Seleccionar obra
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   // Group tasks by status
   const changes = tasks.filter((task) => task.status === "changes");
   const pendingTasks = tasks.filter((task) => task.status === "pending");
   const inProgressTasks = tasks.filter((task) => task.status === "in_progress");
   const completedTasks = tasks.filter((task) => task.status === "completed");
+
+  console.log("Las tareas pendientes son:", pendingTasks);
+  console.log(`La longitud es: ${pendingTasks.length}`);
 
   return (
     <div className="bg-gray-50">
@@ -480,10 +516,7 @@ const TasksScreen = () => {
               <Button
                 onClick={handleAddTask}
                 className="w-full"
-                disabled={
-                  !newTask.title ||
-                  !newTask.category
-                }
+                disabled={!newTask.title || !newTask.category}
               >
                 Crear Tarea
               </Button>
@@ -564,10 +597,7 @@ const TasksScreen = () => {
               <Button
                 onClick={handleAddChange}
                 className="w-full bg-orange-600 hover:bg-orange-700"
-                disabled={
-                  !newChange.title ||
-                  !newChange.category
-                }
+                disabled={!newChange.title || !newChange.category}
               >
                 Crear Solicitud de Cambio
               </Button>
@@ -576,7 +606,7 @@ const TasksScreen = () => {
         </Dialog>
 
         {/* Content - Scrollable */}
-        <div className="flex-1 overflow-y-auto px-6 py-6">
+        <div className="flex-1 overflow-y-auto px-6 py-20">
           {tasks.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20">
               <Clipboard className="w-16 h-16 text-gray-400 mb-4" />

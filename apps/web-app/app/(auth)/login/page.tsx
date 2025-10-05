@@ -29,7 +29,7 @@ export default function LoginPage() {
 
     try {
       await login({ email, password })
-      router.push("/dashboard") // Redirect to dashboard
+      router.push("/select-site") // Redirect to dashboard
     } catch (error) {
       // El error ya se maneja en el hook useAuth
       console.error('Login failed:', error)

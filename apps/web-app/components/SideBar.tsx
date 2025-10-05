@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   Home,
@@ -14,6 +14,9 @@ import {
   BookOpen,
   BarChart3,
 } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select"
+import { useSites } from "@/hooks/useSites"
+import { useAuth } from "@/hooks/useAuth"
 
 const navigationItems = [
   { href: "/dashboard", icon: Home, label: "Inicio" },
@@ -28,6 +31,34 @@ const navigationItems = [
 
 export default function Sidebar() {
   const pathname = usePathname()
+  const router = useRouter()
+  const { user } = useAuth()
+  const { sites, loadUserSites } = useSites()
+  
+  // Estado local para el sitio seleccionado
+  const [selectedSiteId, setSelectedSiteId] = useState<string>("")
+  
+  // Cargar sitios y sitio seleccionado solo en el cliente
+  useEffect(() => {
+    // Cargar el sitio seleccionado de localStorage
+    const storedSiteId = localStorage.getItem("selectedSiteId") || ""
+    setSelectedSiteId(storedSiteId)
+    
+    // Cargar los sitios si tenemos un usuario
+    if (user?.id) {
+      loadUserSites(user.id)
+    }
+  }, [user?.id, loadUserSites])
+
+  // Manejar cambio de sitio
+  const handleChangeSite = (siteId: string) => {
+    localStorage.setItem("selectedSiteId", siteId)
+    setSelectedSiteId(siteId)
+    
+    // Usar router.refresh en lugar de window.location.reload
+    // para una experiencia más fluida
+    router.refresh()
+  }
 
   return (
     <div className="fixed left-0 top-0 h-screen w-64 z-20 bg-white border-r border-gray-200 flex flex-col">
@@ -35,6 +66,24 @@ export default function Sidebar() {
         <Link href="/dashboard">
           <h1 className="text-3xl font-bold text-blue-600">Cimenta</h1>
         </Link>
+        {/* Menú desplegable para cambiar de site */}
+        <div className="mt-4">
+          <Select value={selectedSiteId} onValueChange={handleChangeSite}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Seleccionar obra" />
+            </SelectTrigger>
+            <SelectContent>
+              {sites.map(site => (
+                <SelectItem key={site.id} value={site.id}>
+                  {site.address}
+                </SelectItem>
+              ))}
+              <SelectItem value="change">
+                <span className="text-blue-600">Cambiar de obra</span>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Navigation */}
@@ -57,13 +106,6 @@ export default function Sidebar() {
           )
         })}
       </nav>
-
-      {/* User Avatar */}
-      <div className="p-4">
-        <Avatar className="w-10 h-10 bg-gray-800">
-          <AvatarFallback className="text-white font-medium">N</AvatarFallback>
-        </Avatar>
-      </div>
     </div>
   );
 }
