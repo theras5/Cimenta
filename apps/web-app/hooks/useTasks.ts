@@ -70,14 +70,28 @@ export function useTasks() {
   };
 
   const updateTask = async (id: string, updates: Partial<Task>) => {
+    setError(null);
+
     try {
-      setError(null);
-      const updatedTask = await apiService.updateTask(id, updates);
+      const response = await fetch(`/api/tasks/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(updates),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error: ${response.status}`);
+      }
+
+      const updatedTask = await response.json();
       setTasks((prev) =>
         prev.map((task) => (task.id === id ? updatedTask : task))
       );
       return updatedTask;
     } catch (err) {
+      console.error("Error updating task:", err);
       const errorMessage =
         err instanceof Error ? err.message : "Error al actualizar la tarea";
       setError(errorMessage);

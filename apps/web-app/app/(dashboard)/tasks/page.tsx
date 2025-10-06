@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import TaskSection from "@/components/TaskSection";
+import EditTaskModal from "@/components/EditTaskModal";
 import { useTasks } from "@/hooks/useTasks";
 import { Task } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
@@ -85,10 +86,12 @@ const ScrollableTaskSection = ({
   title,
   tasks,
   changes = false,
+  onEditTask,
 }: {
   title: string;
   tasks: Task[];
   changes?: boolean;
+  onEditTask?: (task: Task) => void;
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showScrollButtons, setShowScrollButtons] = useState(false);
@@ -143,7 +146,7 @@ const ScrollableTaskSection = ({
         className="overflow-x-auto scrollbar-hide"
         style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
       >
-        <TaskSection title={title} tasks={tasks} changes={changes} />
+        <TaskSection title={title} tasks={tasks} changes={changes} onEditTask={onEditTask} />
       </div>
     </div>
   );
@@ -168,8 +171,10 @@ const TasksScreen = () => {
   const [showModal, setShowModal] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showChangeModal, setShowChangeModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
+  const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
   const [newTask, setNewTask] = useState({
     title: "",
     description: "",
@@ -286,6 +291,26 @@ const TasksScreen = () => {
       setSelectedMembers(selectedMembers.filter((m) => m !== member));
     } else {
       setSelectedMembers([...selectedMembers, member]);
+    }
+  };
+
+  // Funciones para editar tarea
+  const handleEditTask = (task: Task) => {
+    setTaskToEdit(task);
+    setShowEditModal(true);
+  };
+
+  const handleSaveTask = async (id: string, updatedTask: Partial<Task>) => {
+    try {
+      await updateTask(id, updatedTask);
+      setShowEditModal(false);
+      setTaskToEdit(null);
+      // Refresh tasks for the current site
+      if (selectedSiteId) {
+        await fetchTasks(selectedSiteId);
+      }
+    } catch (error) {
+      console.error("Error updating task:", error);
     }
   };
 
@@ -625,6 +650,7 @@ const TasksScreen = () => {
                   title="Cambios"
                   tasks={changes}
                   changes={true}
+                  onEditTask={handleEditTask}
                 />
               )}
 
@@ -633,6 +659,7 @@ const TasksScreen = () => {
                 <ScrollableTaskSection
                   title="Pendientes"
                   tasks={pendingTasks}
+                  onEditTask={handleEditTask}
                 />
               )}
 
@@ -641,6 +668,7 @@ const TasksScreen = () => {
                 <ScrollableTaskSection
                   title="En progreso"
                   tasks={inProgressTasks}
+                  onEditTask={handleEditTask}
                 />
               )}
 
@@ -649,11 +677,23 @@ const TasksScreen = () => {
                 <ScrollableTaskSection
                   title="Completadas"
                   tasks={completedTasks}
+                  onEditTask={handleEditTask}
                 />
               )}
             </div>
           )}
         </div>
+
+        {/* Edit Task Modal */}
+        <EditTaskModal
+          isOpen={showEditModal}
+          onClose={() => {
+            setShowEditModal(false);
+            setTaskToEdit(null);
+          }}
+          task={taskToEdit}
+          onSave={handleSaveTask}
+        />
 
         {/* Refresh Button */}
         <div className="fixed bottom-6 right-6">

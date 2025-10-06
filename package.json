@@ -19,5 +19,8 @@
     "server",
     "bot",
     "packages/*"
-  ]
+  ],
+  "dependencies": {
+    "tsx": "^4.20.6"
+  }
 }

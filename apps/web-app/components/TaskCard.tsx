@@ -1,6 +1,7 @@
 "use client"
 
-import type React from "react"
+import React from "react"
+import { Edit2 } from "lucide-react"
 
 interface Task {
   id: string
@@ -14,6 +15,7 @@ interface Task {
 interface TaskCardProps {
   task: Task
   changes?: boolean
+  onEdit?: (task: Task) => void
 }
 
 const getStatusBgColor = (status: Task["status"]) => {
@@ -51,9 +53,16 @@ const getCategoryColor = (category: string) => {
   }
 }
 
-const TaskCard: React.FC<TaskCardProps> = ({ task, changes }) => {
+const TaskCard: React.FC<TaskCardProps> = ({ task, changes, onEdit }) => {
   const handleClick = () => {
     console.log(`Clicked task ${task.id}`, changes ? "changes" : "tasks")
+  }
+
+  const handleEdit = (e: React.MouseEvent) => {
+    e.stopPropagation() // Prevenir que se dispare el click del card
+    if (onEdit) {
+      onEdit(task)
+    }
   }
 
   return (
@@ -70,9 +79,18 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, changes }) => {
 
         {/* Footer */}
         <div className="flex justify-between items-center mt-4">
-          <div className="flex">
+          <div className="flex items-center gap-2">
             {task.assignedMembers && task.assignedMembers.length > 0 && (
               <span className="text-gray-500 text-xs">{task.assignedMembers.length} miembro(s)</span>
+            )}
+            {onEdit && (
+              <button
+                onClick={handleEdit}
+                className="p-1 rounded-md hover:bg-white/50 transition-colors opacity-70 hover:opacity-100"
+                title="Editar tarea"
+              >
+                <Edit2 className="w-3 h-3 text-gray-600" />
+              </button>
             )}
           </div>
 

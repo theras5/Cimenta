@@ -4,10 +4,10 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     const response = await fetch(`${API_URL}/tasks/${id}`, {
       headers: {
@@ -39,16 +39,17 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     const body = await request.json();
 
     const response = await fetch(`${API_URL}/tasks/${id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
       },
       body: JSON.stringify(body),
     });
@@ -60,15 +61,15 @@ export async function PUT(
           { status: 404 }
         );
       }
-      throw new Error(`HTTP error! status: ${response.status}`);
+      throw new Error(`Error del servidor: ${response.status}`);
     }
 
     const updatedTask = await response.json();
     return NextResponse.json(updatedTask);
   } catch (error) {
-    console.error('Error updating task:', error);
+    console.error('Error en API de tareas (PUT):', error);
     return NextResponse.json(
-      { error: 'Failed to update task' },
+      { error: 'Error interno del servidor' },
       { status: 500 }
     );
   }
@@ -76,10 +77,10 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     const response = await fetch(`${API_URL}/tasks/${id}`, {
       method: 'DELETE',
