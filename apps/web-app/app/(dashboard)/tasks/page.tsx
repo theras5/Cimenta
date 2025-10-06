@@ -209,14 +209,43 @@ const TasksScreen = () => {
     setRefreshing(true);
     try {
       const siteId = localStorage.getItem("selectedSiteId");
-      if(siteId){setSelectedSiteId(siteId)}
-      await fetchTasks(selectedSiteId);
+      if (siteId) {
+        setSelectedSiteId(siteId);
+        await fetchTasks(siteId);
+      }
     } catch (error) {
       console.error("Error refreshing tasks:", error);
     } finally {
       setRefreshing(false);
     }
   };
+
+  // Agregar useEffect para detectar cambios en localStorage
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const newSiteId = localStorage.getItem("selectedSiteId");
+      if (newSiteId && newSiteId !== selectedSiteId) {
+        setSelectedSiteId(newSiteId);
+        fetchTasks(newSiteId);
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    
+    // También verificar periódicamente por cambios (para cambios en la misma pestaña)
+    const interval = setInterval(() => {
+      const currentSiteId = localStorage.getItem("selectedSiteId");
+      if (currentSiteId && currentSiteId !== selectedSiteId) {
+        setSelectedSiteId(currentSiteId);
+        fetchTasks(currentSiteId);
+      }
+    }, 1000);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      clearInterval(interval);
+    };
+  }, [selectedSiteId, fetchTasks]);
 
   const resetTaskForm = () => {
     setNewTask({

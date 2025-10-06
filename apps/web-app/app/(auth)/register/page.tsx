@@ -67,7 +67,7 @@ export default function RegisterPage() {
       
       // Redirect after 2 seconds
       setTimeout(() => {
-        router.push("/dashboard") // Redirige directamente al dashboard ya que el login es automático
+        router.push("/select-site") 
       }, 2000)
     } catch (error) {
       // El error ya se maneja en el hook useAuth
