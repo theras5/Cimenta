@@ -175,7 +175,10 @@ export default function HomeScreen() {
     setRefreshing(true);
     await fetchTasks();
     setRefreshing(false);
-  };
+  const navigateToChanges = () => {
+  router.push("/tasks"); 
+  }};
+
 
   // Funciones de navegación
   const navigateToTasks = () => router.push("/(tabs)/tasks");
@@ -638,5 +641,5 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     textAlign: 'center',
     lineHeight: SCALED_VALUES.eventTimeFontSize * 1.4,
-  },
+  }
 });

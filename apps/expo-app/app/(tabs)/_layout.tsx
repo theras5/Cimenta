@@ -63,18 +63,39 @@ export default function TabLayout() {
       <Tabs.Screen
         name="avances"
         options={{
-          title: "Avances",
+          title: "Updates",
           tabBarIcon: ({ focused }) => (
-            <TabBarIcon title="Avances" icon={images.avances} focused={focused} />
+            <TabBarIcon
+              title="Avances"
+              icon={images.avances}
+              focused={focused}
+            />
           ),
         }}
       />
+      {/* <Tabs.Screen
+        name="avances"
+        options={{
+          title: "Summary",
+          tabBarIcon: ({ focused }) => (
+            <TabBarIcon
+              title="Avances"
+              icon={images.resumen}
+              focused={focused}
+            />
+          ),
+        }}
+      /> */}
       <Tabs.Screen
         name="teamCalendar"
         options={{
           title: "Calendar",
           tabBarIcon: ({ focused }) => (
-            <TabBarIcon title="Calendar" icon={images.calendar} focused={focused} />
+            <TabBarIcon
+              title="Calendar"
+              icon={images.calendar}
+              focused={focused}
+            />
           ),
         }}
       />
@@ -83,7 +104,11 @@ export default function TabLayout() {
         options={{
           title: "Profile",
           tabBarIcon: ({ focused }) => (
-            <TabBarIcon title="Profile" icon={images.profile} focused={focused} />
+            <TabBarIcon
+              title="Profile"
+              icon={images.profile}
+              focused={focused}
+            />
           ),
         }}
       />

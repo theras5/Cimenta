@@ -3,8 +3,9 @@ import { View, Text, Image, TouchableOpacity, StyleSheet, Dimensions, StatusBar 
 import { Redirect, router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { images } from '@/constants';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function Index() {
   // Aquí puedes agregar lógica para verificar si el usuario está autenticado

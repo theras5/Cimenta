@@ -62,12 +62,15 @@ export const createTask = async (req: Request, res: Response, next: NextFunction
 
 // 3. Implementa la ruta PUT
 export const updateTaskById = async (req: Request, res: Response, next: NextFunction) => {
+    const id = req.params.id;
     try {
-        const id = req.params.id;
         const taskToUpdate = req.body;
+        console.log(`Actualizando tarea ${id} con datos:`, JSON.stringify(taskToUpdate, null, 2));
         const data = await updateTaskByIdService(id, taskToUpdate);
+        console.log(`Tarea ${id} actualizada exitosamente`);
         res.status(200).json(data);
     } catch (error) {
+        console.error(`Error actualizando tarea ${id}:`, error);
         next(error);
     }
 };

@@ -88,10 +88,37 @@ export async function createTaskService(newTask: Omit<Task, 'id' | 'created_at'>
     return data;
 }
 
+//le meti mucho loggeo porque al principio no me andaba y no sabia por que pero se puede sacar. -dali
 export async function updateTaskByIdService(taskId: string, newTask: Partial<Task>) {
+    console.log(`updateTaskByIdService - ID: ${taskId}`);
+    console.log(`updateTaskByIdService - Datos recibidos:`, JSON.stringify(newTask, null, 2));
+    
+    // Filtrar campos que existen en la tabla de la base de datos
+    const allowedFields = {
+        title: newTask.title,
+        description: newTask.description,
+        category: newTask.category,
+        status: newTask.status,
+        start_date: newTask.start_date,
+        end_date: newTask.end_date,
+        site_id: newTask.site_id,
+        user_id: newTask.user_id
+    };
+
+    // Remover campos undefined/null/empty strings
+    const filteredTask = Object.fromEntries(
+        Object.entries(allowedFields).filter(([_, value]) => 
+            value !== undefined && 
+            value !== null && 
+            value !== ""
+        )
+    );
+
+    console.log(`updateTaskByIdService - Datos filtrados:`, JSON.stringify(filteredTask, null, 2));
+
     const { data, error } = await supabase
         .from("tasks")
-        .update(newTask)
+        .update(filteredTask)
         .eq("id", taskId)
         .select(`
             *,
@@ -103,13 +130,16 @@ export async function updateTaskByIdService(taskId: string, newTask: Partial<Tas
         .single();
 
     if (error) {
+        console.error(`updateTaskByIdService - Error de Supabase:`, error);
         throw new AppError(error.message, 500);
     }
 
     if (!data) {
+        console.error(`updateTaskByIdService - No se encontró la tarea`);
         throw new AppError(`No se encontró la tarea con el id ${taskId}`, 404);
     }
 
+    console.log(`updateTaskByIdService - Tarea actualizada:`, JSON.stringify(data, null, 2));
     return data;
 }
 

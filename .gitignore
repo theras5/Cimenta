@@ -7,5 +7,10 @@ auth_info_baileys/
 *.tsbuildinfo
 
 expo-env.d.ts
+
+# @end expo-cli
+.idea
+
 **/dist/
 # @end expo-cli
+
