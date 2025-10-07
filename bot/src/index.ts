@@ -6,7 +6,7 @@ import makeWASocket, {
 } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
-import { CreateTaskDTO, Profile, Task } from '@cimenta/dtos';
+import { CreateTaskDTO, isTaskCategory, isTaskStatus, Profile, Task, TaskCategory } from '@cimenta/dtos';
 import { api } from './config';
 
 const verifiedUsersCache = new Map<string, Profile | null>();
@@ -18,59 +18,6 @@ function setChatState(userId: string, state: string, context: any = {}) {
 
 function getChatState(userId: string) {
     return chatStates.get(userId) || { state: 'IDLE', context: {} };
-}
-
-export function parseTaskMessage(text: string, userUID: string): Omit<Task, 'id' | 'created_at'> {
-    const lines = text.split('\n').filter(line => line.trim() !== ''); // Filtramos líneas vacías
-
-    // Usamos Partial<> porque vamos construyendo el objeto poco a poco.
-    const taskData: Partial<Omit<Task, 'id' | 'created_at'>> = {};
-
-    // --- 1. Extraer Título (Obligatorio) ---
-    const titleLine = lines.shift();
-    if (!titleLine || !titleLine.toLowerCase().startsWith('crear tarea:')) {
-        throw new Error("Formato incorrecto. La primera línea debe ser 'crear tarea: [nombre]'.");
-    }
-    taskData.title = titleLine.substring('crear tarea:'.length).trim();
-    if (!taskData.title) {
-        throw new Error("El nombre de la tarea no puede estar vacío.");
-    }
-
-    // --- 2. Extraer otros campos del resto de las líneas ---
-    lines.forEach(line => {
-        const formattedLine = line.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        if (formattedLine.startsWith('descripcion:')) {
-            taskData.description = line.substring('descripcion:'.length).trim();
-        } else if (formattedLine.startsWith('estado:')) {
-            const statusValue = formattedLine.substring('estado:'.length).trim().toLowerCase();
-            // chequear que statusValue sea uno de los permitidos
-            if (["changes", "pending", "in_progress", "completed", "blocked"].includes(statusValue)) {
-                taskData.status = statusValue as Task['status'];
-            }
-        } else if (formattedLine.startsWith('categoria:')) {
-            const categoriaValue = formattedLine.substring('categoria:'.length).trim().toLowerCase();
-            if (['electricidad', 'construccion', 'pintura', 'plomeria'].includes(categoriaValue)) {
-                taskData.category = categoriaValue as Task['category'];
-            }
-        }
-
-    });
-
-    if (!taskData.category || !taskData.title) {
-        throw new Error("Campos obligatorios faltantes. Asegúrate de incluir 'categoria', 'titulo' y 'urgente'.");
-    }
-
-    // --- 4. Ensamblar el objeto final con valores por defecto ---
-    const finalTaskData: Omit<Task, 'id' | 'created_at'> = {
-        title: taskData.title,
-        description: taskData.description || '', // Default a string vacía si no hay descripción
-        // user_id: userUID,
-        category: taskData.category,
-        user_id: "64d7e369-7b00-4bcd-952a-8c4d0978e949",
-        status: taskData.status || 'pending'
-    };
-
-    return finalTaskData;
 }
 
 export default async function connectToWhatsApp() {
@@ -150,72 +97,81 @@ export default async function connectToWhatsApp() {
                 break;
 
             case 'AWAITING_TASK_DESCRIPTION':
-                await sock.sendMessage(senderNumber, { text: 'Descripción guardada. ¿Cuál es la categoría? (Ej: Obra, Oficina, Cliente)' });
+                await sock.sendMessage(senderNumber, { text: 'Descripción guardada. ¿Cuál es la categoría? (Ej: Electricidad, Pintura, Contrucción)' });
                 setChatState(senderNumber, 'AWAITING_TASK_CATEGORY', { ...context, description: messageText });
                 break;
 
             case 'AWAITING_TASK_CATEGORY':
-                await sock.sendMessage(senderNumber, { text: 'Categoría guardada. Finalmente, ¿cuál es el estado inicial? (Ej: Pendiente, En Proceso, Finalizada)' });
-                setChatState(senderNumber, 'AWAITING_TASK_STATUS', { ...context, category: messageText });
-                break;
+                if (isTaskCategory(messageText.toLowerCase())) {
+                    await sock.sendMessage(senderNumber, { text: 'Categoría guardada. Finalmente, ¿cuál es el estado inicial? (Ej: Pending, In_Progress, Done)' });
+                    setChatState(senderNumber, 'AWAITING_TASK_STATUS', { ...context, category: messageText.toLowerCase() });
+                    break;
+                } else {
+                    await sock.sendMessage(senderNumber, { text: 'Categoría no válida. Por favor, elige entre: pintura, contrucción, electricidad, inspeccion, otro.' });
+                    break;
+                }
 
             case 'AWAITING_TASK_STATUS':
-                const finalContext = { ...context, status: messageText };
 
-                await sock.sendMessage(senderNumber, { text: '¡Perfecto! Recibí toda la información. Creando tarea...' });
-
-                await handleTaskCreation(finalContext as CreateTaskDTO, senderNumber, sock);
-
-                // La conversación terminó, volvemos al estado inicial
-                setChatState(senderNumber, 'IDLE');
-                break;
+                if (isTaskStatus(messageText.toLowerCase())) {
+                    const finalContext = { ...context, status: messageText.toLowerCase(), user_id: user.id, site_id: "3555c1f9-7d11-409d-bf29-87b1cbcb6262" };
+                    await sock.sendMessage(senderNumber, { text: '¡Perfecto! Recibí toda la información. Creando tarea...' });
+                    await handleTaskCreation(finalContext as CreateTaskDTO, senderNumber, sock);
+                    setChatState(senderNumber, 'IDLE');
+                    break;
+                } else {
+                    await sock.sendMessage(senderNumber, { text: 'Estado no válido. Por favor, elige entre: changes, pending, in_progress, completed, blocked.' });
+                    break;
+                }
 
         }
     })
 }
 
-    async function getVerifiedUser(senderNumber: string) {
-        if (verifiedUsersCache.has(senderNumber)) {
-            return verifiedUsersCache.get(senderNumber);
-        }
-
-        try {
-            const user = await api.AuthService.getProfileByWhatsapp(senderNumber);
-            verifiedUsersCache.set(senderNumber, user);
-            return user;
-        } catch (error) {
-            verifiedUsersCache.set(senderNumber, null);
-            return null;
-        }
+async function getVerifiedUser(senderNumber: string) {
+    if (verifiedUsersCache.has(senderNumber)) {
+        return verifiedUsersCache.get(senderNumber);
     }
 
-    async function handleTaskCreation(task: CreateTaskDTO, senderNumber: string, sock: WASocket) {
-        try {
-            // Llamada al service
-            const createdTask = await api.TaskService.createTask(task);
-
-            await sock.sendMessage(senderNumber, {
-                text: `✅ Tarea creada con éxito:\nTítulo: ${createdTask.title}\n`
-            });
-
-        } catch (error: any) {
-            console.error('Error al procesar el mensaje:', error.message);
-            // Enviamos el mensaje de error al usuario para que sepa qué salió mal
-            await sock.sendMessage(senderNumber, { text: `❌ Error: ${error.message}` });
-        }
+    try {
+        const user = await api.AuthService.getProfileByWhatsapp(senderNumber);
+        verifiedUsersCache.set(senderNumber, user);
+        return user;
+    } catch (error) {
+        verifiedUsersCache.set(senderNumber, null);
+        return null;
     }
+}
 
-    async function handleTaskStateUpdate(taskId: string, newState: string, senderNumber: string, sock: WASocket) {
-        try {
-            const status = newState as Task['status'];
-            await api.TaskService.updateTaskStatus(taskId, status);
-            await sock.sendMessage(senderNumber, {
-                text: `✅ El estado de la tarea ${taskId} ha sido actualizado a "${newState}".`
-            });
-        } catch (error: any) {
-            console.error('Error al actualizar el estado de la tarea:', error.message);
-            await sock.sendMessage(senderNumber, { text: `❌ Error al actualizar la tarea: ${error.message}` });
-        }
+async function handleTaskCreation(task: CreateTaskDTO, senderNumber: string, sock: WASocket) {
+    try {
+
+        console.log(task);
+        // Llamada al service
+        const createdTask = await api.TaskService.createTask(task);
+
+        await sock.sendMessage(senderNumber, {
+            text: `✅ Tarea creada con éxito:\nTítulo: ${createdTask.title}`
+        });
+
+    } catch (error: any) {
+        console.error('Error al procesar el mensaje:', error.message);
+        // Enviamos el mensaje de error al usuario para que sepa qué salió mal
+        await sock.sendMessage(senderNumber, { text: `❌ Error: ${error.message}` });
     }
+}
 
-    connectToWhatsApp();
+async function handleTaskStateUpdate(taskId: string, newState: string, senderNumber: string, sock: WASocket) {
+    try {
+        const status = newState as Task['status'];
+        await api.TaskService.updateTaskStatus(taskId, status);
+        await sock.sendMessage(senderNumber, {
+            text: `✅ El estado de la tarea ${taskId} ha sido actualizado a "${newState}".`
+        });
+    } catch (error: any) {
+        console.error('Error al actualizar el estado de la tarea:', error.message);
+        await sock.sendMessage(senderNumber, { text: `❌ Error al actualizar la tarea: ${error.message}` });
+    }
+}
+
+connectToWhatsApp();
