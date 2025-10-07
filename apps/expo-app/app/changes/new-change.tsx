@@ -18,10 +18,10 @@ import * as ImagePicker from "expo-image-picker";
 /* ========= MOCKDATA ========== */
 
 /* mock data for categories */
-const Electricidad: Category = { name: "electricidad", color: "bg-blue-500" };
-const Plomeria: Category = { name: "plomeria", color: "bg-orange-500" };
-const Construccion: Category = { name: "construccion", color: "bg-gray-500" };
-const Pintura: Category = { name: "pintura", color: "bg-pink-500" };
+const Electricidad: Category = { name: "electricidad", color: '#007AFF' };
+const Plomeria: Category = { name: "plomeria", color: '#FF9500' };
+const Construccion: Category = { name: "construccion", color: '#8A2BE2' };
+const Pintura: Category = { name: "pintura", color: '#FF2D92' };
 const categories: Category[] = [Electricidad, Plomeria, Construccion, Pintura];
 
 // Interfaz para manejar los archivos multimedia
@@ -220,26 +220,31 @@ export default function NewRequest() {
             Categoría <Text className="text-red-500">*</Text>
           </Text>
           <View className="flex-row flex-wrap gap-2">
-            {categories.map((cat) => (
-              <TouchableOpacity
-                key={cat.name}
-                onPress={() => {
-                  setCategory(cat.name);
-                  setCategoryError(null); // Limpia el error al seleccionar
-                }}
-                className={`px-4 py-3 rounded-full ${
-                  category === cat.name ? cat.color : "bg-gray-200"
-                }`}
-              >
-                <Text
-                  className={`text-sm font-medium ${
-                    category === cat.name ? "text-white" : "text-gray-800"
-                  }`}
+            {categories.map((cat) => {
+              const isSelected = category === cat.name;
+              return (
+                <TouchableOpacity
+                  key={cat.name}
+                  onPress={() => {
+                    setCategory(cat.name);
+                    setCategoryError(null); // Limpia el error al seleccionar
+                  }}
+                  className="px-4 py-3 rounded-full"
+                  style={{
+                    backgroundColor: isSelected ? cat.color : '#E5E7EB',
+                  }}
+                  activeOpacity={1}
                 >
-                  {cat.name === "construccion" ? "construcción" : cat.name === "plomeria" ? "plomería" : cat.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text
+                    className={`text-sm font-medium ${
+                      isSelected ? "text-white" : "text-gray-800"
+                    }`}
+                  >
+                    {cat.name === "construccion" ? "construcción" : cat.name === "plomeria" ? "plomería" : cat.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
           {categoryError && (
             <Text className="text-red-500 text-sm mt-1">{categoryError}</Text>

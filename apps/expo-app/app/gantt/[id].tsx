@@ -508,6 +508,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderBottomWidth: 1,
     borderBottomColor: "#F0F0F0",
+    paddingLeft: 12,
   },
   timelineHeaderRow: {
     flexDirection: "row",
@@ -573,11 +574,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   taskName: {
-    flex: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 16,
     fontSize: 13,
     color: "#666666",
+    textAlignVertical: "center",
+    includeFontPadding: false,
   },
   dateCell: {
     height: 60,

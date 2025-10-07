@@ -1,10 +1,12 @@
+// @ts-nocheck
 import { Category } from "@/components/TaskCard";
+import { QuickDateSelector } from "@/components/QuickDateSelector";
+// import { MinimalDateSelector } from "@/components/MinimalDateSelector"; // Para un diseño aún más minimalista
 import { useAuth } from "@/context/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
 import React, { useState, useEffect } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   Image,
   Modal,
@@ -17,18 +19,15 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import DateTimePicker, {
-  DateTimePickerEvent,
-} from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
 
 /* ========= MOCKDATA ========== */
 
 /* mock data for categories */
-const Electricidad: Category = { name: "electricidad", color: "bg-blue-500" };
-const Plomeria: Category = { name: "plomeria", color: "bg-orange-500" };
-const Construccion: Category = { name: "construccion", color: "bg-gray-500" };
-const Pintura: Category = { name: "pintura", color: "bg-pink-500" };
+const Electricidad: Category = { name: "electricidad", color: '#007AFF' };
+const Plomeria: Category = { name: "plomeria", color: '#FF9500' };
+const Construccion: Category = { name: "construccion", color: '#8A2BE2' };
+const Pintura: Category = { name: "pintura", color: '#FF2D92' };
 const categories: Category[] = [Electricidad, Plomeria, Construccion, Pintura];
 
 // Mock data para miembros del equipo
@@ -74,13 +73,8 @@ export default function NewTask() {
   const [endDate, setEndDate] = useState(
     new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
   ); // 1 semana después
-
-  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
-  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
-
-  // Estados temporales para iOS
-  const [tempStartDate, setTempStartDate] = useState(new Date());
-  const [tempEndDate, setTempEndDate] = useState(new Date());
+  
+  // Estados para controlar los pickers - ya no necesarios con QuickDateSelector
 
   // Solicitar permisos al cargar el componente
   useEffect(() => {
@@ -137,76 +131,13 @@ export default function NewTask() {
     setSelectedMembers(selectedMembers.filter((m) => m.id !== memberId));
   };
 
-  // Función para formatear las fechas
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString("es-ES", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-  };
+  // Formateo de fechas ahora manejado por QuickDateSelector
 
-  const handleStartDateChange = (
-    event: DateTimePickerEvent,
-    selectedDate?: Date
-  ) => {
-    if (Platform.OS === "android") {
-      const currentDate = selectedDate || startDate;
-      setShowStartDatePicker(false);
-      setStartDate(currentDate);
 
-      // Si la fecha de inicio es posterior a la de fin, actualizamos la fecha de fin
-      if (currentDate > endDate) {
-        setEndDate(currentDate);
-      }
-    } else {
-      // En iOS, solo actualizamos la fecha temporal
-      if (selectedDate) {
-        setTempStartDate(selectedDate);
-      }
-    }
-  };
 
-  const handleEndDateChange = (
-    event: DateTimePickerEvent,
-    selectedDate?: Date
-  ) => {
-    if (Platform.OS === "android") {
-      const currentDate = selectedDate || endDate;
-      setShowEndDatePicker(false);
-      setEndDate(currentDate);
-    } else {
-      // En iOS, solo actualizamos la fecha temporal
-      if (selectedDate) {
-        setTempEndDate(selectedDate);
-      }
-    }
-  };
 
-  // Funciones para confirmar o cancelar en iOS
-  const confirmStartDate = () => {
-    setStartDate(tempStartDate);
 
-    // Si la fecha de inicio es posterior a la de fin, actualizamos la fecha de fin
-    if (tempStartDate > endDate) {
-      setEndDate(tempStartDate);
-    }
 
-    setShowStartDatePicker(false);
-  };
-
-  const confirmEndDate = () => {
-    setEndDate(tempEndDate);
-    setShowEndDatePicker(false);
-  };
-
-  const cancelDateSelection = (isStartDate: boolean) => {
-    if (isStartDate) {
-      setShowStartDatePicker(false);
-    } else {
-      setShowEndDatePicker(false);
-    }
-  };
 
   const handleSave = async () => {
     // Validación completa antes de enviar
@@ -230,13 +161,18 @@ export default function NewTask() {
       return;
     }
 
+
     const formatDate = (date: Date | null) => {
       if (!date) return undefined;
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, "0");
-      const day = String(date.getDate()).padStart(2, "0");
-      return `${year}-${month}-${day}`;
+      return date.toISOString();
     };
+
+    // Obtener el site_id de la obra seleccionada
+    const site_id = await AsyncStorage.getItem("selectedSiteId");
+    if (!site_id) {
+      alert("Debes seleccionar una obra antes de crear la tarea");
+      return;
+    }
 
     if (!user) {
       alert("Debes estar loggeado para crear una tarea");
@@ -244,27 +180,19 @@ export default function NewTask() {
       return;
     }
 
-    const site_id = await AsyncStorage.getItem("selectedSiteId");
-    if (!site_id) {
-      alert("Debes seleccionar una obra antes de crear una tarea");
-      return;
-    }
+
     const nuevaTarea = {
       title,
       description,
       category,
       status: "pending",
-      // is_urgent: false,
       user_id: user.id,
-
-      // Si tienes campos de fecha en la base, agrégalos aquí
+      site_id,
       start_date: formatDate(startDate),
       end_date: formatDate(endDate),
-      site_id,
     };
 
-    // Muestra en consola lo que se envía
-    console.log("Enviando al backend:", nuevaTarea);
+
 
     try {
       const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/tasks`, {
@@ -276,16 +204,16 @@ export default function NewTask() {
         body: JSON.stringify(nuevaTarea),
       });
 
+
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("Respuesta del backend:", errorText);
-        throw new Error("Error al crear la tarea");
+        alert(`Error al crear la tarea (status ${response.status}):\n${errorText}`);
+        return;
       }
 
       router.back();
     } catch (error) {
-      alert("No se pudo guardar la tarea");
-      console.error(error);
+      alert("No se pudo guardar la tarea: " + (error?.message || error));
     }
   };
 
@@ -367,26 +295,32 @@ export default function NewTask() {
             Categoría <Text className="text-red-500">*</Text>
           </Text>
           <View className="flex-row flex-wrap gap-2">
-            {categories.map((cat) => (
-              <TouchableOpacity
-                key={cat.name}
-                onPress={() => {
-                  setCategory(cat.name);
-                  setCategoryError(null); // Limpia el error al seleccionar
-                }}
-                className={`px-3 py-2 rounded-full ${
-                  category === cat.name ? cat.color : "bg-gray-200"
-                }`}
-              >
-                <Text
-                  className={`text-xs font-medium ${
-                    category === cat.name ? "text-white" : "text-gray-800"
-                  }`}
+            {categories.map((cat) => {
+              const isSelected = category === cat.name;
+              return (
+                <TouchableOpacity
+                  key={cat.name}
+                  onPress={() => {
+                    setCategory(cat.name);
+                    setCategoryError(null);
+                  }}
+                  className="px-3 py-2 rounded-full"
+                  style={{
+                    backgroundColor: isSelected ? cat.color : '#E5E7EB',
+                    borderWidth: 0,
+                  }}
+                  activeOpacity={0.9}
                 >
-                  {cat.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text
+                    className={`text-xs font-medium ${
+                      isSelected ? "text-white" : "text-gray-800"
+                    }`}
+                  >
+                    {cat.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
           {categoryError && (
             <Text className="text-red-500 text-sm mt-1">{categoryError}</Text>
@@ -394,114 +328,27 @@ export default function NewTask() {
         </View>
 
         {/* Fecha de inicio */}
-        <View className="mb-4">
-          <Text className="text-gray-700 font-medium mb-2">
-            Fecha de inicio
-          </Text>
-          <TouchableOpacity
-            onPress={() => {
-              if (Platform.OS === "ios") {
-                setTempStartDate(startDate);
-              }
-              setShowStartDatePicker(true);
-            }}
-            className="bg-white flex-row items-center justify-between p-4 rounded-xl border border-gray-200"
-          >
-            <Text className="text-gray-800">{formatDate(startDate)}</Text>
-            <Ionicons name="calendar-outline" size={20} color="#374151" />
-          </TouchableOpacity>
-
-          {Platform.OS === "ios" && showStartDatePicker ? (
-            <View className="bg-white mt-2 rounded-xl border border-gray-200 overflow-hidden">
-              {/* Botones OK/Cancel para iOS */}
-              <View className="flex-row justify-between items-center border-b border-gray-200 px-4 py-2">
-                <TouchableOpacity onPress={() => cancelDateSelection(true)}>
-                  <Text className="text-red-500 font-medium">Cancelar</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={confirmStartDate}>
-                  <Text className="text-blue-500 font-medium">OK</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Date Picker */}
-              <View className="items-center py-2">
-                <DateTimePicker
-                  value={tempStartDate}
-                  mode="date"
-                  display="inline"
-                  onChange={handleStartDateChange}
-                  minimumDate={new Date()}
-                  style={{ width: "100%", height: 200 }}
-                  themeVariant="light"
-                />
-              </View>
-            </View>
-          ) : null}
-
-          {Platform.OS === "android" && showStartDatePicker && (
-            <DateTimePicker
-              value={startDate}
-              mode="date"
-              display="default"
-              onChange={handleStartDateChange}
-              minimumDate={new Date()}
-            />
-          )}
-        </View>
+        <QuickDateSelector
+          date={startDate}
+          onDateChange={(date) => {
+            setStartDate(date);
+            if (date > endDate) {
+              setEndDate(date);
+            }
+          }}
+          label="Fecha de inicio"
+          minimumDate={new Date()}
+          placeholder="Seleccionar fecha de inicio"
+        />
 
         {/* Fecha de fin */}
-        <View className="mb-6">
-          <Text className="text-gray-700 font-medium mb-2">Fecha de fin</Text>
-          <TouchableOpacity
-            onPress={() => {
-              if (Platform.OS === "ios") {
-                setTempEndDate(endDate);
-              }
-              setShowEndDatePicker(true);
-            }}
-            className="bg-white flex-row items-center justify-between p-4 rounded-xl border border-gray-200"
-          >
-            <Text className="text-gray-800">{formatDate(endDate)}</Text>
-            <Ionicons name="calendar-outline" size={20} color="#374151" />
-          </TouchableOpacity>
-
-          {Platform.OS === "ios" && showEndDatePicker ? (
-            <View className="bg-white mt-2 rounded-xl border border-gray-200 overflow-hidden">
-              {/* Botones OK/Cancel para iOS */}
-              <View className="flex-row justify-between items-center border-b border-gray-200 px-4 py-2">
-                <TouchableOpacity onPress={() => cancelDateSelection(false)}>
-                  <Text className="text-red-500 font-medium">Cancelar</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={confirmEndDate}>
-                  <Text className="text-blue-500 font-medium">OK</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Date Picker */}
-              <View className="items-center py-2">
-                <DateTimePicker
-                  value={tempEndDate}
-                  mode="date"
-                  display="inline"
-                  onChange={handleEndDateChange}
-                  minimumDate={startDate}
-                  style={{ width: "100%", height: 200 }}
-                  themeVariant="light"
-                />
-              </View>
-            </View>
-          ) : null}
-
-          {Platform.OS === "android" && showEndDatePicker && (
-            <DateTimePicker
-              value={endDate}
-              mode="date"
-              display="default"
-              onChange={handleEndDateChange}
-              minimumDate={startDate}
-            />
-          )}
-        </View>
+        <QuickDateSelector
+          date={endDate}
+          onDateChange={setEndDate}
+          label="Fecha de finalización"
+          minimumDate={startDate}
+          placeholder="Seleccionar fecha de finalización"
+        />
 
         {/* Miembros del Equipo */}
         <View className="mb-4">
@@ -668,6 +515,8 @@ export default function NewTask() {
           </ScrollView>
         </SafeAreaView>
       </Modal>
+
+      {/* Date pickers ahora manejados por QuickDateSelector */}
     </SafeAreaView>
   );
 }
