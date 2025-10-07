@@ -52,7 +52,22 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, changes }) => {
   return (
     <TouchableOpacity
       className={`${getStatusBgColor(task.status)} rounded-2xl p-5 mb-3 mr-3 w-72 h-40`}
-      onPress={changes ? () => router.push(`/tasks/${task.id}`) : () => router.push(`/tasks/${task.id}`)}
+      onPress={() => {
+        // Si la tarea está REJECTED, forzamos la navegación a /tasks/:id para mostrar el detalle de task
+        if (task.status === 'rejected') {
+          router.push(`/tasks/${task.id}`);
+          return;
+        }
+
+        // Si es una solicitud de cambio (prop o status), vamos a /changes/:id
+        if (changes || task.status === 'changes') {
+          router.push(`/changes/${task.id}`);
+          return;
+        }
+
+        // Por defecto navegamos al detalle de tarea
+        router.push(`/tasks/${task.id}`);
+      }}
     >
       <View className="flex-1">
         {/* Contenido superior */}
