@@ -34,15 +34,15 @@ const CalendarSchedule = () => {
   const router = useRouter();
   const { tasks, isLoading, fetchTasks } = useTasks();
   
-  // Obtener la fecha actual dinámicamente
-  const today = React.useMemo(() => new Date(), []);
-  const todayDate = today.getDate();
-  const todayMonth = today.getMonth();
-  const todayYear = today.getFullYear();
+  // Obtener la fecha "ahora" en cada render para que el día actual siempre sea correcto
+  const now = new Date();
+  const todayDate = now.getDate();
+  const todayMonth = now.getMonth();
+  const todayYear = now.getFullYear();
   
   // Inicializar con la fecha actual
-  const [selectedDate, setSelectedDate] = useState(() => {
-    return todayDate;
+  const [selectedDate, setSelectedDate] = useState<number>(() => {
+    return new Date().getDate();
   });
   const [currentYear, setCurrentYear] = useState(todayYear);
   const [currentMonthIndex, setCurrentMonthIndex] = useState(todayMonth);
@@ -141,10 +141,10 @@ const CalendarSchedule = () => {
     const daysInMonth = new Date(currentYear, currentMonthIndex + 1, 0).getDate();
     const firstDayOfWeek = new Date(currentYear, currentMonthIndex, 1).getDay();
     const dayNames = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
-    
+
     // Verificar si estamos viendo el mes y año actual
     const isCurrentMonth = currentYear === todayYear && currentMonthIndex === todayMonth;
-    
+
     const calendarDays = [];
     for (let day = 1; day <= daysInMonth; day++) {
       const dayOfWeek = (firstDayOfWeek + day - 1) % 7;
@@ -532,9 +532,9 @@ const CalendarSchedule = () => {
             <TouchableOpacity
               style={[
                 styles.dateButton,
-                // Solo aplicar estilo de selección normal si NO es el día actual
+                // Aplicar estilo de selección solo si NO es el día actual
                 dayInfo.date === selectedDate && !dayInfo.isToday && styles.selectedDate,
-                // Aplicar estilo del día actual cuando es hoy (seleccionado o no, pero solo círculo si está seleccionado)
+                // Aplicar el estilo de fondo de "hoy" sólo si HOY está seleccionado (mantener el círculo naranja sólo cuando se selecciona hoy)
                 dayInfo.isToday && dayInfo.date === selectedDate && styles.todayDate
               ]}
               onPress={() => setSelectedDate(dayInfo.date)}
@@ -542,9 +542,9 @@ const CalendarSchedule = () => {
             >
               <Text style={[
                 styles.dateText,
-                // Estilo de texto seleccionado solo para días que no son el actual
+                // Texto seleccionado sólo si no es hoy
                 dayInfo.date === selectedDate && !dayInfo.isToday && styles.selectedDateText,
-                // Texto naranja para el día actual siempre
+                // Texto para el día actual siempre (naranja) — cuando no está seleccionado solo cambia el texto
                 dayInfo.isToday && styles.todayDateText
               ]}>
                 {dayInfo.date}
