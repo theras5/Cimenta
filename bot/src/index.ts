@@ -184,8 +184,13 @@ async function handleIncomingMessage(m: any, sock: WASocket) {
 
     // Comando de resumen (global u obra específica)
     const lower = messageText.trim().toLowerCase();
-    if (lower === 'res' || lower.startsWith('resumen')) {
-        const query = lower === 'res' ? '' : messageText.trim().slice(7).trim();
+    if (lower === 'res' || lower.startsWith('res ') || lower.startsWith('resumen')) {
+        let query = '';
+        if (lower.startsWith('resumen')) {
+            query = messageText.trim().slice(7).trim();
+        } else if (lower.startsWith('res ')) {
+            query = messageText.trim().slice(3).trim();
+        }
         await sendDailySummary(senderNumber, sock, query);
         return;
     }
@@ -236,17 +241,22 @@ async function handleIdleState(
     senderNumber: string,
     sock: WASocket
 ) {
-    if (messageText.toLowerCase() === '!crear tarea') {
+    const lower = messageText.trim().toLowerCase();
+    if (lower === '!crear tarea' || lower === 'tarea' || lower === 't' || lower === 'crear tarea') {
         await sock.sendMessage(senderNumber, {
-            text: '¡Genial! Vamos a crear una tarea. Primero, dime el título.'
+            text: '🎯 ¡Genial! Vamos a crear una tarea.\n📝 Primero, decime el *título*.'
         });
         setChatState(senderNumber, 'AWAITING_TASK_TITLE');
-    } else if (messageText.trim().toLowerCase() === 'res' || messageText.trim().toLowerCase().startsWith('resumen')) {
-        const query = messageText.trim().toLowerCase() === 'res' ? '' : messageText.trim().slice(7).trim();
+    } else if (lower === 'res' || lower.startsWith('res ') || lower.startsWith('resumen')) {
+        const query = lower.startsWith('resumen')
+            ? messageText.trim().slice(7).trim()
+            : (lower.startsWith('res ') ? messageText.trim().slice(3).trim() : '');
         await sendDailySummary(senderNumber, sock, query);
     } else {
         await sock.sendMessage(senderNumber, {
-            text: `Hola ${user.name}. Envía '!crear tarea' para empezar.`
+            text: `👋 Hola ${user.name}!
+✍️ Escribí "*tarea*" o "*t*" para crear una nueva tarea.
+🧾 Escribí "*res*" o "*resumen*" para ver el resumen del día (o "*res <obra>*" para una obra específica).`
         });
     }
 }
@@ -257,7 +267,7 @@ async function handleTaskTitle(
     sock: WASocket
 ) {
     await sock.sendMessage(senderNumber, {
-        text: 'Título guardado. Ahora, por favor, envíame la descripción.'
+        text: '✅ Título guardado.\n🖊️ Ahora escribí una breve *descripción*.'
     });
     setChatState(senderNumber, 'AWAITING_TASK_DESCRIPTION', { title: messageText });
 }
@@ -272,9 +282,9 @@ async function handleTaskDescription(
         '📝 Descripción guardada.',
         '',
         'Elegí la categoría de la tarea (respondé con número o nombre):',
-        '1) Pintura 🎨',
-        '2) Construcción 🏗️',
-        '3) Electricidad ⚡',
+        '1) *Pintura* 🎨',
+        '2) *Construcción* 🏗️',
+        '3) *Electricidad* ⚡',
     ].join('\n');
     await sock.sendMessage(senderNumber, { text: body });
 
@@ -309,11 +319,11 @@ async function handleTaskCategory(
             '✅ Categoría guardada.',
             '',
             'Elegí el estado inicial (respondé con número o nombre):',
-            '1) Cambios 🔄',
-            '2) Pendiente 🕒',
-            '3) En Progreso 🚧',
-            '4) Completada ✅',
-            '5) Bloqueada ⛔',
+            '1) *Cambios* 🔄',
+            '2) *Pendiente* 🕒',
+            '3) *En Progreso* 🚧',
+            '4) *Completada* ✅',
+            '5) *Bloqueada* ⛔',
         ].join('\n');
         await sock.sendMessage(senderNumber, { text: body });
 
