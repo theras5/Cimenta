@@ -275,7 +275,8 @@ async function handleIdleState(
         await sock.sendMessage(senderNumber, {
             text: `👋 Hola ${user.name}!
 ✍️ Escribí "*tarea*" o "*t*" para crear una nueva tarea.
-🧾 Escribí "*res*" o "*resumen*" para ver el resumen del día (o "*res <obra>*" para una obra específica).`
+🧾 Escribí "*res*" o "*resumen*" para ver el resumen del día (o "*res <obra>*" para una obra específica).
+📅 Escribí "*agenda*" para ver las tareas de hoy (o "*agenda <obra>*").`
         });
     }
 }
@@ -679,84 +680,55 @@ async function sendDailySummary(jid: string, sock: WASocket, siteQuery?: string)
         const today = new Date();
         const { start, end } = dayBounds(today);
 
-        // Cargar datos base
-        const [sites, tasks, updates] = await Promise.all([
-            fetchJSON<Site[]>(`/sites`),
-            fetchJSON<RawTask[]>(`/tasks`),
-            fetchJSON<Update[]>(`/updates`),
-        ]);
+        
+        // 2. Traer solo las obras del usuario
+        const sites = await api.SiteService.getSitesByUser(user.id);
 
-        // Mapa de sites
-        const siteById = new Map<string, Site>();
-        sites.forEach(s => siteById.set(s.id, s));
+        // 3. Traer tareas de cada obra
+        const tasksBySite = await Promise.all(
+            sites.map(async site => ({
+                site,
+                tasks: await api.TaskService.getTasksBySite(site.id)
+            }))
+        );
 
-        // Determinar scope de resumen
-        let includedSiteIds: string[] | null = null;
+        // (Opcional) Traer updates si tienes endpoint filtrado por usuario o sitio
+        // const updates = await api.UpdateService.getUpdatesByUser(user.id);
+
+        // 4. Filtrar por siteQuery si corresponde
+        let filteredSites: typeof sites = sites;
         let headerLabel = 'global';
         const q = (siteQuery || '').trim();
         if (q) {
             if (isUUID(q)) {
-                includedSiteIds = siteById.has(q) ? [q] : [];
-                headerLabel = siteById.get(q)?.address || q;
+                filteredSites = sites.filter(s => s.id === q);
+                headerLabel = filteredSites[0]?.address || q;
             } else {
-                const matches = sites.filter(s => s.address.toLowerCase().includes(q.toLowerCase()))
-                                     .map(s => s.id);
-                includedSiteIds = matches;
+                filteredSites = sites.filter(s => s.address.toLowerCase().includes(q.toLowerCase()));
                 headerLabel = q;
             }
         }
 
-        // Filtrar por día y sitio
-        const tasksToday = tasks.filter(t => inRange((t as any).created_at, start, end));
-        const updatesToday = updates.filter(u => inRange(u.created_at, start, end));
-
-        // Posibles movimientos
-        const tasksCreated = tasksToday;
-        const changeRequestsCreated = tasksToday.filter(t => (t.status as any) === 'changes');
-
-        // Heurística de tareas con estado actualizado hoy (si hay updated_at)
-        const tasksUpdatedToday = (tasks as RawTask[]).filter(t => inRange(t.updated_at, start, end));
-        const completedToday = (tasks as RawTask[]).filter(t => t.status === 'completed' && (inRange(t.end_date, start, end) || inRange(t.updated_at, start, end)));
-
-        // Agrupar por site
-        function getSiteIdForTask(t: RawTask) {
-            return t.site_id || t.site?.id || '';
-        }
-
-        function sitePass(id?: string) {
-            if (!includedSiteIds) return true;
-            if (!id) return false;
-            return includedSiteIds.includes(id);
-        }
-
-        const sitesToReport = includedSiteIds ? includedSiteIds : Array.from(new Set([
-            ...tasksCreated.map(getSiteIdForTask).filter(Boolean),
-            ...tasksUpdatedToday.map(getSiteIdForTask).filter(Boolean),
-            ...completedToday.map(getSiteIdForTask).filter(Boolean),
-            ...changeRequestsCreated.map(getSiteIdForTask).filter(Boolean),
-            ...updatesToday.map(u => u.site_id).filter(Boolean) as string[],
-            ...sites.map(s => s.id)
-        ]));
-
-        // Armar mensaje
+         // 5. Armar mensaje
         let parts: string[] = [];
         parts.push(`📅 Resumen ${q ? `de "${headerLabel}"` : 'global'} — ${today.toLocaleDateString()}`);
         parts.push('');
 
         let anyData = false;
-        for (const siteId of sitesToReport) {
-            if (!sitePass(siteId)) continue;
-            const siteName = siteById.get(siteId)?.address || 'Sin dirección';
+        for (const { site, tasks } of tasksBySite) {
+            if (!filteredSites.find(s => s.id === site.id)) continue;
 
-            const tCreated = tasksCreated.filter(t => getSiteIdForTask(t as RawTask) === siteId);
-            const tUpdated = tasksUpdatedToday.filter(t => getSiteIdForTask(t) === siteId);
-            const tCompleted = completedToday.filter(t => getSiteIdForTask(t) === siteId);
-            const tChanges = changeRequestsCreated.filter(t => getSiteIdForTask(t as RawTask) === siteId);
-            const uCreated = updatesToday.filter(u => u.site_id === siteId);
+            // Filtrar tareas del día
+            const tasksToday = tasks.filter(t => inRange((t as any).created_at, start, end));
+            const tasksUpdatedToday = tasks.filter(t => inRange((t as any).updated_at, start, end));
+            const completedToday = tasks.filter(t =>
+                t.status === 'completed' && (inRange((t as any).end_date, start, end) || inRange((t as any).updated_at, start, end))
+            );
+            const changeRequestsCreated = tasksToday.filter(t => (t.status as any) === 'changes');
 
-            if (!tCreated.length && !tUpdated.length && !tCompleted.length && !tChanges.length && !uCreated.length) {
+            if (!tasksToday.length && !tasksUpdatedToday.length && !completedToday.length && !changeRequestsCreated.length) {
                 if (!q) {
-                    parts.push(`🏷️ ${siteName}`);
+                    parts.push(`🏷️ ${site.address}`);
                     parts.push(`• 😴 Sin movimientos hoy`);
                     parts.push('');
                 }
@@ -764,76 +736,213 @@ async function sendDailySummary(jid: string, sock: WASocket, siteQuery?: string)
             }
 
             anyData = true;
-            parts.push(`🏷️ Obra: ${siteName}`);
+            parts.push(`🏷️ Obra: ${site.address}`);
             parts.push('');
-
-            if (tCreated.length) {
-                parts.push(`• 🆕 Tareas creadas (${tCreated.length})`);
-                tCreated.slice(0, 5).forEach((t: any) => {
+            if (tasksToday.length) {
+                parts.push(`• 🆕 Tareas creadas (${tasksToday.length})`);
+                tasksToday.slice(0, 5).forEach((t: any) => {
                     parts.push(`   ◦ ${categoryIcon(t.category)} ${t.title} · ${statusBadge(String(t.status))}`);
                 });
-                if (tCreated.length > 5) parts.push(`   ◦ +${tCreated.length - 5} más...`);
+                if (tasksToday.length > 5) parts.push(`   ◦ +${tasksToday.length - 5} más...`);
                 parts.push('');
             }
 
-            if (tUpdated.length) {
-                parts.push(`• ✏️ Tareas actualizadas (${tUpdated.length})`);
-                tUpdated.slice(0, 5).forEach(t => {
+            if (tasksUpdatedToday.length) {
+                parts.push(`• ✏️ Tareas actualizadas (${tasksUpdatedToday.length})`);
+                tasksUpdatedToday.slice(0, 5).forEach(t => {
                     parts.push(`   ◦ ${categoryIcon(t.category)} ${t.title} · ${statusBadge(String(t.status))}`);
                 });
-                if (tUpdated.length > 5) parts.push(`   ◦ +${tUpdated.length - 5} más...`);
+                if (tasksUpdatedToday.length > 5) parts.push(`   ◦ +${tasksUpdatedToday.length - 5} más...`);
                 parts.push('');
             }
 
-            if (tCompleted.length) {
-                parts.push(`• ✅ Tareas completadas (${tCompleted.length})`);
-                tCompleted.slice(0, 5).forEach(t => parts.push(`   ◦ ${categoryIcon(t.category)} ${t.title}`));
-                if (tCompleted.length > 5) parts.push(`   ◦ +${tCompleted.length - 5} más...`);
+            if (completedToday.length) {
+                parts.push(`• ✅ Tareas completadas (${completedToday.length})`);
+                completedToday.slice(0, 5).forEach(t => parts.push(`   ◦ ${categoryIcon(t.category)} ${t.title}`));
+                if (completedToday.length > 5) parts.push(`   ◦ +${completedToday.length - 5} más...`);
                 parts.push('');
             }
 
-            if (tChanges.length) {
-                parts.push(`• 🔄 Cambios solicitados (${tChanges.length})`);
-                tChanges.slice(0, 5).forEach(t => {
+            if (changeRequestsCreated.length) {
+                parts.push(`• 🔄 Cambios solicitados (${changeRequestsCreated.length})`);
+                changeRequestsCreated.slice(0, 5).forEach(t => {
                     parts.push(`   ◦ ${categoryIcon(t.category)} ${t.title}`);
                 });
-                if (tChanges.length > 5) parts.push(`   ◦ +${tChanges.length - 5} más...`);
+                if (changeRequestsCreated.length > 5) parts.push(`   ◦ +${changeRequestsCreated.length - 5} más...`);
                 parts.push('');
             }
 
-            if (uCreated.length) {
-                parts.push(`• 📸 Avances (${uCreated.length})`);
-                uCreated.slice(0, 5).forEach(u => {
-                    const desc = u.description ? ` — ${clip(u.description, 80)}` : '';
-                    parts.push(`   ◦ 🧾 ${u.title}${desc}`);
-                });
-                if (uCreated.length > 5) parts.push(`   ◦ +${uCreated.length - 5} más...`);
+            if (!anyData && filteredSites.length === 0) {
+                const suggestions = sites
+                    .filter(s => (siteQuery || '').trim() && s.address && s.address.toLowerCase().includes((siteQuery || '').trim().toLowerCase()))
+                    .slice(0, 5)
+                    .map(s => `- ${s.address} (${s.id})`)
+                    .join('\n');
+                    
+                    const notFoundMsg = suggestions
+                    ? `❌ No encontré una obra que coincida. Sugerencias:\n${suggestions}`
+                    : `❌ No encontré una obra con "${siteQuery}"`;
+                await sock.sendMessage(jid, { text: notFoundMsg });
+                return;
             }
-
-            parts.push('');
+            
+            const text = parts.join('\n');
+            await sock.sendMessage(jid, { text });
+            // Si tienes updates, agrégalos aquí
+            // ...
+        }
+        } catch (err: any) {
+            console.error('Error generando resumen:', err);
+            await sock.sendMessage(jid, { text: `❌ No pude generar el resumen: ${err?.message || 'Error desconocido'}` });
+        }
         }
 
-        if (!anyData && includedSiteIds && includedSiteIds.length === 0) {
-            const suggestions = sites
-                .filter(s => (siteQuery || '').trim() && s.address.toLowerCase().includes((siteQuery || '').trim().toLowerCase()))
-                .slice(0, 5)
-                .map(s => `- ${s.address} (${s.id})`)
-                .join('\n');
+        
+        
+        // // Mapa de sites
+        // const siteById = new Map<string, Site>();
+        // sites.forEach(s => siteById.set(s.id, s));
 
-            const notFoundMsg = suggestions
-                ? `❌ No encontré una obra que coincida. Sugerencias:\n${suggestions}`
-                : `❌ No encontré una obra con "${siteQuery}"`;
-            await sock.sendMessage(jid, { text: notFoundMsg });
-            return;
-        }
+        // // Determinar scope de resumen
+        // let includedSiteIds: string[] | null = null;
+        // let headerLabel = 'global';
+        // const q = (siteQuery || '').trim();
+        // if (q) {
+        //     if (isUUID(q)) {
+        //         includedSiteIds = siteById.has(q) ? [q] : [];
+        //         headerLabel = siteById.get(q)?.address || q;
+        //     } else {
+        //         const matches = sites.filter(s => s.address.toLowerCase().includes(q.toLowerCase()))
+        //                              .map(s => s.id);
+        //         includedSiteIds = matches;
+        //         headerLabel = q;
+        //     }
+        // }
 
-        const text = parts.join('\n');
-        await sock.sendMessage(jid, { text });
-    } catch (err: any) {
-        console.error('Error generando resumen:', err);
-        await sock.sendMessage(jid, { text: `❌ No pude generar el resumen: ${err?.message || 'Error desconocido'}` });
-    }
-}
+    //     // Filtrar por día y sitio
+    //     const tasksToday = tasks.filter(t => inRange((t as any).created_at, start, end));
+    //     const updatesToday = updates.filter(u => inRange(u.created_at, start, end));
+
+    //     // Posibles movimientos
+    //     const tasksCreated = tasksToday;
+    //     const changeRequestsCreated = tasksToday.filter(t => (t.status as any) === 'changes');
+
+    //     // Heurística de tareas con estado actualizado hoy (si hay updated_at)
+    //     const tasksUpdatedToday = (tasks as RawTask[]).filter(t => inRange(t.updated_at, start, end));
+    //     const completedToday = (tasks as RawTask[]).filter(t => t.status === 'completed' && (inRange(t.end_date, start, end) || inRange(t.updated_at, start, end)));
+
+    //     // Agrupar por site
+    //     function getSiteIdForTask(t: RawTask) {
+    //         return t.site_id || t.site?.id || '';
+    //     }
+
+    //     function sitePass(id?: string) {
+    //         if (!includedSiteIds) return true;
+    //         if (!id) return false;
+    //         return includedSiteIds.includes(id);
+    //     }
+
+    //     const sitesToReport = includedSiteIds ? includedSiteIds : Array.from(new Set([
+    //         ...tasksCreated.map(getSiteIdForTask).filter(Boolean),
+    //         ...tasksUpdatedToday.map(getSiteIdForTask).filter(Boolean),
+    //         ...completedToday.map(getSiteIdForTask).filter(Boolean),
+    //         ...changeRequestsCreated.map(getSiteIdForTask).filter(Boolean),
+    //         ...updatesToday.map(u => u.site_id).filter(Boolean) as string[],
+    //         ...sites.map(s => s.id)
+    //     ]));
+
+    //     // Armar mensaje
+    //     let parts: string[] = [];
+    //     parts.push(`📅 Resumen ${q ? `de "${headerLabel}"` : 'global'} — ${today.toLocaleDateString()}`);
+    //     parts.push('');
+
+    //     let anyData = false;
+    //     for (const siteId of sitesToReport) {
+    //         if (!sitePass(siteId)) continue;
+    //         const siteName = siteById.get(siteId)?.address || 'Sin dirección';
+
+    //         const tCreated = tasksCreated.filter(t => getSiteIdForTask(t as RawTask) === siteId);
+    //         const tUpdated = tasksUpdatedToday.filter(t => getSiteIdForTask(t) === siteId);
+    //         const tCompleted = completedToday.filter(t => getSiteIdForTask(t) === siteId);
+    //         const tChanges = changeRequestsCreated.filter(t => getSiteIdForTask(t as RawTask) === siteId);
+    //         const uCreated = updatesToday.filter(u => u.site_id === siteId);
+
+    //         if (!tCreated.length && !tUpdated.length && !tCompleted.length && !tChanges.length && !uCreated.length) {
+    //             if (!q) {
+    //                 parts.push(`🏷️ ${siteName}`);
+    //                 parts.push(`• 😴 Sin movimientos hoy`);
+    //                 parts.push('');
+    //             }
+    //             continue;
+    //         }
+
+    //         anyData = true;
+    //         parts.push(`🏷️ Obra: ${siteName}`);
+    //         parts.push('');
+
+    //         if (tCreated.length) {
+    //             parts.push(`• 🆕 Tareas creadas (${tCreated.length})`);
+    //             tCreated.slice(0, 5).forEach((t: any) => {
+    //                 parts.push(`   ◦ ${categoryIcon(t.category)} ${t.title} · ${statusBadge(String(t.status))}`);
+    //             });
+    //             if (tCreated.length > 5) parts.push(`   ◦ +${tCreated.length - 5} más...`);
+    //             parts.push('');
+    //         }
+
+    //         if (tUpdated.length) {
+    //             parts.push(`• ✏️ Tareas actualizadas (${tUpdated.length})`);
+    //             tUpdated.slice(0, 5).forEach(t => {
+    //                 parts.push(`   ◦ ${categoryIcon(t.category)} ${t.title} · ${statusBadge(String(t.status))}`);
+    //             });
+    //             if (tUpdated.length > 5) parts.push(`   ◦ +${tUpdated.length - 5} más...`);
+    //             parts.push('');
+    //         }
+
+    //         if (tCompleted.length) {
+    //             parts.push(`• ✅ Tareas completadas (${tCompleted.length})`);
+    //             tCompleted.slice(0, 5).forEach(t => parts.push(`   ◦ ${categoryIcon(t.category)} ${t.title}`));
+    //             if (tCompleted.length > 5) parts.push(`   ◦ +${tCompleted.length - 5} más...`);
+    //             parts.push('');
+    //         }
+
+    //         if (tChanges.length) {
+    //             parts.push(`• 🔄 Cambios solicitados (${tChanges.length})`);
+    //             tChanges.slice(0, 5).forEach(t => {
+    //                 parts.push(`   ◦ ${categoryIcon(t.category)} ${t.title}`);
+    //             });
+    //             if (tChanges.length > 5) parts.push(`   ◦ +${tChanges.length - 5} más...`);
+    //             parts.push('');
+    //         }
+
+    //         if (uCreated.length) {
+    //             parts.push(`• 📸 Avances (${uCreated.length})`);
+    //             uCreated.slice(0, 5).forEach(u => {
+    //                 const desc = u.description ? ` — ${clip(u.description, 80)}` : '';
+    //                 parts.push(`   ◦ 🧾 ${u.title}${desc}`);
+    //             });
+    //             if (uCreated.length > 5) parts.push(`   ◦ +${uCreated.length - 5} más...`);
+    //         }
+
+    //         parts.push('');
+    //     }
+
+    //     if (!anyData && includedSiteIds && includedSiteIds.length === 0) {
+    //         const suggestions = sites
+    //             .filter(s => (siteQuery || '').trim() && s.address.toLowerCase().includes((siteQuery || '').trim().toLowerCase()))
+    //             .slice(0, 5)
+    //             .map(s => `- ${s.address} (${s.id})`)
+    //             .join('\n');
+
+    //         const notFoundMsg = suggestions
+    //             ? `❌ No encontré una obra que coincida. Sugerencias:\n${suggestions}`
+    //             : `❌ No encontré una obra con "${siteQuery}"`;
+    //         await sock.sendMessage(jid, { text: notFoundMsg });
+    //         return;
+    //     }
+
+    //     const text = parts.join('\n');
+    //     await sock.sendMessage(jid, { text });
+//}
 
 // --------------------
 // Agenda de hoy
@@ -841,6 +950,10 @@ async function sendDailySummary(jid: string, sock: WASocket, siteQuery?: string)
 
 function sameDay(a: Date, b: Date) {
     return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function sameDayUTC(a: Date, b: Date) {
+    return a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth() && a.getUTCDate() === b.getUTCDate();
 }
 
 function timeStr(iso?: string) {
@@ -853,19 +966,32 @@ function timeStr(iso?: string) {
 async function sendTodayAgenda(jid: string, sock: WASocket, siteQuery?: string) {
     try {
         await sock.sendMessage(jid, { text: '🔎 Buscando tareas agendadas para hoy…' });
-        const today = new Date();
+        const now = new Date();
+        const todayUTCStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
+        const todayUTCEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
+
         const tasks = await fetchJSON<RawTask[]>(`/tasks`);
 
-        // Filtrar por fecha de hoy (start_date)
-        let filtered = tasks.filter(t => t.start_date && sameDay(new Date(t.start_date as any), today));
+        // Filtrar por solapamiento con el día de hoy (en UTC)
+        let filtered = tasks.filter(t => {
+            if (!t.start_date) return false;
+            const start = new Date(t.start_date);
+            const end = t.end_date ? new Date(t.end_date) : null;
+            if (end) {
+                // incluir si el rango [start, end] solapa el día [todayUTCStart, todayUTCEnd]
+                return start <= todayUTCEnd && end >= todayUTCStart;
+            }
+            // si no hay end_date, incluir solo si el start coincide con el día de hoy en UTC
+            return sameDayUTC(start, todayUTCStart);
+        });
 
         // Filtro opcional por obra (texto o UUID)
         if (siteQuery && siteQuery.trim()) {
             const q = siteQuery.trim().toLowerCase();
             filtered = filtered.filter(t => {
-                const siteName = t.site?.address || '';
-                const siteId = t.site?.id || t.site_id || '';
-                return siteName.toLowerCase().includes(q) || siteId.toLowerCase() === q;
+                const siteName = (t.site?.address || '').toLowerCase();
+                const siteId = (t.site?.id || t.site_id || '').toLowerCase();
+                return siteName.includes(q) || siteId === q;
             });
         }
 
@@ -884,12 +1010,20 @@ async function sendTodayAgenda(jid: string, sock: WASocket, siteQuery?: string) 
             return ta - tb;
         });
 
-        const header = `🗓️ Agenda de hoy (${today.toLocaleDateString('es-AR')})${siteQuery && siteQuery.trim() ? ` — ${siteQuery}` : ''}`;
+        const header = `🗓️ Agenda de hoy (${now.toLocaleDateString('es-AR')})${siteQuery && siteQuery.trim() ? ` — ${siteQuery}` : ''}`;
         const lines: string[] = [header, ''];
         for (const t of filtered) {
-            const start = timeStr(t.start_date);
-            const end = timeStr(t.end_date);
-            const range = start && end ? `${start}–${end}` : (start || '');
+            const start = t.start_date ? new Date(t.start_date) : null;
+            const end = t.end_date ? new Date(t.end_date) : null;
+            let range = '';
+            if (start && end && !sameDayUTC(start, end)) {
+                // Evento de varios días: mostrar "Todo el día" para el día en curso
+                range = 'Todo el día';
+            } else {
+                const s = timeStr(t.start_date);
+                const e = timeStr(t.end_date);
+                range = s && e ? `${s}–${e}` : (s || '');
+            }
             const siteName = t.site?.address || '';
             lines.push(`• ${range} · ${categoryIcon(t.category)} ${t.title}${siteName ? ` · 🏷️ ${siteName}` : ''}`);
         }
