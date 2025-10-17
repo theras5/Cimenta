@@ -195,6 +195,13 @@ async function handleIncomingMessage(m: any, sock: WASocket) {
         return;
     }
 
+    // Comando de agenda de HOY
+    if (lower === 'agenda' || lower.startsWith('agenda ') || lower === 'hoy' || lower === 'tareas hoy') {
+        const query = lower.startsWith('agenda ') ? messageText.trim().slice(6).trim() : '';
+        await sendTodayAgenda(senderNumber, sock, query);
+        return;
+    }
+
     const { state, context } = getChatState(senderNumber);
     await handleMessageByState(state, messageText, context, user, senderNumber, sock);
 }
@@ -226,6 +233,18 @@ async function handleMessageByState(
 
         case 'AWAITING_TASK_STATUS':
             await handleTaskStatus(messageText, context, user, senderNumber, sock);
+            break;
+
+        case 'ASK_CALENDAR':
+            await handleAskCalendar(messageText, context, user, senderNumber, sock);
+            break;
+
+        case 'AWAITING_START_DATE':
+            await handleStartDate(messageText, context, user, senderNumber, sock);
+            break;
+
+        case 'AWAITING_END_DATE':
+            await handleEndDate(messageText, context, user, senderNumber, sock);
             break;
 
         default:
@@ -370,17 +389,16 @@ async function handleTaskStatus(
     const mapped = statusMap[normalized];
 
     if (mapped && isTaskStatus(mapped)) {
-        const finalContext: CreateTaskDTO = {
+        const nextContext = {
             ...context,
             status: mapped as any,
             user_id: user.id,
             site_id: "3555c1f9-7d11-409d-bf29-87b1cbcb6262"
-        };
+        } as CreateTaskDTO & { user_id: string; site_id: string };
         await sock.sendMessage(senderNumber, {
-            text: '¡Perfecto! Recibí toda la información. Creando tarea...'
+            text: '🗓️ ¿Querés agendarla en el calendario? Respondé "sí" o "no".'
         });
-        await handleTaskCreation(finalContext, senderNumber, sock);
-        setChatState(senderNumber, 'IDLE');
+        setChatState(senderNumber, 'ASK_CALENDAR', nextContext);
     } else {
         const body = [
             'Estado no válido. Elegí una opción válida (número o nombre):',
@@ -470,6 +488,71 @@ function statusBadge(st?: string) {
 function clip(text: string, max = 80) {
     if (!text) return '';
     return text.length > max ? `${text.slice(0, max)}…` : text;
+}
+
+function parseDateTimeToISO(input: string, defaultHour = 9, defaultMinutes = 0): string | null {
+    const s = input.trim();
+    const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:\s+(\d{1,2})(?::(\d{2}))?)?$/);
+    if (!m) return null;
+    let [_, dd, MM, yyyy, hh, mm] = m;
+    const day = parseInt(dd, 10);
+    const month = parseInt(MM, 10) - 1;
+    let year = parseInt(yyyy.length === 2 ? `20${yyyy}` : yyyy, 10);
+    const hour = hh ? parseInt(hh, 10) : defaultHour;
+    const minutes = mm ? parseInt(mm, 10) : defaultMinutes;
+    const dt = new Date(year, month, day, hour, minutes, 0, 0);
+    if (isNaN(dt.getTime())) return null;
+    return dt.toISOString();
+}
+
+async function handleAskCalendar(messageText: string, context: any, user: Profile, senderNumber: string, sock: WASocket) {
+    const lower = messageText.trim().toLowerCase();
+    if (['si', 'sí', 's', 'yes', 'y'].includes(lower)) {
+        await sock.sendMessage(senderNumber, { text: '🗓️ Ingreso de fechas. Enviá la fecha de inicio con formato DD/MM/YYYY HH:mm (ej: 25/10/2025 08:30). También podés omitir la hora.' });
+        setChatState(senderNumber, 'AWAITING_START_DATE', context);
+        return;
+    }
+    if (['no', 'n'].includes(lower)) {
+        await sock.sendMessage(senderNumber, { text: '🔧 Creando tarea sin fechas de calendario…' });
+        await handleTaskCreation(context as CreateTaskDTO, senderNumber, sock);
+        setChatState(senderNumber, 'IDLE');
+        return;
+    }
+    await sock.sendMessage(senderNumber, { text: 'Por favor respondé "sí" para agendar o "no" para continuar sin fechas.' });
+}
+
+async function handleStartDate(messageText: string, context: any, user: Profile, senderNumber: string, sock: WASocket) {
+    const iso = parseDateTimeToISO(messageText, 9, 0);
+    if (!iso) {
+        await sock.sendMessage(senderNumber, { text: 'Formato no válido. Ejemplo: 25/10/2025 08:30' });
+        return;
+    }
+    await sock.sendMessage(senderNumber, { text: '✅ Inicio guardado. Ahora enviá la fecha de fin (DD/MM/YYYY HH:mm). Si enviás solo la fecha, usaré +2h desde inicio.' });
+    setChatState(senderNumber, 'AWAITING_END_DATE', { ...context, start_date: iso });
+}
+
+async function handleEndDate(messageText: string, context: any, user: Profile, senderNumber: string, sock: WASocket) {
+    let endISO = parseDateTimeToISO(messageText, 11, 0);
+    if (!endISO && context.start_date) {
+        // si viene solo una fecha sin hora y no matchea, intentemos como DD/MM/YYYY
+        endISO = parseDateTimeToISO(messageText, new Date(context.start_date).getHours() + 2, new Date(context.start_date).getMinutes());
+    }
+    if (!endISO) {
+        await sock.sendMessage(senderNumber, { text: 'Formato no válido. Ejemplo: 25/10/2025 10:30' });
+        return;
+    }
+    // Validar orden
+    const start = new Date(context.start_date);
+    const end = new Date(endISO);
+    if (end <= start) {
+        // ajusto a +2h
+        const adj = new Date(start.getTime() + 2 * 60 * 60 * 1000);
+        endISO = adj.toISOString();
+    }
+    await sock.sendMessage(senderNumber, { text: '🔧 Creando tarea con fechas de calendario…' });
+    const toCreate: CreateTaskDTO = { ...context, end_date: endISO } as CreateTaskDTO;
+    await handleTaskCreation(toCreate, senderNumber, sock);
+    setChatState(senderNumber, 'IDLE');
 }
 
 // Helpers para botones y listas (nivel bajo)
@@ -583,6 +666,15 @@ async function sendList(
 async function sendDailySummary(jid: string, sock: WASocket, siteQuery?: string) {
     try {
         await sock.sendMessage(jid, { text: '⏳ Armando resumen del día...' });
+
+
+        // 1. Obtener usuario autenticado
+        const user = await getVerifiedUser(jid);
+        if (!user) {
+            await sock.sendMessage(jid, { text: "No se pudo identificar tu usuario. Asegúrate de tener tu número registrado." });
+            return;
+        }
+
 
         const today = new Date();
         const { start, end } = dayBounds(today);
@@ -740,6 +832,71 @@ async function sendDailySummary(jid: string, sock: WASocket, siteQuery?: string)
     } catch (err: any) {
         console.error('Error generando resumen:', err);
         await sock.sendMessage(jid, { text: `❌ No pude generar el resumen: ${err?.message || 'Error desconocido'}` });
+    }
+}
+
+// --------------------
+// Agenda de hoy
+// --------------------
+
+function sameDay(a: Date, b: Date) {
+    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function timeStr(iso?: string) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+}
+
+async function sendTodayAgenda(jid: string, sock: WASocket, siteQuery?: string) {
+    try {
+        await sock.sendMessage(jid, { text: '🔎 Buscando tareas agendadas para hoy…' });
+        const today = new Date();
+        const tasks = await fetchJSON<RawTask[]>(`/tasks`);
+
+        // Filtrar por fecha de hoy (start_date)
+        let filtered = tasks.filter(t => t.start_date && sameDay(new Date(t.start_date as any), today));
+
+        // Filtro opcional por obra (texto o UUID)
+        if (siteQuery && siteQuery.trim()) {
+            const q = siteQuery.trim().toLowerCase();
+            filtered = filtered.filter(t => {
+                const siteName = t.site?.address || '';
+                const siteId = t.site?.id || t.site_id || '';
+                return siteName.toLowerCase().includes(q) || siteId.toLowerCase() === q;
+            });
+        }
+
+        if (!filtered.length) {
+            const msg = siteQuery && siteQuery.trim()
+                ? `😕 No hay tareas agendadas para hoy en "${siteQuery}"`
+                : '😕 No hay tareas agendadas para hoy';
+            await sock.sendMessage(jid, { text: msg });
+            return;
+        }
+
+        // Ordenar por hora de inicio
+        filtered.sort((a, b) => {
+            const ta = a.start_date ? new Date(a.start_date).getTime() : 0;
+            const tb = b.start_date ? new Date(b.start_date).getTime() : 0;
+            return ta - tb;
+        });
+
+        const header = `🗓️ Agenda de hoy (${today.toLocaleDateString('es-AR')})${siteQuery && siteQuery.trim() ? ` — ${siteQuery}` : ''}`;
+        const lines: string[] = [header, ''];
+        for (const t of filtered) {
+            const start = timeStr(t.start_date);
+            const end = timeStr(t.end_date);
+            const range = start && end ? `${start}–${end}` : (start || '');
+            const siteName = t.site?.address || '';
+            lines.push(`• ${range} · ${categoryIcon(t.category)} ${t.title}${siteName ? ` · 🏷️ ${siteName}` : ''}`);
+        }
+        await sock.sendMessage(jid, { text: lines.join('\n') });
+    } catch (err: any) {
+        console.error('Error en agenda de hoy:', err);
+        await sock.sendMessage(jid, { text: `❌ No pude obtener la agenda: ${err?.message || 'Error desconocido'}` });
     }
 }
 
