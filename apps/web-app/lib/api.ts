@@ -19,7 +19,7 @@ export interface Update {
   description?: string;
   image_url?: string;
   user_id?: string;
-  site_id: string;
+  site_id: string | null;
   created_at: string;
   updated_at?: string;
 }
@@ -81,8 +81,13 @@ class ApiService {
   }
 
   // Updates endpoints
-  async getUpdates(): Promise<Update[]> {
-    return this.request<Update[]>('/updates');
+  async getUpdates(siteId?: string): Promise<Update[]> {
+    // Construir endpoint con query parameter si hay siteId
+    const endpoint = siteId 
+      ? `/updates?site_id=${encodeURIComponent(siteId)}` 
+      : '/updates';
+      
+    return this.request<Update[]>(endpoint);
   }
 
   async getUpdateById(id: string): Promise<Update> {

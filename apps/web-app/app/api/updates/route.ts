@@ -2,25 +2,37 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const response = await fetch(`${API_URL}/updates`, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      cache: 'no-store',
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    const { searchParams } = new URL(request.url);
+    const siteId = searchParams.get('site_id');
+    
+    // Construir URL para el backend
+    let url = `${API_URL}/updates`;
+    
+    // Añadir site_id como query parameter si existe
+    if (siteId) {
+      url += `?site_id=${encodeURIComponent(siteId)}`;
     }
-
-    const updates = await response.json();
-    return NextResponse.json(updates);
+    
+    // Fetch con la URL correcta
+    const response = await fetch(url, {
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Error del servidor: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return NextResponse.json(data);
+    
   } catch (error) {
-    console.error('Error fetching updates:', error);
+    console.error('Error en API de updates:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch updates' },
+      { error: 'Error interno del servidor' },
       { status: 500 }
     );
   }
