@@ -59,5 +59,14 @@ export const createSiteService = (apiUrl: string, baseHeaders: Record<string, st
         }
 
         return true;
+    },
+
+    async getSitesByUser(userId: string): Promise<Site[]> {
+        const response = await fetch(`${apiUrl}/sites/user/${userId}`);
+        if (!response.ok) {
+            throw new Error(`Error ${response.status}: ${response.statusText}`);
+        }
+        return await response.json();
     }
+
 });

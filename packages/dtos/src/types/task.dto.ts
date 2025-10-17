@@ -33,7 +33,8 @@ const taskCategories = ['pintura', 'construccion', 'electricidad'] as const;
 
 export type TaskCategory = typeof taskCategories[number];
 
-export type TaskStatus = typeof taskCategories[number];
+// Fix: TaskStatus should be based on taskStatus, not taskCategories
+export type TaskStatus = typeof taskStatus[number];
 
 export function isTaskStatus(value: any): value is TaskStatus {
   return taskStatus.includes(value);
