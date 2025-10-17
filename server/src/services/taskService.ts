@@ -154,3 +154,20 @@ export async function deleteTaskByIdService(taskId: string) {
     }
 }
 
+
+export const getTasksBySiteService = async (siteId: string) => {
+    const { data, error } = await supabase
+        .from('tasks')
+        .select(`
+            *,
+            site:site_id (
+                id,
+                address
+            )
+        `)
+        .eq('site_id', siteId)
+        .order('created_at', { ascending: false });
+
+    if (error) throw new AppError(error.message, 500);
+    return data;
+};
