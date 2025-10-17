@@ -311,24 +311,6 @@ const ScrollablePurchaseSection = ({
 
   return (
     <div className="relative">
-      {showScrollButtons && (
-        <>
-          <Button
-            onClick={scrollLeft}
-            size="icon"
-            className="absolute left-2 top-1/2 transform -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-700 shadow-lg"
-          >
-            <ChevronLeft className="w-4 h-4 text-white" />
-          </Button>
-          <Button
-            onClick={scrollRight}
-            size="icon"
-            className="absolute right-2 top-1/2 transform -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-700 shadow-lg"
-          >
-            <ChevronRight className="w-4 h-4 text-white" />
-          </Button>
-        </>
-      )}
       <div
         ref={scrollRef}
         className="overflow-x-auto scrollbar-hide"
@@ -501,7 +483,7 @@ export default function ComprasPage() {
         </Dialog>
 
         {/* Content - Scrollable */}
-        <div className="flex-1 overflow-y-auto px-6 py-6">
+        <div className="flex-1 overflow-y-auto px-6 py-6 mt-14">
           {purchases.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20">
               <Clipboard className="w-16 h-16 text-gray-400 mb-4" />
