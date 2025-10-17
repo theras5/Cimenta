@@ -51,8 +51,13 @@ async function handleMediaMessage(
             return;
         }
 
-        // Subir a la API como update con data URI
-        const uploadedMedia = await uploadMediaToAPI(buffer as Buffer, 'image', user.id, caption);
+        // Subir a la API como update con data URI (asociada a la primera obra del usuario si existe)
+        let siteId: string | undefined;
+        try {
+            const userSites = await api.SiteService.getSitesByUser(user.id);
+            siteId = (userSites && (userSites[0] as any)?.id) || undefined;
+        } catch {}
+        const uploadedMedia = await uploadMediaToAPI(buffer as Buffer, 'image', user.id, caption, siteId);
 
         await sock.sendMessage(senderNumber, {
             text: `✅ Avance registrado con foto.\n${caption ? `📝 ${caption}` : ''}`
@@ -71,7 +76,8 @@ async function uploadMediaToAPI(
     buffer: Buffer,
     mediaType: 'image',
     userId: string,
-    caption?: string
+    caption?: string,
+    siteId?: string
 ): Promise<any> {
     const base64 = buffer.toString('base64');
     const mime = 'image/jpeg';
@@ -82,6 +88,7 @@ async function uploadMediaToAPI(
         description: caption || undefined,
         image_url: dataUri,
         user_id: userId,
+        site_id: siteId,
     };
     const created = await api.UpdateService.createUpdate(payload as any);
     return created;
@@ -94,6 +101,12 @@ async function createTextUpdate(user: Profile, jid: string, sock: WASocket, text
             const userSites = await api.SiteService.getSitesByUser(user.id);
             const match = userSites.find(s => (s.address || '').toLowerCase().includes(siteHint.toLowerCase()));
             if (match) site_id = match.id as any;
+        }
+        if (!site_id) {
+            try {
+                const userSites = await api.SiteService.getSitesByUser(user.id);
+                site_id = (userSites && (userSites[0] as any)?.id) || undefined;
+            } catch {}
         }
         const payload = {
             title: text.slice(0, 80),
@@ -200,9 +213,7 @@ async function handleIncomingMessage(m: any, sock: WASocket) {
             query = messageText.trim().slice(3).trim();
         }
         await sendDailySummary(senderNumber, sock, query);
-        // También mostrar avances y agenda del día
-        await sendAdvancesToday(senderNumber, sock, query);
-        await sendTodayAgenda(senderNumber, sock, query);
+        await sendTodayCounts(senderNumber, sock, query);
         return;
     }
 
@@ -347,6 +358,7 @@ async function handleTaskDescription(
         '1) *Pintura* 🎨',
         '2) *Construcción* 🏗️',
         '3) *Electricidad* ⚡',
+        '4) *Plomería* 🚰',
     ].join('\n');
     await sock.sendMessage(senderNumber, { text: body });
 
@@ -369,10 +381,13 @@ async function handleTaskCategory(
         '1': 'pintura',
         '2': 'construccion',
         '3': 'electricidad',
+        '4': 'plomeria',
         'pintura': 'pintura',
         'construcción': 'construccion',
         'construccion': 'construccion',
-        'electricidad': 'electricidad'
+        'electricidad': 'electricidad',
+        'plomería': 'plomeria',
+        'plomeria': 'plomeria'
     };
     const mapped = categoryMap[normalized] || normalized;
 
@@ -395,7 +410,7 @@ async function handleTaskCategory(
         });
     } else {
         await sock.sendMessage(senderNumber, {
-            text: 'Categoría no válida. Elegí entre: 1) Pintura, 2) Construcción, 3) Electricidad.'
+            text: 'Categoría no válida. Elegí entre: 1) Pintura, 2) Construcción, 3) Electricidad, 4) Plomería.'
         });
     }
 }
@@ -513,6 +528,7 @@ function categoryIcon(cat?: string) {
         case 'pintura': return '🎨';
         case 'construccion': return '🏗️';
         case 'electricidad': return '⚡';
+        case 'plomeria': return '🚰';
         default: return '🧩';
     }
 }
@@ -923,6 +939,46 @@ async function sendTodayAgenda(jid: string, sock: WASocket, siteQuery?: string) 
     } catch (err: any) {
         console.error('Error en agenda de hoy:', err);
         await sock.sendMessage(jid, { text: `❌ No pude obtener la agenda: ${err?.message || 'Error desconocido'}` });
+    }
+}
+
+// Resumen de contadores del día (avances + agenda)
+async function sendTodayCounts(jid: string, sock: WASocket, siteQuery?: string) {
+    try {
+        const user = await getVerifiedUser(jid);
+        if (!user) return;
+        const sites = await api.SiteService.getSitesByUser(user.id);
+        let included = sites;
+        const q = (siteQuery || '').trim();
+        if (q) {
+            if (isUUID(q)) included = sites.filter(s => s.id === q);
+            else included = sites.filter(s => (s.address || '').toLowerCase().includes(q.toLowerCase()));
+        }
+        const now = new Date();
+        const startUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
+        const endUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
+
+        // Agenda count
+        const tasksBySite = await Promise.all(included.map(async site => ({ site, tasks: await api.TaskService.getTasksBySite(site.id) })));
+        const agendaCount = tasksBySite.reduce((acc, { tasks }) => acc + tasks.filter((t: any) => {
+            const s = t.start_date ? new Date(t.start_date) : null;
+            const e = t.end_date ? new Date(t.end_date) : null;
+            if (!s) return false;
+            if (e) return s <= endUTC && e >= startUTC;
+            return s.getUTCFullYear() === startUTC.getUTCFullYear() && s.getUTCMonth() === startUTC.getUTCMonth() && s.getUTCDate() === startUTC.getUTCDate();
+        }).length, 0);
+
+        // Advances count
+        const updatesArrays = await Promise.all(included.map(s => fetchJSON<Update[]>(`/updates?site_id=${s.id}`)));
+        const advancesCount = updatesArrays.reduce((acc, arr) => acc + arr.filter(u => {
+            const d = new Date(u.created_at);
+            return d >= startUTC && d <= endUTC;
+        }).length, 0);
+
+        const text = `📸 Avances subidos hoy: ${advancesCount}\n📅 Tareas agendadas hoy: ${agendaCount}`;
+        await sock.sendMessage(jid, { text });
+    } catch (err) {
+        console.error('Error sendTodayCounts:', err);
     }
 }
 

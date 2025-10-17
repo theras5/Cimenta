@@ -29,7 +29,7 @@ export interface CreateTaskDTO {
 
 const taskStatus = ['changes', 'pending', 'in_progress', 'completed', 'blocked'] as const;
 
-const taskCategories = ['pintura', 'construccion', 'electricidad'] as const;
+const taskCategories = ['pintura', 'construccion', 'electricidad', 'plomeria'] as const;
 
 export type TaskCategory = typeof taskCategories[number];
 
