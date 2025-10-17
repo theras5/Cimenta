@@ -46,14 +46,19 @@ async function handleMediaMessage(
             throw new Error('No se pudo descargar el medio');
         }
 
-        // Subir a la API
-        const uploadedMedia = await uploadMediaToAPI(buffer as Buffer, mediaType, user.id, caption);
+        if (mediaType === 'video') {
+            await sock.sendMessage(senderNumber, { text: '⚠️ Por ahora solo puedo registrar avances con foto. Enviá una imagen con una breve descripción.' });
+            return;
+        }
+
+        // Subir a la API como update con data URI
+        const uploadedMedia = await uploadMediaToAPI(buffer as Buffer, 'image', user.id, caption);
 
         await sock.sendMessage(senderNumber, {
-            text: `✅ ${mediaType === 'image' ? 'Imagen' : 'Video'} subido exitosamente!\n${caption ? `\nDescripción: ${caption}` : ''}`
+            text: `✅ Avance registrado con foto.\n${caption ? `📝 ${caption}` : ''}`
         });
 
-        console.log(`Media subido: ${uploadedMedia}`);
+        console.log(`Media subido:`, uploadedMedia);
     } catch (error: any) {
         console.error('Error al procesar medio:', error.message);
         await sock.sendMessage(senderNumber, {
@@ -64,41 +69,44 @@ async function handleMediaMessage(
 
 async function uploadMediaToAPI(
     buffer: Buffer,
-    mediaType: 'image' | 'video',
+    mediaType: 'image',
     userId: string,
     caption?: string
 ): Promise<any> {
-    // TODO: Implementar la lógica de subida a la API
-    // Por ahora, este es un placeholder que simula la subida
-    
-    console.log(`Subiendo ${mediaType} de ${buffer.length} bytes para usuario ${userId}`);
-    console.log(`Caption: ${caption || 'Sin descripción'}`);
+    const base64 = buffer.toString('base64');
+    const mime = 'image/jpeg';
+    const dataUri = `data:${mime};base64,${base64}`;
 
-    // Aquí deberías:
-    // 1. Convertir el buffer a FormData o base64 según lo requiera tu API
-    // 2. Hacer el fetch a tu endpoint de medios
-    // 3. Retornar la respuesta de la API
-    
-    // Ejemplo de estructura:
-    /*
-    const formData = new FormData();
-    formData.append('file', new Blob([buffer]), `${mediaType}_${Date.now()}.${mediaType === 'image' ? 'jpg' : 'mp4'}`);
-    formData.append('userId', userId);
-    if (caption) formData.append('caption', caption);
-    
-    const response = await api.MediaService.uploadMedia(formData);
-    return response;
-    */
-
-    // Por ahora retornamos un objeto simulado
-    return {
-        id: `media_${Date.now()}`,
-        type: mediaType,
-        userId,
-        caption,
-        size: buffer.length,
-        uploadedAt: new Date().toISOString()
+    const payload = {
+        title: caption?.slice(0, 80) || 'Avance con foto',
+        description: caption || undefined,
+        image_url: dataUri,
+        user_id: userId,
     };
+    const created = await api.UpdateService.createUpdate(payload as any);
+    return created;
+}
+
+async function createTextUpdate(user: Profile, jid: string, sock: WASocket, text: string, siteHint?: string) {
+    try {
+        let site_id: string | undefined = undefined;
+        if (siteHint && siteHint.trim()) {
+            const userSites = await api.SiteService.getSitesByUser(user.id);
+            const match = userSites.find(s => (s.address || '').toLowerCase().includes(siteHint.toLowerCase()));
+            if (match) site_id = match.id as any;
+        }
+        const payload = {
+            title: text.slice(0, 80),
+            description: text,
+            user_id: user.id,
+            site_id,
+        };
+        await api.UpdateService.createUpdate(payload as any);
+        await sock.sendMessage(jid, { text: '✅ Avance de texto registrado.' });
+    } catch (e: any) {
+        console.error('Error creando avance de texto:', e);
+        await sock.sendMessage(jid, { text: `❌ No pude registrar el avance: ${e?.message || 'Error desconocido'}` });
+    }
 }
 
 async function handleIncomingMessage(m: any, sock: WASocket) {
@@ -199,6 +207,30 @@ async function handleIncomingMessage(m: any, sock: WASocket) {
     if (lower === 'agenda' || lower.startsWith('agenda ') || lower === 'hoy' || lower === 'tareas hoy') {
         const query = lower.startsWith('agenda ') ? messageText.trim().slice(6).trim() : '';
         await sendTodayAgenda(senderNumber, sock, query);
+        return;
+    }
+
+    // Avances de texto: "av <texto>" o "avance <texto>" (opcional: "av <obra>: <texto>")
+    if (lower === 'av' || lower === 'avance') {
+        await sock.sendMessage(senderNumber, { text: '📝 Para subir un avance de texto, escribí: av <texto> o av <obra>: <texto>' });
+        return;
+    }
+    if (lower.startsWith('av ') || lower.startsWith('avance ')) {
+        let raw = messageText.trim();
+        if (raw.toLowerCase().startsWith('avance ')) raw = raw.slice(7);
+        if (raw.toLowerCase().startsWith('av ')) raw = raw.slice(3);
+        let siteHint = '';
+        let text = raw.trim();
+        const idx = text.indexOf(':');
+        if (idx > 0) {
+            siteHint = text.slice(0, idx).trim();
+            text = text.slice(idx + 1).trim();
+        }
+        if (!text) {
+            await sock.sendMessage(senderNumber, { text: '⚠️ No encontré el texto del avance. Ejemplo: av casa: Hormigonado losa' });
+            return;
+        }
+        await createTextUpdate(user, senderNumber, sock, text, siteHint);
         return;
     }
 
