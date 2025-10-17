@@ -14,7 +14,8 @@ import errorMiddleware from "./middlewares/errorMiddleware";
 
 const app = express();
 
-app.use(express.json());
+// Aumenta el tamaño máximo del cuerpo JSON para permitir data URIs grandes (imágenes)
+app.use(express.json({ limit: '25mb' }));
 
 app.use(cors());
 
