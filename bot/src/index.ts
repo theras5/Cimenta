@@ -200,6 +200,9 @@ async function handleIncomingMessage(m: any, sock: WASocket) {
             query = messageText.trim().slice(3).trim();
         }
         await sendDailySummary(senderNumber, sock, query);
+        // También mostrar avances y agenda del día
+        await sendAdvancesToday(senderNumber, sock, query);
+        await sendTodayAgenda(senderNumber, sock, query);
         return;
     }
 
@@ -207,6 +210,12 @@ async function handleIncomingMessage(m: any, sock: WASocket) {
     if (lower === 'agenda' || lower.startsWith('agenda ') || lower === 'hoy' || lower === 'tareas hoy') {
         const query = lower.startsWith('agenda ') ? messageText.trim().slice(6).trim() : '';
         await sendTodayAgenda(senderNumber, sock, query);
+        return;
+    }
+
+    if (lower === 'avances' || lower.startsWith('avances ')) {
+        const query = lower.startsWith('avances ') ? messageText.trim().slice(7).trim() : '';
+        await sendAdvancesToday(senderNumber, sock, query);
         return;
     }
 
@@ -308,7 +317,8 @@ async function handleIdleState(
             text: `👋 Hola ${user.name}!
 ✍️ Escribí "*tarea*" o "*t*" para crear una nueva tarea.
 🧾 Escribí "*res*" o "*resumen*" para ver el resumen del día (o "*res <obra>*" para una obra específica).
-📅 Escribí "*agenda*" para ver las tareas de hoy (o "*agenda <obra>*").`
+📅 Escribí "*agenda*" para ver las tareas de hoy (o "*agenda <obra>*").
+📸 Escribí "*avances*" para ver los avances del día (o "*avances <obra>*").`
         });
     }
 }
@@ -768,7 +778,7 @@ async function sendDailySummary(jid: string, sock: WASocket, siteQuery?: string)
             }
 
             anyData = true;
-            parts.push(`🏷️ Obra: ${site.address}`);
+            parts.push(`🏷️ ${site.address}`);
             parts.push('');
             if (tasksToday.length) {
                 parts.push(`• 🆕 Tareas creadas (${tasksToday.length})`);
@@ -829,156 +839,6 @@ async function sendDailySummary(jid: string, sock: WASocket, siteQuery?: string)
         }
         }
 
-        
-        
-        // // Mapa de sites
-        // const siteById = new Map<string, Site>();
-        // sites.forEach(s => siteById.set(s.id, s));
-
-        // // Determinar scope de resumen
-        // let includedSiteIds: string[] | null = null;
-        // let headerLabel = 'global';
-        // const q = (siteQuery || '').trim();
-        // if (q) {
-        //     if (isUUID(q)) {
-        //         includedSiteIds = siteById.has(q) ? [q] : [];
-        //         headerLabel = siteById.get(q)?.address || q;
-        //     } else {
-        //         const matches = sites.filter(s => s.address.toLowerCase().includes(q.toLowerCase()))
-        //                              .map(s => s.id);
-        //         includedSiteIds = matches;
-        //         headerLabel = q;
-        //     }
-        // }
-
-    //     // Filtrar por día y sitio
-    //     const tasksToday = tasks.filter(t => inRange((t as any).created_at, start, end));
-    //     const updatesToday = updates.filter(u => inRange(u.created_at, start, end));
-
-    //     // Posibles movimientos
-    //     const tasksCreated = tasksToday;
-    //     const changeRequestsCreated = tasksToday.filter(t => (t.status as any) === 'changes');
-
-    //     // Heurística de tareas con estado actualizado hoy (si hay updated_at)
-    //     const tasksUpdatedToday = (tasks as RawTask[]).filter(t => inRange(t.updated_at, start, end));
-    //     const completedToday = (tasks as RawTask[]).filter(t => t.status === 'completed' && (inRange(t.end_date, start, end) || inRange(t.updated_at, start, end)));
-
-    //     // Agrupar por site
-    //     function getSiteIdForTask(t: RawTask) {
-    //         return t.site_id || t.site?.id || '';
-    //     }
-
-    //     function sitePass(id?: string) {
-    //         if (!includedSiteIds) return true;
-    //         if (!id) return false;
-    //         return includedSiteIds.includes(id);
-    //     }
-
-    //     const sitesToReport = includedSiteIds ? includedSiteIds : Array.from(new Set([
-    //         ...tasksCreated.map(getSiteIdForTask).filter(Boolean),
-    //         ...tasksUpdatedToday.map(getSiteIdForTask).filter(Boolean),
-    //         ...completedToday.map(getSiteIdForTask).filter(Boolean),
-    //         ...changeRequestsCreated.map(getSiteIdForTask).filter(Boolean),
-    //         ...updatesToday.map(u => u.site_id).filter(Boolean) as string[],
-    //         ...sites.map(s => s.id)
-    //     ]));
-
-    //     // Armar mensaje
-    //     let parts: string[] = [];
-    //     parts.push(`📅 Resumen ${q ? `de "${headerLabel}"` : 'global'} — ${today.toLocaleDateString()}`);
-    //     parts.push('');
-
-    //     let anyData = false;
-    //     for (const siteId of sitesToReport) {
-    //         if (!sitePass(siteId)) continue;
-    //         const siteName = siteById.get(siteId)?.address || 'Sin dirección';
-
-    //         const tCreated = tasksCreated.filter(t => getSiteIdForTask(t as RawTask) === siteId);
-    //         const tUpdated = tasksUpdatedToday.filter(t => getSiteIdForTask(t) === siteId);
-    //         const tCompleted = completedToday.filter(t => getSiteIdForTask(t) === siteId);
-    //         const tChanges = changeRequestsCreated.filter(t => getSiteIdForTask(t as RawTask) === siteId);
-    //         const uCreated = updatesToday.filter(u => u.site_id === siteId);
-
-    //         if (!tCreated.length && !tUpdated.length && !tCompleted.length && !tChanges.length && !uCreated.length) {
-    //             if (!q) {
-    //                 parts.push(`🏷️ ${siteName}`);
-    //                 parts.push(`• 😴 Sin movimientos hoy`);
-    //                 parts.push('');
-    //             }
-    //             continue;
-    //         }
-
-    //         anyData = true;
-    //         parts.push(`🏷️ Obra: ${siteName}`);
-    //         parts.push('');
-
-    //         if (tCreated.length) {
-    //             parts.push(`• 🆕 Tareas creadas (${tCreated.length})`);
-    //             tCreated.slice(0, 5).forEach((t: any) => {
-    //                 parts.push(`   ◦ ${categoryIcon(t.category)} ${t.title} · ${statusBadge(String(t.status))}`);
-    //             });
-    //             if (tCreated.length > 5) parts.push(`   ◦ +${tCreated.length - 5} más...`);
-    //             parts.push('');
-    //         }
-
-    //         if (tUpdated.length) {
-    //             parts.push(`• ✏️ Tareas actualizadas (${tUpdated.length})`);
-    //             tUpdated.slice(0, 5).forEach(t => {
-    //                 parts.push(`   ◦ ${categoryIcon(t.category)} ${t.title} · ${statusBadge(String(t.status))}`);
-    //             });
-    //             if (tUpdated.length > 5) parts.push(`   ◦ +${tUpdated.length - 5} más...`);
-    //             parts.push('');
-    //         }
-
-    //         if (tCompleted.length) {
-    //             parts.push(`• ✅ Tareas completadas (${tCompleted.length})`);
-    //             tCompleted.slice(0, 5).forEach(t => parts.push(`   ◦ ${categoryIcon(t.category)} ${t.title}`));
-    //             if (tCompleted.length > 5) parts.push(`   ◦ +${tCompleted.length - 5} más...`);
-    //             parts.push('');
-    //         }
-
-    //         if (tChanges.length) {
-    //             parts.push(`• 🔄 Cambios solicitados (${tChanges.length})`);
-    //             tChanges.slice(0, 5).forEach(t => {
-    //                 parts.push(`   ◦ ${categoryIcon(t.category)} ${t.title}`);
-    //             });
-    //             if (tChanges.length > 5) parts.push(`   ◦ +${tChanges.length - 5} más...`);
-    //             parts.push('');
-    //         }
-
-    //         if (uCreated.length) {
-    //             parts.push(`• 📸 Avances (${uCreated.length})`);
-    //             uCreated.slice(0, 5).forEach(u => {
-    //                 const desc = u.description ? ` — ${clip(u.description, 80)}` : '';
-    //                 parts.push(`   ◦ 🧾 ${u.title}${desc}`);
-    //             });
-    //             if (uCreated.length > 5) parts.push(`   ◦ +${uCreated.length - 5} más...`);
-    //         }
-
-    //         parts.push('');
-    //     }
-
-    //     if (!anyData && includedSiteIds && includedSiteIds.length === 0) {
-    //         const suggestions = sites
-    //             .filter(s => (siteQuery || '').trim() && s.address.toLowerCase().includes((siteQuery || '').trim().toLowerCase()))
-    //             .slice(0, 5)
-    //             .map(s => `- ${s.address} (${s.id})`)
-    //             .join('\n');
-
-    //         const notFoundMsg = suggestions
-    //             ? `❌ No encontré una obra que coincida. Sugerencias:\n${suggestions}`
-    //             : `❌ No encontré una obra con "${siteQuery}"`;
-    //         await sock.sendMessage(jid, { text: notFoundMsg });
-    //         return;
-    //     }
-
-    //     const text = parts.join('\n');
-    //     await sock.sendMessage(jid, { text });
-//}
-
-// --------------------
-// Agenda de hoy
-// --------------------
 
 function sameDay(a: Date, b: Date) {
     return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
@@ -1063,6 +923,80 @@ async function sendTodayAgenda(jid: string, sock: WASocket, siteQuery?: string) 
     } catch (err: any) {
         console.error('Error en agenda de hoy:', err);
         await sock.sendMessage(jid, { text: `❌ No pude obtener la agenda: ${err?.message || 'Error desconocido'}` });
+    }
+}
+
+// --------------------
+// Avances (updates) de hoy
+// --------------------
+async function sendAdvancesToday(jid: string, sock: WASocket, siteQuery?: string) {
+    try {
+        await sock.sendMessage(jid, { text: '📸 Buscando avances de hoy…' });
+
+        const user = await getVerifiedUser(jid);
+        if (!user) {
+            await sock.sendMessage(jid, { text: 'No pude identificar tu usuario. Registrá tu número en la app.' });
+            return;
+        }
+
+        const now = new Date();
+        const todayUTCStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
+        const todayUTCEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
+
+        const sites = await api.SiteService.getSitesByUser(user.id);
+        let included = sites;
+        const q = (siteQuery || '').trim();
+        if (q) {
+            if (isUUID(q)) included = sites.filter(s => s.id === q);
+            else included = sites.filter(s => (s.address || '').toLowerCase().includes(q.toLowerCase()));
+        }
+        if (!included.length) {
+            await sock.sendMessage(jid, { text: 'No encontré obras para tu usuario o filtro.' });
+            return;
+        }
+
+        const updatesBySite = await Promise.all(included.map(async s => {
+            const upd = await fetchJSON<Update[]>(`/updates?site_id=${s.id}`);
+            const today = upd.filter(u => {
+                const d = new Date(u.created_at);
+                return d >= todayUTCStart && d <= todayUTCEnd;
+            });
+            return { site: s, updates: today };
+        }));
+
+        const all = updatesBySite.flatMap(u => u.updates.map(x => ({ ...x, site: u.site })));
+        if (!all.length) {
+            await sock.sendMessage(jid, { text: '😕 No hay avances para hoy' });
+            return;
+        }
+
+        const header = `📸 Avances de hoy (${now.toLocaleDateString('es-AR')})` + (q ? ` — ${q}` : '');
+        const lines: string[] = [header, ''];
+        for (const u of all.slice(0, 5)) {
+            const siteName = (u as any).site?.address || '';
+            const desc = u.description ? ` — ${clip(u.description, 50)}` : '';
+            lines.push(`• ${u.title}${desc}${siteName ? ` · 🏷️ ${siteName}` : ''}`);
+        }
+        if (all.length > 5) lines.push(`… y ${all.length - 5} más`);
+        await sock.sendMessage(jid, { text: lines.join('\n') });
+
+        for (const u of all) {
+            if (!u.image_url) continue;
+            try {
+                if (u.image_url.startsWith('data:')) {
+                    const base64 = u.image_url.split(',')[1];
+                    const buf = Buffer.from(base64, 'base64');
+                    await sock.sendMessage(jid, { image: buf, caption: `${u.title}${u.description ? ` — ${clip(u.description, 100)}` : ''}` });
+                } else {
+                    await sock.sendMessage(jid, { image: { url: u.image_url }, caption: `${u.title}${u.description ? ` — ${clip(u.description, 100)}` : ''}` });
+                }
+            } catch (e) {
+                console.error('Error enviando imagen de avance:', e);
+            }
+        }
+    } catch (err: any) {
+        console.error('Error en avances de hoy:', err);
+        await sock.sendMessage(jid, { text: `❌ No pude obtener avances: ${err?.message || 'Error desconocido'}` });
     }
 }
 
