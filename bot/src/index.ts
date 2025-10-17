@@ -51,19 +51,36 @@ async function handleMediaMessage(
             return;
         }
 
-        // Subir a la API como update con data URI (asociada a la primera obra del usuario si existe)
-        let siteId: string | undefined;
+        // Elegir obra para subir el avance
         try {
-            const userSites = await api.SiteService.getSitesByUser(user.id);
-            siteId = (userSites && (userSites[0] as any)?.id) || undefined;
-        } catch {}
-        const uploadedMedia = await uploadMediaToAPI(buffer as Buffer, 'image', user.id, caption, siteId);
-
-        await sock.sendMessage(senderNumber, {
-            text: `✅ Avance registrado con foto.\n${caption ? `📝 ${caption}` : ''}`
-        });
-
-        console.log(`Media subido:`, uploadedMedia);
+            const sites = await api.SiteService.getSitesByUser(user.id);
+            if (!sites || sites.length === 0) {
+                await sock.sendMessage(senderNumber, { text: '⚠️ No encontré obras asociadas a tu usuario. No puedo registrar el avance.' });
+                return;
+            }
+            if (sites.length === 1) {
+                const uploaded = await uploadMediaToAPI(buffer as Buffer, 'image', user.id, caption, (sites[0] as any).id);
+                await sock.sendMessage(senderNumber, { text: `✅ Avance registrado con foto.\n${caption ? `📝 ${caption}` : ''}` });
+                console.log('Media subido:', uploaded);
+                return;
+            }
+            // Pedir selección de obra
+            const list: string[] = [];
+            list.push('🏷️ ¿En qué obra querés subir el avance? (número o nombre)');
+            sites.slice(0, 20).forEach((s: any, idx: number) => list.push(`${idx + 1}) ${s.address}`));
+            await sock.sendMessage(senderNumber, { text: list.join('\n') });
+            setChatState(senderNumber, 'AWAITING_UPDATE_SITE_SELECTION', {
+                updateKind: 'media',
+                mediaBase64: (buffer as Buffer).toString('base64'),
+                caption,
+                sitesOptions: sites
+            });
+            return;
+        } catch (e) {
+            console.error('Error preparando selección de obra para avance:', e);
+            await sock.sendMessage(senderNumber, { text: '❌ No pude preparar la selección de obra. Reintentá más tarde.' });
+            return;
+        }
     } catch (error: any) {
         console.error('Error al procesar medio:', error.message);
         await sock.sendMessage(senderNumber, {
@@ -203,17 +220,11 @@ async function handleIncomingMessage(m: any, sock: WASocket) {
         return;
     }
 
-    // Comando de resumen (global u obra específica)
+    // Comando de resumen (solo 'resumen')
     const lower = messageText.trim().toLowerCase();
-    if (lower === 'res' || lower.startsWith('res ') || lower.startsWith('resumen')) {
-        let query = '';
-        if (lower.startsWith('resumen')) {
-            query = messageText.trim().slice(7).trim();
-        } else if (lower.startsWith('res ')) {
-            query = messageText.trim().slice(3).trim();
-        }
-        await sendDailySummary(senderNumber, sock, query);
-        await sendTodayCounts(senderNumber, sock, query);
+    if (lower.startsWith('resumen')) {
+        const query = messageText.trim().slice(7).trim();
+        await sendDailySummary_v2(senderNumber, sock, query);
         return;
     }
 
@@ -230,9 +241,15 @@ async function handleIncomingMessage(m: any, sock: WASocket) {
         return;
     }
 
+    // Comando de obras (lista las obras del usuario)
+    if (lower === 'obras' || lower.startsWith('obras ')) {
+        await sendMySites(senderNumber, sock, user);
+        return;
+    }
+
     // Avances de texto: "av <texto>" o "avance <texto>" (opcional: "av <obra>: <texto>")
     if (lower === 'av' || lower === 'avance') {
-        await sock.sendMessage(senderNumber, { text: '📝 Para subir un avance de texto, escribí: av <texto> o av <obra>: <texto>' });
+        await sock.sendMessage(senderNumber, { text: '📝 Para subir un avance de texto, escribí: *av* <texto> o *av* <obra>: <texto>' });
         return;
     }
     if (lower.startsWith('av ') || lower.startsWith('avance ')) {
@@ -250,7 +267,30 @@ async function handleIncomingMessage(m: any, sock: WASocket) {
             await sock.sendMessage(senderNumber, { text: '⚠️ No encontré el texto del avance. Ejemplo: av casa: Hormigonado losa' });
             return;
         }
-        await createTextUpdate(user, senderNumber, sock, text, siteHint);
+        if (siteHint) {
+            await createTextUpdate(user, senderNumber, sock, text, siteHint);
+            return;
+        }
+        // Si no se indicó obra, pedir selección si hay varias
+        try {
+            const sites = await api.SiteService.getSitesByUser(user.id);
+            if (!sites || sites.length === 0) {
+                await createTextUpdate(user, senderNumber, sock, text);
+                return;
+            }
+            if (sites.length === 1) {
+                await createTextUpdate(user, senderNumber, sock, text, (sites[0] as any).address);
+                return;
+            }
+            const lines: string[] = [];
+            lines.push('🏷️ ¿En qué obra querés subir el avance? (número o nombre)');
+            sites.slice(0, 20).forEach((s: any, idx: number) => lines.push(`${idx + 1}) ${s.address}`));
+            await sock.sendMessage(senderNumber, { text: lines.join('\n') });
+            setChatState(senderNumber, 'AWAITING_UPDATE_SITE_SELECTION', { updateKind: 'text', textContent: text, sitesOptions: sites });
+            return;
+        } catch {
+            await createTextUpdate(user, senderNumber, sock, text);
+        }
         return;
     }
 
@@ -279,6 +319,10 @@ async function handleMessageByState(
             await handleTaskDescription(messageText, context, senderNumber, sock);
             break;
 
+        case 'AWAITING_SITE_SELECTION':
+            await handleSiteSelection(messageText, context, user, senderNumber, sock);
+            break;
+
         case 'AWAITING_TASK_CATEGORY':
             await handleTaskCategory(messageText, context, senderNumber, sock);
             break;
@@ -299,6 +343,10 @@ async function handleMessageByState(
             await handleEndDate(messageText, context, user, senderNumber, sock);
             break;
 
+        case 'AWAITING_UPDATE_SITE_SELECTION':
+            await handleUpdateSiteSelection(messageText, context, user, senderNumber, sock);
+            break;
+
         default:
             await sock.sendMessage(senderNumber, {
                 text: "Estado desconocido. Envía 'cancelar' para volver al inicio."
@@ -314,22 +362,46 @@ async function handleIdleState(
 ) {
     const lower = messageText.trim().toLowerCase();
     if (lower === '!crear tarea' || lower === 'tarea' || lower === 't' || lower === 'crear tarea') {
-        await sock.sendMessage(senderNumber, {
-            text: '🎯 ¡Genial! Vamos a crear una tarea.\n📝 Primero, decime el *título*.'
-        });
-        setChatState(senderNumber, 'AWAITING_TASK_TITLE');
-    } else if (lower === 'res' || lower.startsWith('res ') || lower.startsWith('resumen')) {
-        const query = lower.startsWith('resumen')
-            ? messageText.trim().slice(7).trim()
-            : (lower.startsWith('res ') ? messageText.trim().slice(3).trim() : '');
-        await sendDailySummary(senderNumber, sock, query);
+        // Elegir obra antes de crear tarea
+        try {
+            const sites = await api.SiteService.getSitesByUser((await getVerifiedUser(senderNumber))!.id);
+            if (!sites || sites.length === 0) {
+                await sock.sendMessage(senderNumber, { text: '⚠️ No encontré obras asociadas a tu usuario. Creá una obra desde la app para continuar.' });
+                return;
+            }
+            if (sites.length === 1) {
+                setChatState(senderNumber, 'AWAITING_TASK_TITLE', { site_id: (sites[0] as any).id });
+                await sock.sendMessage(senderNumber, { text: '🎯 ¡Genial! Vamos a crear una tarea.\n🏷️ Obra: ' + ((sites[0] as any).address || '') + '\n📝 Primero, decime el *título*.' });
+                return;
+            }
+            const lines: string[] = [];
+            lines.push('🏷️ Tenés varias obras. Elegí una (número o nombre):');
+            sites.slice(0, 20).forEach((s: any, idx: number) => lines.push(`${idx + 1}) ${s.address}`));
+            await sock.sendMessage(senderNumber, { text: lines.join('\n') });
+            setChatState(senderNumber, 'AWAITING_SITE_SELECTION', { sitesOptions: sites });
+            return;
+        } catch (e) {
+            await sock.sendMessage(senderNumber, { text: '❌ No pude obtener tus obras. Intentá de nuevo más tarde.' });
+            return;
+        }
+    } else if (lower.startsWith('resumen')) {
+        const query = messageText.trim().slice(7).trim();
+        await sendDailySummary_v2(senderNumber, sock, query);
     } else {
         await sock.sendMessage(senderNumber, {
             text: `👋 Hola ${user.name}!
+
 ✍️ Escribí "*tarea*" o "*t*" para crear una nueva tarea.
-🧾 Escribí "*res*" o "*resumen*" para ver el resumen del día (o "*res <obra>*" para una obra específica).
+
+🧾 Escribí "*resumen*" para ver el resumen del día (o "*resumen <obra>*" para una obra específica).
+
 📅 Escribí "*agenda*" para ver las tareas de hoy (o "*agenda <obra>*").
-📸 Escribí "*avances*" para ver los avances del día (o "*avances <obra>*").`
+
+📸 Escribí "*avances*" para ver los avances del día (o "*avances <obra>*").
+
+📝 Escribí "*av <texto>*" para crear un avance de texto (o enviá una foto con descripción para un avance con imagen).
+
+🏷️ Escribí "*obras*" para ver la lista de tus obras.`
         });
     }
 }
@@ -342,7 +414,8 @@ async function handleTaskTitle(
     await sock.sendMessage(senderNumber, {
         text: '✅ Título guardado.\n🖊️ Ahora escribí una breve *descripción*.'
     });
-    setChatState(senderNumber, 'AWAITING_TASK_DESCRIPTION', { title: messageText });
+    const { context } = getChatState(senderNumber);
+    setChatState(senderNumber, 'AWAITING_TASK_DESCRIPTION', { ...context, title: messageText });
 }
 
 async function handleTaskDescription(
@@ -447,12 +520,19 @@ async function handleTaskStatus(
     const mapped = statusMap[normalized];
 
     if (mapped && isTaskStatus(mapped)) {
+        let siteId = context?.site_id as string | undefined;
+        if (!siteId) {
+            try {
+                const sites = await api.SiteService.getSitesByUser(user.id);
+                siteId = (sites && (sites[0] as any)?.id) || undefined;
+            } catch {}
+        }
         const nextContext = {
             ...context,
             status: mapped as any,
             user_id: user.id,
-            site_id: "3555c1f9-7d11-409d-bf29-87b1cbcb6262"
-        } as CreateTaskDTO & { user_id: string; site_id: string };
+            site_id: siteId
+        } as CreateTaskDTO & { user_id: string; site_id?: string };
         await sock.sendMessage(senderNumber, {
             text: '🗓️ ¿Querés agendarla en el calendario? Respondé "sí" o "no".'
         });
@@ -839,7 +919,7 @@ async function sendDailySummary(jid: string, sock: WASocket, siteQuery?: string)
                     
                     const notFoundMsg = suggestions
                     ? `❌ No encontré una obra que coincida. Sugerencias:\n${suggestions}`
-                    : `❌ No encontré una obra con "${siteQuery}"`;
+                    : `❌ No encontré una obra llamada "${siteQuery}"`;
                 await sock.sendMessage(jid, { text: notFoundMsg });
                 return;
             }
@@ -855,6 +935,158 @@ async function sendDailySummary(jid: string, sock: WASocket, siteQuery?: string)
         }
         }
 
+
+// v2: Envía un único mensaje consolidado para evitar duplicados
+async function sendDailySummary_v2(jid: string, sock: WASocket, siteQuery?: string): Promise<boolean> {
+    try {
+        const user = await getVerifiedUser(jid);
+        if (!user) {
+            await sock.sendMessage(jid, { text: 'No se pudo identificar tu usuario. Asegúrate de tener tu número registrado.' });
+            return false;
+        }
+
+        const today = new Date();
+        const { start, end } = dayBounds(today);
+
+        const sites = await api.SiteService.getSitesByUser(user.id);
+        const tasksBySite = await Promise.all(
+            sites.map(async (site) => ({ site, tasks: await api.TaskService.getTasksBySite(site.id) }))
+        );
+        // Prefetch updates (avances) por obra para el día
+        const now = new Date();
+        const todayUTCStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
+        const todayUTCEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
+        const updatesBySiteArr = await Promise.all(
+            sites.map(async (s) => ({ siteId: s.id, updates: await fetchJSON<Update[]>(`/updates?site_id=${s.id}`) }))
+        );
+        const updatesMap = new Map<string, Update[]>(updatesBySiteArr.map(u => [u.siteId, u.updates]));
+
+        let filteredSites: typeof sites = sites;
+        let headerLabel = 'global';
+        const q = (siteQuery || '').trim();
+        if (q) {
+            if (isUUID(q)) {
+                filteredSites = sites.filter((s) => s.id === q);
+                headerLabel = filteredSites[0]?.address || q;
+            } else {
+                filteredSites = sites.filter((s) => (s.address || '').toLowerCase().includes(q.toLowerCase()));
+                headerLabel = q;
+            }
+        }
+
+        if (q && filteredSites.length === 0) {
+            const suggestions = sites
+                .filter((s) => (s.address || '').toLowerCase().includes(q.toLowerCase()))
+                .slice(0, 5)
+                .map((s) => `- ${s.address} (${s.id})`)
+                .join('\n');
+            const notFoundMsg = suggestions
+                ? `❌ No encontré una obra que coincida. Sugerencias:\n${suggestions}`
+                : `❌ No encontré una obra llamada "${siteQuery}"`;
+            await sock.sendMessage(jid, { text: notFoundMsg });
+            return false;
+        }
+
+        // Solo ahora avisamos que estamos armando el resumen
+        await sock.sendMessage(jid, { text: '⏳ Armando resumen del día...' });
+
+        for (const { site, tasks } of tasksBySite) {
+            if (!filteredSites.find((s) => s.id === site.id)) continue;
+
+            const tasksToday = tasks.filter((t) => inRange((t as any).created_at, start, end));
+            const tasksUpdatedToday = tasks.filter((t) => inRange((t as any).updated_at, start, end));
+            const completedToday = tasks.filter(
+                (t) => t.status === 'completed' && (inRange((t as any).end_date, start, end) || inRange((t as any).updated_at, start, end))
+            );
+            const changeRequestsCreated = tasksToday.filter((t) => (t.status as any) === 'changes');
+
+            // Agenda y avances por obra
+            const agendaToday = tasks.filter((t: any) => {
+                if (!t.start_date) return false;
+                const s = new Date(t.start_date);
+                const e = t.end_date ? new Date(t.end_date) : null;
+                return e ? (s <= todayUTCEnd && e >= todayUTCStart) : sameDayUTC(s, todayUTCStart);
+            });
+            const siteUpdates = updatesMap.get(site.id) || [];
+            const updatesToday = siteUpdates.filter(u => {
+                const d = new Date(u.created_at);
+                return d >= todayUTCStart && d <= todayUTCEnd;
+            });
+
+            const siteParts: string[] = [];
+            siteParts.push(`📅 Resumen — ${today.toLocaleDateString()}`);
+            siteParts.push('');
+            siteParts.push(`🏷️ ${site.address}`);
+            siteParts.push('');
+
+            if (!tasksToday.length && !tasksUpdatedToday.length && !completedToday.length && !changeRequestsCreated.length && !agendaToday.length && !updatesToday.length) {
+                siteParts.push('• 😴 Sin movimientos hoy');
+            } else {
+                if (tasksToday.length) {
+                    siteParts.push(`• 🆕 Tareas creadas (${tasksToday.length})`);
+                    tasksToday.slice(0, 5).forEach((t: any) => {
+                        siteParts.push(`   ◦ ${categoryIcon(t.category)} ${t.title} · ${statusBadge(String(t.status))}`);
+                    });
+                    if (tasksToday.length > 5) siteParts.push(`   ◦ +${tasksToday.length - 5} más...`);
+                    siteParts.push('');
+                }
+                if (tasksUpdatedToday.length) {
+                    siteParts.push(`• ✏️ Tareas actualizadas (${tasksUpdatedToday.length})`);
+                    tasksUpdatedToday.slice(0, 5).forEach((t) => {
+                        siteParts.push(`   ◦ ${categoryIcon(t.category)} ${t.title} · ${statusBadge(String(t.status))}`);
+                    });
+                    if (tasksUpdatedToday.length > 5) siteParts.push(`   ◦ +${tasksUpdatedToday.length - 5} más...`);
+                    siteParts.push('');
+                }
+                if (completedToday.length) {
+                    siteParts.push(`• ✅ Tareas completadas (${completedToday.length})`);
+                    completedToday.slice(0, 5).forEach((t) => siteParts.push(`   ◦ ${categoryIcon(t.category)} ${t.title}`));
+                    if (completedToday.length > 5) siteParts.push(`   ◦ +${completedToday.length - 5} más...`);
+                    siteParts.push('');
+                }
+                if (changeRequestsCreated.length) {
+                    siteParts.push(`• 🔄 Cambios solicitados (${changeRequestsCreated.length})`);
+                    changeRequestsCreated.slice(0, 5).forEach((t) => {
+                        siteParts.push(`   ◦ ${categoryIcon(t.category)} ${t.title}`);
+                    });
+                    if (changeRequestsCreated.length > 5) siteParts.push(`   ◦ +${changeRequestsCreated.length - 5} más...`);
+                    siteParts.push('');
+                }
+                if (agendaToday.length) {
+                    siteParts.push(`• 🗓️ Tareas agendadas hoy (${agendaToday.length})`);
+                    agendaToday.slice(0, 5).forEach((t: any) => {
+                        const s = timeStr(t.start_date);
+                        const e = timeStr(t.end_date);
+                        const range = s && e ? `${s}–${e}` : (s || '');
+                        siteParts.push(`   ◦ ${range ? `${range} · ` : ''}${categoryIcon(t.category)} ${t.title}`);
+                    });
+                    if (agendaToday.length > 5) siteParts.push(`   ◦ +${agendaToday.length - 5} más...`);
+                    siteParts.push('');
+                }
+                if (updatesToday.length) {
+                    siteParts.push(`• 📸 Avances subidos hoy (${updatesToday.length})`);
+                    updatesToday.slice(0, 3).forEach((u) => {
+                        const t = (u.title || '').trim();
+                        const d = (u.description || '').trim();
+                        let body = '';
+                        if (t && d) body = t.toLowerCase() === d.toLowerCase() ? t : `${t} — ${clip(d, 50)}`;
+                        else if (t) body = t; else if (d) body = clip(d, 50); else body = '(sin título)';
+                        siteParts.push(`   ◦ ${body}`);
+                    });
+                    if (updatesToday.length > 3) siteParts.push(`   ◦ +${updatesToday.length - 3} más...`);
+                    siteParts.push('');
+                }
+            }
+
+            await sock.sendMessage(jid, { text: siteParts.join('\n') });
+        }
+        return true;
+    } catch (err: any) {
+        console.error('Error generando resumen:', err);
+        await sock.sendMessage(jid, { text: `❌ No pude generar el resumen: ${err?.message || 'Error desconocido'}` });
+        return false;
+    }
+}
 
 function sameDay(a: Date, b: Date) {
     return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
@@ -874,65 +1106,80 @@ function timeStr(iso?: string) {
 async function sendTodayAgenda(jid: string, sock: WASocket, siteQuery?: string) {
     try {
         await sock.sendMessage(jid, { text: '🔎 Buscando tareas agendadas para hoy…' });
+
+        // Determinar intervalo de hoy en UTC
         const now = new Date();
         const todayUTCStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
         const todayUTCEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
 
-        const tasks = await fetchJSON<RawTask[]>(`/tasks`);
-
-        // Filtrar por solapamiento con el día de hoy (en UTC)
-        let filtered = tasks.filter(t => {
-            if (!t.start_date) return false;
-            const start = new Date(t.start_date);
-            const end = t.end_date ? new Date(t.end_date) : null;
-            if (end) {
-                // incluir si el rango [start, end] solapa el día [todayUTCStart, todayUTCEnd]
-                return start <= todayUTCEnd && end >= todayUTCStart;
-            }
-            // si no hay end_date, incluir solo si el start coincide con el día de hoy en UTC
-            return sameDayUTC(start, todayUTCStart);
-        });
-
-        // Filtro opcional por obra (texto o UUID)
-        if (siteQuery && siteQuery.trim()) {
-            const q = siteQuery.trim().toLowerCase();
-            filtered = filtered.filter(t => {
-                const siteName = (t.site?.address || '').toLowerCase();
-                const siteId = (t.site?.id || t.site_id || '').toLowerCase();
-                return siteName.includes(q) || siteId === q;
-            });
+        // Obtener usuario y sus obras
+        const user = await getVerifiedUser(jid);
+        if (!user) {
+            await sock.sendMessage(jid, { text: 'No pude identificar tu usuario. Registrá tu número en la app.' });
+            return;
+        }
+        const allSites = await api.SiteService.getSitesByUser(user.id);
+        if (!allSites || allSites.length === 0) {
+            await sock.sendMessage(jid, { text: '😕 No tenés obras asignadas.' });
+            return;
         }
 
-        if (!filtered.length) {
-            const msg = siteQuery && siteQuery.trim()
-                ? `😕 No hay tareas agendadas para hoy en "${siteQuery}"`
-                : '😕 No hay tareas agendadas para hoy';
+        // Aplicar filtro por obra, si se indicó
+        const q = (siteQuery || '').trim().toLowerCase();
+        let includedSites = allSites as any[];
+        if (q) {
+            includedSites = includedSites.filter(s => ((s.address || '') as string).toLowerCase().includes(q) || ((s.id || '') as string).toLowerCase() === q);
+        }
+        if (!includedSites.length) {
+            await sock.sendMessage(jid, { text: `😕 No encontré obras que coincidan con "${siteQuery}"` });
+            return;
+        }
+
+        // Obtener tareas por cada obra incluida
+        const tasksBySite = await Promise.all(includedSites.map(async s => ({
+            site: s,
+            tasks: await api.TaskService.getTasksBySite(s.id)
+        })));
+
+        // Filtrar por solapamiento con hoy (UTC) y aplanar
+        const agendaItems: { task: any; site: any }[] = [];
+        for (const { site, tasks } of tasksBySite) {
+            for (const t of tasks) {
+                if (!t.start_date) continue;
+                const start = new Date(t.start_date as any);
+                const end = t.end_date ? new Date(t.end_date as any) : null;
+                const overlaps = end ? (start <= todayUTCEnd && end >= todayUTCStart) : sameDayUTC(start, todayUTCStart);
+                if (overlaps) agendaItems.push({ task: t, site });
+            }
+        }
+
+        if (!agendaItems.length) {
+            const msg = q ? `😕 No hay tareas agendadas para hoy en "${siteQuery}"` : '😕 No hay tareas agendadas para hoy en tus obras';
             await sock.sendMessage(jid, { text: msg });
             return;
         }
 
         // Ordenar por hora de inicio
-        filtered.sort((a, b) => {
-            const ta = a.start_date ? new Date(a.start_date).getTime() : 0;
-            const tb = b.start_date ? new Date(b.start_date).getTime() : 0;
+        agendaItems.sort((a, b) => {
+            const ta = a.task.start_date ? new Date(a.task.start_date).getTime() : 0;
+            const tb = b.task.start_date ? new Date(b.task.start_date).getTime() : 0;
             return ta - tb;
         });
 
-        const header = `🗓️ Agenda de hoy (${now.toLocaleDateString('es-AR')})${siteQuery && siteQuery.trim() ? ` — ${siteQuery}` : ''}`;
+        const header = `🗓️ Agenda de hoy (${now.toLocaleDateString('es-AR')})${q ? ` — ${siteQuery}` : ''}`;
         const lines: string[] = [header, ''];
-        for (const t of filtered) {
+        for (const { task: t, site } of agendaItems) {
             const start = t.start_date ? new Date(t.start_date) : null;
             const end = t.end_date ? new Date(t.end_date) : null;
             let range = '';
             if (start && end && !sameDayUTC(start, end)) {
-                // Evento de varios días: mostrar "Todo el día" para el día en curso
                 range = 'Todo el día';
             } else {
                 const s = timeStr(t.start_date);
                 const e = timeStr(t.end_date);
                 range = s && e ? `${s}–${e}` : (s || '');
             }
-            const siteName = t.site?.address || '';
+            const siteName = site.address || '';
             lines.push(`• ${range} · ${categoryIcon(t.category)} ${t.title}${siteName ? ` · 🏷️ ${siteName}` : ''}`);
         }
         await sock.sendMessage(jid, { text: lines.join('\n') });
@@ -940,6 +1187,97 @@ async function sendTodayAgenda(jid: string, sock: WASocket, siteQuery?: string) 
         console.error('Error en agenda de hoy:', err);
         await sock.sendMessage(jid, { text: `❌ No pude obtener la agenda: ${err?.message || 'Error desconocido'}` });
     }
+}
+
+// Manejo de selección de obra cuando el usuario tiene varias
+async function handleSiteSelection(
+    messageText: string,
+    context: any,
+    user: Profile,
+    senderNumber: string,
+    sock: WASocket
+) {
+    const options: any[] = context?.sitesOptions || [];
+    if (!options.length) {
+        await sock.sendMessage(senderNumber, { text: '❌ No encontré opciones de obra. Escribí "tarea" para empezar de nuevo.' });
+        setChatState(senderNumber, 'IDLE');
+        return;
+    }
+    let input = messageText.trim().toLowerCase();
+    let chosen: any | null = null;
+    const num = input.match(/^\d+/);
+    if (num) {
+        const idx = parseInt(num[0], 10) - 1;
+        if (idx >= 0 && idx < options.length) chosen = options[idx];
+    }
+    if (!chosen) {
+        // Buscar por substring de address o por UUID exacto
+        chosen = options.find((s: any) => (s.address || '').toLowerCase().includes(input) || (s.id || '').toLowerCase() === input) || null;
+    }
+    if (!chosen) {
+        await sock.sendMessage(senderNumber, { text: '⚠️ No reconocí la obra. Respondé con el número de la lista o parte del nombre.' });
+        return;
+    }
+    setChatState(senderNumber, 'AWAITING_TASK_TITLE', { site_id: chosen.id });
+    await sock.sendMessage(senderNumber, { text: `🏷️ Obra seleccionada: ${chosen.address}\n📝 Ahora decime el *título* de la tarea.` });
+}
+
+// Manejo de selección de obra para avances (texto o media)
+async function handleUpdateSiteSelection(
+    messageText: string,
+    context: any,
+    user: Profile,
+    senderNumber: string,
+    sock: WASocket
+) {
+    const options: any[] = context?.sitesOptions || [];
+    if (!options.length) {
+        await sock.sendMessage(senderNumber, { text: '❌ No encontré opciones de obra. Escribí "av <texto>" para intentar de nuevo.' });
+        setChatState(senderNumber, 'IDLE');
+        return;
+    }
+    let input = messageText.trim().toLowerCase();
+    let chosen: any | null = null;
+    const num = input.match(/^\d+/);
+    if (num) {
+        const idx = parseInt(num[0], 10) - 1;
+        if (idx >= 0 && idx < options.length) chosen = options[idx];
+    }
+    if (!chosen) {
+        chosen = options.find((s: any) => (s.address || '').toLowerCase().includes(input) || (s.id || '').toLowerCase() === input) || null;
+    }
+    if (!chosen) {
+        await sock.sendMessage(senderNumber, { text: '⚠️ No reconocí la obra. Respondé con el número de la lista o parte del nombre.' });
+        return;
+    }
+    // Resolver según el tipo de avance
+    if (context?.updateKind === 'text') {
+        const text = context?.textContent as string;
+        await createTextUpdate(user, senderNumber, sock, text, (chosen as any).address);
+        setChatState(senderNumber, 'IDLE');
+        return;
+    }
+    if (context?.updateKind === 'media') {
+        const base64 = context?.mediaBase64 as string;
+        const caption = context?.caption as string | undefined;
+        if (!base64) {
+            await sock.sendMessage(senderNumber, { text: '❌ No encontré la imagen a subir. Enviá nuevamente la foto, por favor.' });
+            setChatState(senderNumber, 'IDLE');
+            return;
+        }
+        try {
+            const buffer = Buffer.from(base64, 'base64');
+            await uploadMediaToAPI(buffer, 'image', user.id, caption, (chosen as any).id);
+            await sock.sendMessage(senderNumber, { text: `✅ Avance registrado con foto en ${chosen.address}.` });
+        } catch (e: any) {
+            console.error('Error subiendo avance con foto:', e);
+            await sock.sendMessage(senderNumber, { text: `❌ No pude registrar el avance: ${e?.message || 'Error'}` });
+        }
+        setChatState(senderNumber, 'IDLE');
+        return;
+    }
+    await sock.sendMessage(senderNumber, { text: '⚠️ Estado inesperado. Probá nuevamente.' });
+    setChatState(senderNumber, 'IDLE');
 }
 
 // Resumen de contadores del día (avances + agenda)
@@ -979,6 +1317,35 @@ async function sendTodayCounts(jid: string, sock: WASocket, siteQuery?: string) 
         await sock.sendMessage(jid, { text });
     } catch (err) {
         console.error('Error sendTodayCounts:', err);
+    }
+}
+
+// --------------------
+// Listar obras del usuario
+// --------------------
+async function sendMySites(jid: string, sock: WASocket, user: Profile) {
+    try {
+        const sites = await api.SiteService.getSitesByUser(user.id);
+        let list = sites || [];
+        if (!list.length) {
+            await sock.sendMessage(jid, { text: '😕 No tenés obras asignadas' });
+            return;
+        }
+        const lines: string[] = [];
+        lines.push(`🏷️ Tus obras (${list.length})`);
+        lines.push('');
+        list.slice(0, 20).forEach((s: any, i: number) => {
+            lines.push(`${i + 1}. ${s.address}`);
+        });
+        lines.push('');
+        lines.push('Consejos:');
+        lines.push('• 🧾 res <obra>  · resumen por obra');
+        lines.push('• 📅 agenda <obra> · agenda de hoy');
+        lines.push('• 📸 avances <obra> · avances de hoy');
+        await sock.sendMessage(jid, { text: lines.join('\n') });
+    } catch (err: any) {
+        console.error('Error listando obras:', err);
+        await sock.sendMessage(jid, { text: `❌ No pude obtener tus obras: ${err?.message || 'Error desconocido'}` });
     }
 }
 
@@ -1030,8 +1397,14 @@ async function sendAdvancesToday(jid: string, sock: WASocket, siteQuery?: string
         const lines: string[] = [header, ''];
         for (const u of all.slice(0, 5)) {
             const siteName = (u as any).site?.address || '';
-            const desc = u.description ? ` — ${clip(u.description, 50)}` : '';
-            lines.push(`• ${u.title}${desc}${siteName ? ` · 🏷️ ${siteName}` : ''}`);
+            const t = (u.title || '').trim();
+            const d = (u.description || '').trim();
+            let body = '';
+            if (t && d) {
+                if (t.toLowerCase() === d.toLowerCase()) body = t;
+                else body = `${t} — ${clip(d, 50)}`;
+            } else if (t) body = t; else if (d) body = clip(d, 50); else body = '(sin título)';
+            lines.push(`• ${body}${siteName ? ` · 🏷️ ${siteName}` : ''}`);
         }
         if (all.length > 5) lines.push(`… y ${all.length - 5} más`);
         await sock.sendMessage(jid, { text: lines.join('\n') });
@@ -1039,12 +1412,19 @@ async function sendAdvancesToday(jid: string, sock: WASocket, siteQuery?: string
         for (const u of all) {
             if (!u.image_url) continue;
             try {
+                const t = (u.title || '').trim();
+                const d = (u.description || '').trim();
+                let caption = '';
+                if (t && d) {
+                    if (t.toLowerCase() === d.toLowerCase()) caption = t;
+                    else caption = `${t} — ${clip(d, 100)}`;
+                } else if (t) caption = t; else if (d) caption = clip(d, 100);
                 if (u.image_url.startsWith('data:')) {
                     const base64 = u.image_url.split(',')[1];
                     const buf = Buffer.from(base64, 'base64');
-                    await sock.sendMessage(jid, { image: buf, caption: `${u.title}${u.description ? ` — ${clip(u.description, 100)}` : ''}` });
+                    await sock.sendMessage(jid, { image: buf, caption });
                 } else {
-                    await sock.sendMessage(jid, { image: { url: u.image_url }, caption: `${u.title}${u.description ? ` — ${clip(u.description, 100)}` : ''}` });
+                    await sock.sendMessage(jid, { image: { url: u.image_url }, caption });
                 }
             } catch (e) {
                 console.error('Error enviando imagen de avance:', e);
