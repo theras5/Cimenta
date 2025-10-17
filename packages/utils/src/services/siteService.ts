@@ -2,7 +2,7 @@ import { Site, CreateSiteRequest, UpdateSiteRequest } from '@cimenta/dtos';
 
 export const createSiteService = (apiUrl: string, baseHeaders: Record<string, string>) => ({
     async getSites(): Promise<Site[]> {
-        const response = await fetch(`${apiUrl}/api/sites`);
+        const response = await fetch(`${apiUrl}/sites`);
 
         if (!response.ok) {
             throw new Error(`Error ${response.status}: ${response.statusText}`);
@@ -12,7 +12,7 @@ export const createSiteService = (apiUrl: string, baseHeaders: Record<string, st
     },
 
     async getSite(id: string): Promise<Site> {
-        const response = await fetch(`${apiUrl}/api/sites/${id}`);
+        const response = await fetch(`${apiUrl}/sites/${id}`);
 
         if (!response.ok) {
             throw new Error(`Error ${response.status}: ${response.statusText}`);
@@ -22,7 +22,7 @@ export const createSiteService = (apiUrl: string, baseHeaders: Record<string, st
     },
 
     async createSite(site: CreateSiteRequest): Promise<Site> {
-        const response = await fetch(`${apiUrl}/api/sites`, {
+        const response = await fetch(`${apiUrl}/sites`, {
             method: 'POST',
             headers: baseHeaders,
             body: JSON.stringify(site),
@@ -36,7 +36,7 @@ export const createSiteService = (apiUrl: string, baseHeaders: Record<string, st
     },
 
     async updateSite(id: string, site: UpdateSiteRequest): Promise<Site> {
-        const response = await fetch(`${apiUrl}/api/sites/${id}`, {
+        const response = await fetch(`${apiUrl}/sites/${id}`, {
             method: 'PUT',
             headers: baseHeaders,
             body: JSON.stringify(site),
@@ -50,7 +50,7 @@ export const createSiteService = (apiUrl: string, baseHeaders: Record<string, st
     },
 
     async deleteSite(id: string): Promise<boolean> {
-        const response = await fetch(`${apiUrl}/api/sites/${id}`, {
+        const response = await fetch(`${apiUrl}/sites/${id}`, {
             method: 'DELETE',
         });
 
