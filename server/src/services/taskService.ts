@@ -68,9 +68,10 @@ export async function createTaskService(newTask: Omit<Task, 'id' | 'created_at'>
             category: newTask.category,
             status: newTask.status,
             start_date: newTask.start_date,
-            end_date: newTask.end_date,                
-            site_id: newTask.site_id,
-            user_id: newTask.user_id
+            end_date: newTask.end_date,
+            // Use defaults if site_id or user_id are not provided to avoid not-null constraint errors
+            site_id: newTask.site_id ?? DEFAULT_SITE_ID,
+            user_id: newTask.user_id ?? DEFAULT_USER_ID
         }])
         .select(`
             *,
@@ -82,6 +83,7 @@ export async function createTaskService(newTask: Omit<Task, 'id' | 'created_at'>
         .single();
 
     if (error) {
+        console.error('createTaskService - Supabase error:', error, 'payload:', JSON.stringify(newTask));
         throw new AppError(error.message, 500);
     }
 

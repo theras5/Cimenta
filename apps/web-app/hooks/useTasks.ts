@@ -45,16 +45,36 @@ export function useTasks() {
     setError(null);
 
     try {
+      // Debug: log payload being sent
+      console.debug("createTask payload:", taskData);
+      // Remove undefined/null/empty-string values to avoid sending invalid fields
+      const filtered = Object.fromEntries(
+        Object.entries(taskData).filter(([, v]) => v !== undefined && v !== null && v !== "")
+      );
+
       const response = await fetch("/api/tasks", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(taskData),
+        body: JSON.stringify(filtered),
       });
 
       if (!response.ok) {
-        throw new Error(`Error: ${response.status}`);
+        // Try to extract server error body for debugging
+        let serverMessage = "";
+        try {
+          const errBody = await response.json();
+          serverMessage = JSON.stringify(errBody);
+        } catch (e) {
+          try {
+            serverMessage = await response.text();
+          } catch (e2) {
+            serverMessage = response.statusText;
+          }
+        }
+        console.error("createTask server error:", response.status, serverMessage);
+        throw new Error(`Error: ${response.status} ${serverMessage}`);
       }
 
       const newTask = await response.json();

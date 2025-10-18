@@ -1,18 +1,8 @@
 "use client"
 
 import type React from "react"
-
 import TaskCard from "./TaskCard"
-
-interface Task {
-  id: string
-  title: string
-  description?: string
-  status: "pending" | "in_progress" | "completed" | "blocked" | "changes"
-  category: string
-  categoryColor?: string
-  assignedMembers?: string[]
-}
+import { Task } from "@/lib/api"
 
 interface TaskSectionProps {
   title: string

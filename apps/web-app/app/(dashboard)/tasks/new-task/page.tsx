@@ -62,6 +62,8 @@ export default function NewTaskPage() {
     description: "",
     category: "",
     status: "pending" as Task["status"],
+    start_date: undefined as string | undefined,
+    end_date: undefined as string | undefined,
   });
 
   const toggleMember = (member: string) => {
@@ -78,6 +80,8 @@ export default function NewTaskPage() {
       description: "",
       category: "",
       status: "pending",
+      start_date: undefined,
+      end_date: undefined,
     });
     setSelectedMembers([]);
     setError("");
@@ -98,14 +102,20 @@ export default function NewTaskPage() {
       setError("");
       setSuccess(false);
 
+      // Convertir datetime-local (local) a ISO strings (UTC) si fue provisto
+      const startIso = newTask.start_date ? new Date(newTask.start_date).toISOString() : undefined;
+      const endIso = newTask.end_date ? new Date(newTask.end_date).toISOString() : undefined;
+
       // Crear la tarea usando la API real
       const taskData = {
         title: newTask.title,
         description: newTask.description || undefined,
         status: newTask.status,
         category: newTask.category,
+        start_date: startIso,
+        end_date: endIso,
         user_id: "ad4d74ba-beac-4741-9ec1-978d564a971c",
-        site_id: "e43d720c-8b2f-454f-8b41-55019ffef012"
+        site_id: "e43d720c-8b2f-454f-8b41-55019ffef012",
         // Podrías añadir estos campos según tu backend:
         // assigned_members: selectedMembers.join(","), // Si tu backend los maneja
         // site_id: "algún-site-id", // Si tienes sitios
@@ -277,6 +287,39 @@ export default function NewTaskPage() {
                     </div>
                   </div>
 
+                  {/* Fecha y hora de inicio / fin */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">
+                        Fecha y hora de inicio
+                      </label>
+                      <Input
+                        type="datetime-local"
+                        value={newTask.start_date || ""}
+                        onChange={(e) =>
+                          setNewTask({ ...newTask, start_date: e.target.value })
+                        }
+                        className="h-12"
+                        disabled={loading || tasksLoading}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">
+                        Fecha y hora de fin
+                      </label>
+                      <Input
+                        type="datetime-local"
+                        value={newTask.end_date || ""}
+                        onChange={(e) =>
+                          setNewTask({ ...newTask, end_date: e.target.value })
+                        }
+                        className="h-12"
+                        disabled={loading || tasksLoading}
+                      />
+                    </div>
+                  </div>
+
                   {/* Miembros del equipo - Solo visual por ahora */}
                   <div className="space-y-3">
                     <label className="text-sm font-medium text-gray-700">
@@ -307,7 +350,6 @@ export default function NewTaskPage() {
                         </div>
                       ))}
                     </div>
-                  </div>
 
                   {/* Botones de acción */}
                   <div className="flex gap-3 pt-4">

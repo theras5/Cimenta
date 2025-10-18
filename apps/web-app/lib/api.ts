@@ -4,10 +4,13 @@ export interface Task {
   id: string;
   title: string;
   description?: string;
-  status: "pending" | "in_progress" | "completed" | "changes";
+  status: "pending" | "in_progress" | "completed" | "changes" | "blocked";
   category: string;
 //   priority?: "low" | "medium" | "high";
   site_id?: string;
+  // Optional start and end datetimes from Supabase (ISO strings)
+  start_date?: string | null;
+  end_date?: string | null;
   created_at?: string;
   updated_at?: string;
   user_id?: string;

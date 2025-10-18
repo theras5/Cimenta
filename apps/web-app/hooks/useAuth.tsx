@@ -29,7 +29,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(false); // Cambiado a false ya que no verificamos automáticamente
   const [error, setError] = useState<string | null>(null);
 
-  // Removido el useEffect que ejecutaba checkAuth
+  // Al montar, intentar cargar el usuario guardado en localStorage
+  useEffect(() => {
+    try {
+      const saved = authService.getUser();
+      if (saved) setUser(saved);
+    } catch (e) {
+      console.error('Error cargando usuario desde localStorage', e);
+    }
+  }, []);
 
   const login = async (data: LoginData) => {
     try {

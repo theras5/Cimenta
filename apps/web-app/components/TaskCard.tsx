@@ -10,6 +10,8 @@ interface Task {
   status: "pending" | "in_progress" | "completed" | "blocked" | "changes"
   category: string
   assignedMembers?: string[]
+  start_date?: string | null
+  end_date?: string | null
 }
 
 interface TaskCardProps {
@@ -75,6 +77,17 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, changes, onEdit }) => {
         <div className="flex-1">
           <h3 className="text-gray-800 font-semibold text-lg mb-2 line-clamp-1">{task.title}</h3>
           <p className="text-gray-600 text-sm leading-5 line-clamp-2">{task.description}</p>
+          {/* Date/time info */}
+          {(task.start_date || task.end_date) && (
+            <div className="text-xs text-gray-500 mt-2">
+              {task.start_date && (
+                <div>Inicio: {new Date(task.start_date).toLocaleString()}</div>
+              )}
+              {task.end_date && (
+                <div>Fin: {new Date(task.end_date).toLocaleString()}</div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Footer */}
