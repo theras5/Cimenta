@@ -17,7 +17,8 @@
     "@cimenta/dtos": "^1.0.0",
     "@cimenta/utils": "^1.0.0",
     "@whiskeysockets/baileys": "^6.7.20",
-    "pino": "^9.11.0"
+    "pino": "^9.11.0",
+    "@google/genai": "^1.25.0"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",
