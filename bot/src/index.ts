@@ -12,6 +12,7 @@ import pino from 'pino';
 import qrcode from 'qrcode-terminal';
 import { CreateTaskDTO, isTaskCategory, isTaskStatus, Profile, Task, TaskCategory } from '@cimenta/dtos';
 import { api, apiUrl, defaultHeaders } from './config';
+import { createTaskDTOFromAI } from './ai';
 import path from 'path';
 
 const verifiedUsersCache = new Map<string, Profile | null>();
@@ -311,6 +312,10 @@ async function handleMessageByState(
             await handleIdleState(messageText, user, senderNumber, sock);
             break;
 
+        case 'AWAITING_TASK_INPUT':
+            await handleTaskInput(messageText, context, user, senderNumber, sock);
+            break;
+
         case 'AWAITING_TASK_TITLE':
             await handleTaskTitle(messageText, senderNumber, sock);
             break;
@@ -370,8 +375,8 @@ async function handleIdleState(
                 return;
             }
             if (sites.length === 1) {
-                setChatState(senderNumber, 'AWAITING_TASK_TITLE', { site_id: (sites[0] as any).id });
-                await sock.sendMessage(senderNumber, { text: '🎯 ¡Genial! Vamos a crear una tarea.\n🏷️ Obra: ' + ((sites[0] as any).address || '') + '\n📝 Primero, decime el *título*.' });
+                setChatState(senderNumber, 'AWAITING_TASK_INPUT', { site_id: (sites[0] as any).id, site_address: (sites[0] as any).address });
+                await sock.sendMessage(senderNumber, { text: '🎯 ¡Genial! Vamos a crear una tarea.\n🏷️ Obra: ' + ((sites[0] as any).address || '') + '\n📝 Describí lo que tenés que hacer en un solo mensaje (ej: "Cambiar foco del baño mañana").' });
                 return;
             }
             const lines: string[] = [];
@@ -388,6 +393,16 @@ async function handleIdleState(
         const query = messageText.trim().slice(7).trim();
         await sendDailySummary_v2(senderNumber, sock, query);
     } else {
+        // Intento 1: Parseo con IA para creación directa
+        const dto = await createTaskDTOFromAI(messageText, user.id);
+        if (dto) {
+            await sock.sendMessage(senderNumber, { text: '🧠 Entendido. Creando la tarea a partir de tu mensaje...' });
+            await handleTaskCreation(dto, senderNumber, sock);
+            setChatState(senderNumber, 'IDLE');
+            return;
+        }
+
+        // Fallback: guía al usuario al flujo asistido
         await sock.sendMessage(senderNumber, {
             text: `👋 Hola ${user.name}!
 
@@ -547,6 +562,33 @@ async function handleTaskStatus(
             '5) Bloqueada ⛔',
         ].join('\n');
         await sock.sendMessage(senderNumber, { text: body });
+    }
+}
+
+// Nuevo flujo simplificado: un solo estado para recibir el contenido y crear la tarea con IA
+async function handleTaskInput(
+    messageText: string,
+    context: any,
+    user: Profile,
+    senderNumber: string,
+    sock: WASocket
+) {
+    try {
+        const dto = await createTaskDTOFromAI(messageText, user.id);
+        if (!dto) {
+            await sock.sendMessage(senderNumber, { text: '⚠️ No entendí. Contame en una sola línea qué hay que hacer (ej: "Cambiar foco del baño mañana").' });
+            return;
+        }
+        // Asegurar site_id desde el contexto de selección previa
+        if (context?.site_id) {
+            (dto as any).site_id = context.site_id;
+        }
+        await sock.sendMessage(senderNumber, { text: '🧠 Perfecto. Creando la tarea...' });
+        await handleTaskCreation(dto, senderNumber, sock);
+        setChatState(senderNumber, 'IDLE');
+    } catch (e: any) {
+        console.error('Error en handleTaskInput:', e);
+        await sock.sendMessage(senderNumber, { text: `❌ No pude crear la tarea: ${e?.message || 'Error desconocido'}` });
     }
 }
 
@@ -717,7 +759,7 @@ async function sendButtons(
                     }
                 }
             }),
-            { userJid: sock.user?.id }
+            { userJid: sock.user?.id ?? '' }
         );
         await sock.relayMessage(jid, msg.message!, { messageId: msg.key.id! });
     } catch (e) {
@@ -738,7 +780,7 @@ async function sendButtons(
                         }
                     }
                 }),
-                { userJid: sock.user?.id }
+                { userJid: sock.user?.id ?? '' }
             );
             await sock.relayMessage(jid, msg2.message!, { messageId: msg2.key.id! });
             return;
@@ -787,7 +829,7 @@ async function sendList(
                     ]
                 }
             }),
-            { userJid: sock.user?.id }
+            { userJid: sock.user?.id ?? '' }
         );
         await sock.relayMessage(jid, msg.message!, { messageId: msg.key.id! });
     } catch (e) {
@@ -1218,8 +1260,8 @@ async function handleSiteSelection(
         await sock.sendMessage(senderNumber, { text: '⚠️ No reconocí la obra. Respondé con el número de la lista o parte del nombre.' });
         return;
     }
-    setChatState(senderNumber, 'AWAITING_TASK_TITLE', { site_id: chosen.id });
-    await sock.sendMessage(senderNumber, { text: `🏷️ Obra seleccionada: ${chosen.address}\n📝 Ahora decime el *título* de la tarea.` });
+    setChatState(senderNumber, 'AWAITING_TASK_INPUT', { site_id: chosen.id, site_address: chosen.address });
+    await sock.sendMessage(senderNumber, { text: `🏷️ Obra seleccionada: ${chosen.address}\n📝 Describí lo que tenés que hacer en un solo mensaje (ej: "Cambiar foco del baño mañana").` });
 }
 
 // Manejo de selección de obra para avances (texto o media)
@@ -1517,6 +1559,8 @@ async function handleTaskCreation(task: CreateTaskDTO, senderNumber: string, soc
         await sock.sendMessage(senderNumber, { text: `❌ Error: ${error.message}` });
     }
 }
+
+// Eliminado: normalización local ya no es necesaria porque la IA devuelve valores DTO-ready
 
 async function handleTaskStateUpdate(taskId: string, newState: string, senderNumber: string, sock: WASocket) {
     try {
