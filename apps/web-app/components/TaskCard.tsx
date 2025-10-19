@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react"
+import React, { useEffect, useRef, useState } from "react"
 import { Edit2 } from "lucide-react"
 
 interface Task {
@@ -38,20 +38,25 @@ const getStatusBgColor = (status: Task["status"]) => {
 }
 
 const getCategoryColor = (category: string) => {
-  const normalizedCategory = category.toUpperCase()
-  switch (normalizedCategory) {
-    case "ELECTRICIDAD":
-      return "bg-blue-500"
-    case "PLOMERÍA":
-    case "PLOMERIA":
-      return "bg-orange-500"
-    case "CONSTRUCCIÓN":
-    case "CONSTRUCCION":
-      return "bg-gray-500"
-    case "PINTURA":
-      return "bg-pink-500"
+  if (!category) return "#999999";
+  const c = category.toLowerCase();
+  switch (c) {
+    case "electricidad":
+    case "electric":
+      return "#007AFF"; // blue
+    case "plomería":
+    case "plomeria":
+    case "plumbing":
+      return "#FF9500"; // orange
+    case "construcción":
+    case "construccion":
+    case "construction":
+      return "#8A2BE2"; // purple
+    case "pintura":
+    case "paint":
+      return "#FF2D92"; // pink
     default:
-      return "bg-purple-500"
+      return "#10B981"; // green-ish default to match calendar
   }
 }
 
@@ -59,6 +64,20 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, changes, onEdit }) => {
   const handleClick = () => {
     console.log(`Clicked task ${task.id}`, changes ? "changes" : "tasks")
   }
+
+  const descRef = useRef<HTMLParagraphElement | null>(null);
+  const [descOverflow, setDescOverflow] = useState(false);
+
+  useEffect(() => {
+    const measure = () => {
+      const el = descRef.current;
+      if (!el) return;
+      setDescOverflow(el.scrollHeight > el.clientHeight + 1);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [task.description]);
 
   const handleEdit = (e: React.MouseEvent) => {
     e.stopPropagation() // Prevenir que se dispare el click del card
@@ -69,16 +88,16 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, changes, onEdit }) => {
 
   return (
     <div
-      className={`${getStatusBgColor(task.status)} rounded-2xl p-5 w-72 h-40 flex-shrink-0 cursor-pointer hover:shadow-lg transition-shadow`}
+      className={`${getStatusBgColor(task.status)} rounded-2xl p-5 w-72 h-40 flex-shrink-0 cursor-pointer hover:shadow-lg transition-shadow relative`}
       onClick={handleClick}
     >
       <div className="flex flex-col h-full">
         {/* Content */}
         <div className="flex-1">
           <h3 className="text-gray-800 font-semibold text-lg mb-2 line-clamp-1">{task.title}</h3>
-          <p className="text-gray-600 text-sm leading-5 line-clamp-2">{task.description}</p>
+          <p ref={descRef} className="text-gray-600 text-sm leading-5 line-clamp-2">{task.description}</p>
           {/* Date/time info */}
-          {(task.start_date || task.end_date) && (
+          {(task.start_date || task.end_date) && !descOverflow && (
             <div className="text-xs text-gray-500 mt-2">
               {task.start_date && (
                 <div>Inicio: {new Date(task.start_date).toLocaleString()}</div>
@@ -98,16 +117,17 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, changes, onEdit }) => {
             )}
             {onEdit && (
               <button
-                onClick={handleEdit}
-                className="p-1 rounded-md hover:bg-white/50 transition-colors opacity-70 hover:opacity-100"
+                onClick={(e) => { e.stopPropagation(); handleEdit(e); }}
+                className="p-1 rounded-md hover:bg-white/50 transition-colors opacity-70 hover:opacity-100 absolute left-3 bottom-3"
                 title="Editar tarea"
+                aria-label="Editar tarea"
               >
                 <Edit2 className="w-3 h-3 text-gray-600" />
               </button>
             )}
           </div>
 
-          <div className={`${getCategoryColor(task.category)} px-3 py-1 rounded-full`}>
+          <div style={{ backgroundColor: getCategoryColor(task.category) }} className="px-3 py-1 rounded-full absolute bottom-3 right-3">
             <span className="text-white text-xs font-medium">{task.category}</span>
           </div>
         </div>
