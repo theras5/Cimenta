@@ -146,53 +146,41 @@ export function usePurchases() {
   };
 
   // Actualizar solo el estado de una compra
-  const updatePurchaseStatus = async (
-    id: string,
-    status: Purchase["status"]
-  ) => {
-    try {
-      setError(null);
-
-      // Preparar datos a actualizar con fechas
-      const updateData: Partial<Purchase> = { status };
-
-      // Si cambia a purchased, añadir fecha de compra
-      if (status === "purchased") {
-        updateData.purchase_date = new Date().toISOString();
-      }
-
-      // Si cambia a delivered, añadir fecha de entrega
-      if (status === "delivered") {
-        updateData.delivery_date = new Date().toISOString();
-      }
-
-      const response = await fetch(`/api/purchases/${id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(updateData),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Error ${response.status}: ${response.statusText}`);
-      }
-
-      const updatedPurchase = await response.json();
-
-      // Actualizar el estado local
-      setPurchases((prev) =>
-        prev.map((p) => (p.id === id ? updatedPurchase : p))
-      );
-
-      return updatedPurchase;
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Error al actualizar el estado";
-      setError(errorMessage);
-      throw new Error(errorMessage);
+const updatePurchaseStatus = async (
+  id: string, 
+  status: Purchase["status"], 
+  updateData?: Partial<Purchase>
+) => {
+  try {
+    setError(null);
+    
+    // Usar los datos enviados o al menos el estado
+    const dataToUpdate = updateData || { status };
+    
+    const response = await fetch(`/api/purchases/${id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(dataToUpdate),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Error ${response.status}: ${response.statusText}`);
     }
-  };
+    
+    const updatedPurchase = await response.json();
+    
+    // Actualizar el estado local
+    setPurchases(prev => prev.map(p => p.id === id ? updatedPurchase : p));
+    
+    return updatedPurchase;
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'Error al actualizar el estado';
+    setError(errorMessage);
+    throw new Error(errorMessage);
+  }
+};
 
   // Eliminar una compra
   const deletePurchase = async (id: string) => {

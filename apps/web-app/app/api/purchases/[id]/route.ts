@@ -85,11 +85,10 @@ export async function DELETE(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
   try {
-    const { id } = params;
-    const body = await request.json();
+    const id = context.params?.id; // Acceder a través de context sin desestructurar
     
     if (!id) {
       return NextResponse.json(
@@ -97,7 +96,9 @@ export async function PATCH(
         { status: 400 }
       );
     }
+    const body = await request.json();
     
+    // Resto del código sin cambios
     const response = await fetch(`${API_URL}/purchases/${id}/status`, {
       method: 'PATCH',
       headers: {
@@ -119,7 +120,7 @@ export async function PATCH(
     return NextResponse.json(data);
     
   } catch (error) {
-    console.error('Error actualizando estado de compra:', error);
+    console.error('Error actualizando compra:', error);
     return NextResponse.json(
       { error: 'Error interno del servidor' },
       { status: 500 }

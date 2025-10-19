@@ -78,6 +78,7 @@ const PurchaseSection = ({
   title,
   purchases,
   onStatusChange,
+  onEdit,
 }: {
   title: string;
   purchases: Purchase[];
@@ -85,6 +86,7 @@ const PurchaseSection = ({
     purchaseId: string,
     newStatus: Purchase["status"]
   ) => Promise<void>;
+  onEdit: (purchaseId: string, updatedPurchase: Partial<Purchase>) => Promise<void>;
 }) => {
   if (purchases.length === 0) {
     return null;
@@ -101,6 +103,7 @@ const PurchaseSection = ({
             key={purchase.id}
             purchase={purchase}
             onStatusChange={onStatusChange}
+            onEdit={onEdit}
           />
         ))}
       </div>
@@ -116,9 +119,11 @@ export default function ComprasPage() {
     error,
     fetchPurchases,
     createPurchase,
+    updatePurchase,
     updatePurchaseStatus,
   } = usePurchases();
 
+  const [selectedSiteId, setSelectedSiteId] = useState<string>("");
   const [showModal, setShowModal] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [newPurchase, setNewPurchase] = useState({
@@ -138,6 +143,7 @@ export default function ComprasPage() {
     if (typeof window !== "undefined") {
       const siteId = localStorage.getItem("selectedSiteId");
       if (siteId) {
+        setSelectedSiteId(siteId);
         setNewPurchase((prev) => ({ ...prev, site_id: siteId }));
       }
     }
@@ -147,10 +153,38 @@ export default function ComprasPage() {
     }
   }, [user?.id]);
 
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const newSiteId = localStorage.getItem("selectedSiteId");
+      if (newSiteId && newSiteId !== selectedSiteId) {
+        console.log("Sitio cambiado a:", newSiteId);
+        setSelectedSiteId(newSiteId);
+        fetchPurchases(newSiteId); // Cargar compras del nuevo sitio
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    
+    // También verificar periódicamente por cambios (para cambios en la misma pestaña)
+    const interval = setInterval(() => {
+      const currentSiteId = localStorage.getItem("selectedSiteId");
+      if (currentSiteId && currentSiteId !== selectedSiteId) {
+        console.log("Sitio cambiado (interval check):", currentSiteId);
+        setSelectedSiteId(currentSiteId);
+        fetchPurchases(currentSiteId);
+      }
+    }, 1000);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      clearInterval(interval);
+    };
+  }, [selectedSiteId, fetchPurchases]);
+
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
-      await fetchPurchases();
+      await fetchPurchases(selectedSiteId);
     } catch (error) {
       console.error("Error refreshing purchases:", error);
     } finally {
@@ -190,17 +224,26 @@ export default function ComprasPage() {
   };
 
   // Función para manejar el cambio de estado
-  const handleStatusChange = async (
-    purchaseId: string,
-    newStatus: Purchase["status"]
-  ) => {
-    try {
-      await updatePurchaseStatus(purchaseId, newStatus);
-      // No necesitamos hacer fetchPurchases porque el estado local se actualiza en el hook
-    } catch (error) {
-      console.error("Error al cambiar estado de compra:", error);
-    }
-  };
+const handleStatusChange = async (
+  purchaseId: string, 
+  newStatus: Purchase['status'], 
+  updateData?: Partial<Purchase>
+) => {
+  try {
+    await updatePurchaseStatus(purchaseId, newStatus, updateData);
+  } catch (error) {
+    console.error("Error al cambiar estado de compra:", error);
+  }
+};
+
+  const handleEdit = async (purchaseId: string, updatedPurchase: Partial<Purchase>) => {
+  try {
+    await updatePurchase(purchaseId, updatedPurchase);
+    // No necesitas hacer fetchPurchases porque el estado se actualiza en el hook
+  } catch (error) {
+    console.error("Error al editar compra:", error);
+  }
+};
 
   // Group purchases by status
   const paraComprar = purchases.filter((p) => p.status === "pending");
@@ -340,18 +383,21 @@ export default function ComprasPage() {
                 title="Para comprar"
                 purchases={paraComprar}
                 onStatusChange={handleStatusChange}
+                onEdit={handleEdit}
               />
 
               <PurchaseSection
                 title="Comprado"
                 purchases={comprado}
                 onStatusChange={handleStatusChange}
+                onEdit={handleEdit}
               />
 
               <PurchaseSection
                 title="Recibido"
                 purchases={recibido}
                 onStatusChange={handleStatusChange}
+                onEdit={handleEdit}
               />
             </div>
           )}
