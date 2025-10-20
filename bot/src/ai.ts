@@ -29,36 +29,40 @@ const createTaskTool: FunctionDeclaration = {
             },
             category: {
                 type: Type.STRING,
-                description: "La categoría del trabajo. 'electricidad' incluye instalación de electrodomésticos.",
-                enum: ["pintura", "construccion", "electricidad"]
+                description: "La categoría del trabajo. 'electricidad' incluye electrodomésticos. 'plomeria' es caños. 'construccion' es albañilería.",
+                enum: ["pintura", "construccion", "electricidad", "plomeria", "otro"]
             },
             status: {
                 type: Type.STRING,
                 description: "El estado de la tarea. Por defecto debe ser 'pending' a menos que el usuario indique lo contrario (ej: 'ya está listo').",
-                // Debe coincidir EXACTAMENTE con los estados de tu DTO
                 enum: ["changes", "pending", "in_progress", "completed", "blocked"],
                 default: "pending"
             },
             start_date: {
                 type: Type.STRING,
-                description: "Fecha de inicio (opcional). Formato ISO 8601 (YYYY-MM-DD). Inferir si el usuario dice 'mañana', 'el lunes', etc."
+                description: `Fecha y hora de inicio (opcional). Formato ISO 8601 (YYYY-MM-DDTHH:mm:ss). 
+                          IMPORTANTE: La base de datos está en UTC. Debes tomar la hora de Buenos Aires (-03:00) que te pide el usuario y SUMARLE 3 HORAS.
+                          Ej: si el usuario pide "a las 11", debes generar 'T14:00:00'.`
             },
             end_date: {
                 type: Type.STRING,
-                description: "Fecha de finalización o límite (opcional). Formato ISO 8601 (YYYY-MM-DD). Inferir si el usuario la menciona."
+                description: `Fecha y hora de finalización (opcional). Formato ISO 8601 (YYYY-MM-DDTHH:mm:ss).
+                          IMPORTANTE: Al igual que con start_date, SUMA 3 HORAS a la hora de Buenos Aires (-03:00).
+                          Ej: si el usuario pide "hasta las 15", debes generar 'T18:00:00'.`
             }
         },
         required: ["title", "category", "status"]
     }
 };
 
-const today = new Date();
-// Formatea la fecha como YYYY-MM-DD
-const todayISO = today.toISOString().split('T')[0];
+// Obtenemos la fecha Y HORA actual en formato ISO 8601 (ej: "2025-10-18T14:30:00")
+const now = new Date();
+const nowISO = now.toISOString().split('.')[0]; // Elimina milisegundos
 
 const systemInstruction = `Eres un asistente IA de WhatsApp para gestionar tareas de mantenimiento. Tu objetivo es ayudar a los usuarios a crear y gestionar tareas.
-CONTEXTO DE FECHA CRÍTICO:
-- La fecha de HOY (el día que el usuario está escribiendo) es: ${todayISO}.
+CONTEXTO DE FECHA Y HORA CRÍTICO:
+- La fecha y hora de AHORA (en UTC) es: ${nowISO}.
+- El usuario se encuentra en Buenos Aires (-03:00).
 
 REGLAS DE COMPORTAMIENTO:
 1.  Tu ÚNICA herramienta disponible es 'createTask'.
@@ -84,12 +88,14 @@ REGLAS DE COMPORTAMIENTO:
         * "en progreso", "lo estoy haciendo", "estamos trabajando", "están pintando" (Gerundios) -> 'in_progress'
         * "bloqueado", "trabado", "frenado", "no se puede seguir" -> 'blocked'
         * **Regla de Bloqueo por Espera:** Si el usuario dice que está "esperando" algo (ej: "esperando el camión", "esperando materiales", "falta la arena"), el estado es SIEMPRE 'blocked'.
-    * **'dates':** Intenta inferir 'start_date' o 'end_date' si el usuario menciona fechas como "mañana", "para el viernes", etc., y conviértelas a formato YYYY-MM-DD.
-4.  **Regla de Fechas (MUY IMPORTANTE):**
-    * DEBES usar '${todayISO}' como referencia para cualquier fecha relativa.
-    * Si el usuario dice "mañana", debes calcular la fecha de mañana (ej: ${todayISO} + 1 día).
-    * Si el usuario dice "el lunes" o "el próximo viernes", calcula la fecha YYYY-MM-DD correcta basándote en que HOY es ${todayISO}.
-    * El formato de 'start_date' y 'end_date' debe ser SIEMPRE 'YYYY-MM-DD'.
+    * **'dates':** (Ver Regla #4).
+4.  **Regla de Fechas y Horas (HACK DE DEMO MUY IMPORTANTE):**
+    * El formato de 'start_date' y 'end_date' debe ser **ISO 8601: YYYY-MM-DDTHH:mm:ss**.
+    * **LA REGLA MÁS IMPORTANTE:** Tu salida irá a una base de datos en UTC, pero el usuario te habla en hora de Buenos Aires (-03:00).
+    * **Para compensar esto, SIEMPRE DEBES SUMAR 3 HORAS a la hora que el usuario te pida.**
+    * Si el usuario dice "el jueves a las 11", debes calcular la fecha del jueves y poner la hora como 'T14:00:00' (11 + 3 = 14).
+    * Si el usuario dice "desde las 11 hasta las 15", 'start_date' debe ser 'T14:00:00' y 'end_date' debe ser 'T18:00:00'.
+    * Si el usuario solo dice "mañana" (sin hora), calcula la fecha de mañana y usa 'T03:00:00' (medianoche en BA, que son las 00:00 + 3 = 03:00 UTC).
 `;
 
 export async function createTaskDTOFromAI(userInput: string, userId: string): Promise<CreateTaskDTO | null> {
