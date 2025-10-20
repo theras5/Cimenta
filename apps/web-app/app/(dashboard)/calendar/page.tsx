@@ -43,6 +43,7 @@ interface CalendarEvent {
   endMs?: number;
 }
 
+
 // We'll map backend tasks to this shape
 const initialEvents: CalendarEvent[] = [];
 

@@ -350,6 +350,7 @@ export default function NewTaskPage() {
                         </div>
                       ))}
                     </div>
+                    </div>
 
                   {/* Botones de acción */}
                   <div className="flex gap-3 pt-4">
