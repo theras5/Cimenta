@@ -4,6 +4,7 @@ import updates from './routes/updates';
 import sites from './routes/sites';
 import tasks from "./routes/tasks";
 import auth from "./routes/auth";
+import purchases from "./routes/purchases"
 
 // server/src/app.ts
 import cors from "cors";
@@ -30,6 +31,8 @@ app.use("/tasks", tasks);
 app.use("/auth", auth);
 
 app.use("/updates", updates);
+
+app.use("/purchases", purchases);
 
 app.use(errorMiddleware); // esto tiene que ir siempre al final
 

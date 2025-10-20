@@ -1,18 +1,38 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { apiService, Update } from '@/lib/api';
 
 export function useUpdates() {
   const [updates, setUpdates] = useState<Update[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
 
-  const fetchUpdates = async () => {
+  // Obtener el site seleccionado de localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const siteId = localStorage.getItem('selectedSiteId');
+      setSelectedSiteId(siteId);
+    }
+  }, []);
+
+  const fetchUpdates = useCallback(async (siteId?: string | null) => {
+    // Usar el siteId pasado como parámetro o el del estado
+    const useSiteId = siteId || selectedSiteId;
+    
+    if (!useSiteId) {
+      setError("No hay sitio seleccionado");
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
-      const data = await apiService.getUpdates();
+      
+      // Usar la versión actualizada del método que ahora acepta siteId
+      const data = await apiService.getUpdates(useSiteId);
       setUpdates(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al cargar los avances');
@@ -20,9 +40,18 @@ export function useUpdates() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedSiteId]);
 
   const createUpdate = async (updateData: Omit<Update, 'id' | 'created_at' | 'updated_at'>) => {
+    // Asegurar que se incluya el siteId
+    if (!updateData.site_id && selectedSiteId) {
+      updateData = { ...updateData, site_id: selectedSiteId };
+    }
+
+    if (!updateData.site_id) {
+      throw new Error("No hay sitio seleccionado para crear el avance");
+    }
+
     try {
       setError(null);
       const newUpdate = await apiService.createUpdate(updateData);
@@ -63,8 +92,10 @@ export function useUpdates() {
   const clearError = () => setError(null);
 
   useEffect(() => {
-    fetchUpdates();
-  }, []);
+    if (selectedSiteId) {
+      fetchUpdates(selectedSiteId);
+    }
+  }, [selectedSiteId, fetchUpdates]);
 
   return {
     updates,
@@ -75,5 +106,6 @@ export function useUpdates() {
     updateUpdate,
     deleteUpdate,
     clearError,
+    selectedSiteId
   };
 }

@@ -34,7 +34,7 @@ interface ApiUpdate {
 }
 
 const AvancesScreen = () => {
-  const { updates, loading, error, fetchUpdates, createUpdate, clearError } = useUpdates();
+  const { updates, loading, error, fetchUpdates, createUpdate, clearError, selectedSiteId } = useUpdates();
   const { user } = useAuth();
   const { toast } = useToast();
   const [refreshing, setRefreshing] = useState(false);
@@ -109,7 +109,7 @@ const AvancesScreen = () => {
         title: newUpdate.title,
         description: newUpdate.description || "",
         user_id: user?.id,
-        site_id: "e43d720c-8b2f-454f-8b41-55019ffef012",
+        site_id: selectedSiteId,
         image_url: newUpdate.image_url || "",
       });
 
