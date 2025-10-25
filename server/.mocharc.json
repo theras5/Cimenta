@@ -1,0 +1,9 @@
+{
+  "extensions": ["ts"],
+  "spec": ["test/**/*.spec.ts"],
+  "require": [
+    "ts-node/register",
+    "dotenv/config",
+    "./test/setup.ts"
+  ]
+}

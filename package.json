@@ -5,11 +5,15 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "pretest": "npm run build --workspace=packages/dtos && npm run build --workspace=packages/utils",
+    "test": "npm run test --workspaces --if-present",
     "build:all": "npm run build --workspaces --if-present",
     "dev:server": "npm run dev --workspace=server",
     "start:server": "npm run start --workspace=server",
     "dev:app": "npm run start --workspace=apps/expo-app",
-    "predev:app": "npm run build --workspace=packages/dtos"
+    "predev:app": "npm run build --workspace=packages/dtos",
+    "test:bot": "npm run test --workspace=bot",
+    "test:server": "npm run test --workspace=server"
   },
   "keywords": [],
   "author": "",
@@ -27,5 +31,9 @@
   "overrides": {
     "react": "19.1.0",
     "react-dom": "19.1.0"
+  },
+  "devDependencies": {
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
   }
 }

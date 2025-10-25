@@ -18,11 +18,11 @@ import path from 'path';
 const verifiedUsersCache = new Map<string, Profile | null>();
 const chatStates = new Map<string, { state: string; context?: any }>();
 
-function setChatState(userId: string, state: string, context: any = {}) {
+export function setChatState(userId: string, state: string, context: any = {}) {
     chatStates.set(userId, { state, context });
 }
 
-function getChatState(userId: string) {
+export function getChatState(userId: string) {
     return chatStates.get(userId) || { state: 'IDLE', context: {} };
 }
 
@@ -1575,4 +1575,7 @@ async function handleTaskStateUpdate(taskId: string, newState: string, senderNum
     }
 }
 
-connectToWhatsApp();
+// Evitar efectos secundarios al importar este módulo desde tests
+if (typeof require !== 'undefined' && require.main === module) {
+    connectToWhatsApp();
+}

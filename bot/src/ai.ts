@@ -3,15 +3,8 @@ import { FunctionCallingConfigMode, FunctionDeclaration, GoogleGenAI, Type } fro
 import { CreateTaskDTO } from "@cimenta/dtos";
 
 const apiKey = process.env.GEMINI_API_KEY;
-
-if (!apiKey) {
-    console.error(
-        "Missing API key. Set GEMINI_API_KEY (or GOOGLE_API_KEY) in your environment or .env file."
-    );
-    process.exit(1);
-}
-
-const ai = new GoogleGenAI({ apiKey });
+// Evitar cortar el proceso en contextos de test; inicializar perezosamente
+const ai = apiKey ? new GoogleGenAI({ apiKey }) : null as any;
 
 const createTaskTool: FunctionDeclaration = {
     name: "createTask",
@@ -100,6 +93,12 @@ REGLAS DE COMPORTAMIENTO:
 
 export async function createTaskDTOFromAI(userInput: string, userId: string): Promise<CreateTaskDTO | null> {
     try {
+        if (!ai) {
+            console.error(
+                "Missing API key. Set GEMINI_API_KEY (or GOOGLE_API_KEY) in your environment or .env file."
+            );
+            return null;
+        }
         const result = await ai.models.generateContent({
             model: "gemini-2.5-flash-lite",
             contents: [{ text: userInput }],
