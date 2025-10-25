@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "Cimenta API - Updated",
+    "name": "Cimenta API",
     "description": "Automated API testing for Cimenta application",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
@@ -827,7 +827,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"content\": \"Updated content\"\n}"
+              "raw": "{\n  \"description\": \"Updated content\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/updates/{{updateId}}",
