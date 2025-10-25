@@ -7,7 +7,9 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "tsx watch src/index.ts",
     "build": "tsc --build",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "test:api": "newman run tests/postman/Cimenta.postman_collection.json -e tests/postman/Cimenta.postman_environment.json",
+    "test:api:watch": "newman run tests/postman/Cimenta.postman_collection.json -e tests/postman/Cimenta.postman_environment.json --bail"
   },
   "keywords": [],
   "author": "",
@@ -24,6 +26,7 @@
     "@types/express": "^5.0.3",
     "@types/node": "^24.3.0",
     "tsx": "^4.20.4",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "newman": "^6.1.1"
   }
 }
