@@ -50,6 +50,18 @@ export default function Sidebar() {
     }
   }, [user?.id, loadUserSites])
 
+  // Escuchar cambios en la ruta para recargar sitios Y actualizar el selector
+  useEffect(() => {
+    // Cuando la ruta cambia, recargar los sitios
+    if (user?.id) {
+      loadUserSites(user.id)
+    }
+    
+    // Actualizar el sitio seleccionado desde localStorage cuando cambia la ruta
+    const storedSiteId = localStorage.getItem("selectedSiteId") || ""
+    setSelectedSiteId(storedSiteId)
+  }, [pathname, user?.id, loadUserSites])
+
   // Manejar cambio de sitio
   const handleChangeSite = (siteId: string) => {
     localStorage.setItem("selectedSiteId", siteId)

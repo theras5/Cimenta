@@ -22,25 +22,25 @@ const profileMenuItems = [
     icon: User,
     title: "Mi cuenta",
     description: "Información personal y configuración",
-    href: "/perfil/cuenta",
+    href: "/profile/cuenta",
   },
   {
     icon: Wrench,
     title: "Mis obras",
     description: "Proyectos y construcciones activas",
-    href: "/perfil/obras",
+    href: "/profile/obras",
   },
   {
     icon: Users,
     title: "Mis empleados",
     description: "Gestión de equipo y colaboradores",
-    href: "/perfil/empleados",
+    href: "/profile/empleados",
   },
   {
     icon: Building,
     title: "Mis clientes",
     description: "Cartera de clientes y contactos",
-    href: "/perfil/clientes",
+    href: "/profile/clientes",
   },
 ];
 
@@ -105,10 +105,6 @@ export default function PerfilPage() {
 
           <div className="flex flex-col items-center">
             <Avatar className="w-32 h-32 mb-6">
-              <AvatarImage
-                src="/construction-worker-with-hard-hat-and-safety-vest.jpg"
-                alt={user.name || 'Usuario'}
-              />
               <AvatarFallback className="text-4xl font-bold bg-blue-100 text-blue-600">
                 {getInitials(user.name)}
               </AvatarFallback>

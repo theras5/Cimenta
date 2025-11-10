@@ -9,6 +9,11 @@ export async function signInWithPasswordService(email: string, password: string,
     const { data, error } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+            data: {
+                name: name,
+            }
+        }
     });
 
     if (error) {

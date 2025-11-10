@@ -10,6 +10,7 @@ interface AuthContextType {
   error: string | null;
   login: (data: LoginData) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
+  updateUser: (data: Partial<User>) => Promise<void>;
   logout: () => void;
   clearError: () => void;
 }
@@ -77,6 +78,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateUser = async (data: Partial<User>) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      console.log("useAuth: Actualizando usuario con datos:", data);
+      const updatedUser = await authService.updateUser(data);
+      console.log("useAuth: Usuario actualizado recibido del servidor:", updatedUser);
+      
+      authService.saveUser(updatedUser);
+      console.log("useAuth: Usuario guardado en localStorage");
+      setUser(updatedUser);
+      console.log("useAuth: Estado de usuario actualizado");
+    } catch (error) {
+      console.error("useAuth: Error al actualizar usuario:", error);
+      const errorMessage = error instanceof Error ? error.message : 'Error al actualizar usuario';
+      setError(errorMessage);
+      throw new Error(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const logout = () => {
     authService.logout();
     setUser(null);
@@ -93,6 +117,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         error,
         login,
         register,
+        updateUser,
         logout,
         clearError,
       }}
