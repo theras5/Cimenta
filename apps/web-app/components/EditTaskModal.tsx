@@ -137,9 +137,9 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] sm:max-w-md md:max-w-lg lg:max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-center text-xl">
+          <DialogTitle className="text-center text-lg sm:text-xl">
             Editar Tarea
           </DialogTitle>
         </DialogHeader>
@@ -202,9 +202,9 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
           </Select>
 
           {/* Fechas */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">
+              <label className="text-xs sm:text-sm font-medium text-gray-700 mb-1 block">
                 Fecha y hora de inicio
               </label>
               <Input
@@ -213,10 +213,11 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
                 onChange={(e) =>
                   setEditedTask({ ...editedTask, start_date: e.target.value })
                 }
+                className="text-sm"
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">
+              <label className="text-xs sm:text-sm font-medium text-gray-700 mb-1 block">
                 Fecha y hora de fin
               </label>
               <Input
@@ -225,13 +226,14 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
                 onChange={(e) =>
                   setEditedTask({ ...editedTask, end_date: e.target.value })
                 }
+                className="text-sm"
               />
             </div>
           </div>
 
           
           {/* Botones */}
-          <div className="flex gap-2 pt-4">
+          <div className="flex flex-col sm:flex-row gap-2 pt-4">
             <Button
               variant="outline"
               onClick={onClose}

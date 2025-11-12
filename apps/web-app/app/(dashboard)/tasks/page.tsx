@@ -39,7 +39,7 @@ interface LocalTask {
   id: number;
   title: string;
   description: string;
-  status: "pending" | "in_progress" | "completed" | "changes";
+  status: "pending" | "in_progress" | "completed" | "changes" | "blocked";
   category: string;
   categoryColor: string;
   assignedMembers: string[];
@@ -407,6 +407,7 @@ const TasksScreen = () => {
   const changes = tasks.filter((task) => task.status === "changes");
   const pendingTasks = tasks.filter((task) => task.status === "pending");
   const inProgressTasks = tasks.filter((task) => task.status === "in_progress");
+  const blockedTasks = tasks.filter((task) => task.status === "blocked");
   const completedTasks = tasks.filter((task) => task.status === "completed");
 
   console.log("Las tareas pendientes son:", pendingTasks);
@@ -732,6 +733,15 @@ const TasksScreen = () => {
                 <ScrollableTaskSection
                   title="En progreso"
                   tasks={inProgressTasks}
+                  onEditTask={handleEditTask}
+                />
+              )}
+
+              {/* Blocked */}
+              {blockedTasks.length > 0 && (
+                <ScrollableTaskSection
+                  title="Bloqueadas"
+                  tasks={blockedTasks}
                   onEditTask={handleEditTask}
                 />
               )}

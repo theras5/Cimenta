@@ -19,6 +19,18 @@ export async function POST(request: NextRequest) {
 
     console.log('Login response status:', response.status);
 
+    // Check if response is JSON
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      console.error('Backend returned non-JSON response:', contentType);
+      const text = await response.text();
+      console.error('Response body:', text.substring(0, 200));
+      return NextResponse.json(
+        { error: 'Error de configuración del servidor. Verifica que el backend esté corriendo.' },
+        { status: 500 }
+      );
+    }
+
     const result = await response.json();
 
     if (!response.ok) {

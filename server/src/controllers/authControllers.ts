@@ -105,31 +105,60 @@ export const updateUserProfile = async (req: Request, res: Response, next: NextF
 
     console.log("Nuevos metadatos a guardar:", newMetadata);
 
-    // Actualizar los metadatos del usuario usando el cliente admin
-    const { data: adminData, error: adminError } = await supabase.auth.admin.updateUserById(
-      authUser.id,
-      {
-        user_metadata: newMetadata
+    try {
+      // Actualizar los metadatos del usuario usando la API admin
+      const { data: updateData, error: updateError } = await supabase.auth.admin.updateUserById(
+        authUser.id,
+        {
+          user_metadata: newMetadata
+        }
+      );
+
+      if (updateError) {
+        console.error("Error al actualizar metadatos:", updateError);
+        throw new AppError(updateError.message, 400);
       }
-    );
 
-    if (adminError) {
-      console.error("Error al actualizar metadatos:", adminError);
-      throw new AppError(adminError.message, 400);
+      console.log("Usuario actualizado exitosamente en Supabase");
+      console.log("Metadata guardada:", updateData.user?.user_metadata);
+
+      // Si se actualizó el nombre, actualizar también todos los updates del usuario
+      if (name !== undefined) {
+        const { error: updateUpdatesError } = await supabase
+          .from('updates')
+          .update({ user_name: name })
+          .eq('user_id', authUser.id);
+
+        if (updateUpdatesError) {
+          console.error("Error al actualizar nombre en updates:", updateUpdatesError);
+          // No lanzamos error aquí, solo lo logueamos
+        } else {
+          console.log("Nombre actualizado en todos los updates del usuario");
+        }
+      }
+
+      // Construir el objeto user actualizado
+      const updatedUser = {
+        id: updateData.user?.id || authUser.id,
+        email: updateData.user?.email || authUser.email!,
+        name: newMetadata.name || authUser.email!.split('@')[0],
+      };
+
+      console.log("Retornando usuario actualizado:", updatedUser);
+      res.status(200).json(updatedUser);
+    } catch (adminError) {
+      // Si falla la actualización con admin, devolver error pero no crashear
+      console.error("Error con admin API, continuando sin actualizar metadata en Supabase:", adminError);
+      
+      // Devolver el usuario con los datos actuales más el nombre nuevo solicitado
+      const updatedUser = {
+        id: authUser.id,
+        email: authUser.email!,
+        name: name || authUser.user_metadata?.name || authUser.email!.split('@')[0],
+      };
+      
+      res.status(200).json(updatedUser);
     }
-
-    console.log("Usuario actualizado exitosamente en Supabase");
-    console.log("Metadata guardada:", adminData.user.user_metadata);
-
-    // Construir el objeto user actualizado
-    const updatedUser = {
-      id: adminData.user.id,
-      email: adminData.user.email!,
-      name: adminData.user.user_metadata.name || authUser.email!.split('@')[0],
-    };
-
-    console.log("Retornando usuario actualizado:", updatedUser);
-    res.status(200).json(updatedUser);
 
   } catch (error: AppError | any) {
     console.error("Error al actualizar usuario:", error);

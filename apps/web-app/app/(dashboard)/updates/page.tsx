@@ -39,12 +39,13 @@ const AvancesScreen = () => {
   const { toast } = useToast();
   const [refreshing, setRefreshing] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [localSiteId, setLocalSiteId] = useState<string>("");
 
   // Estado para el formulario
   const [newUpdate, setNewUpdate] = useState({
     title: "",
     description: "",
-    // media_type: null as "video" | "image" | null,
+    media_type: null as "video" | "image" | null,
     image_url: "",
   });
   
@@ -55,8 +56,34 @@ const AvancesScreen = () => {
 
   // Cargar updates al montar el componente
   useEffect(() => {
-    fetchUpdates();
-  }, []);
+    const siteId = localStorage.getItem("selectedSiteId");
+    if (siteId) {
+      setLocalSiteId(siteId);
+      fetchUpdates(siteId);
+    }
+  }, [fetchUpdates]);
+
+  // Listen for site changes and refresh data
+  useEffect(() => {
+    const handleSiteChange = () => {
+      const newSiteId = localStorage.getItem("selectedSiteId");
+      if (newSiteId && newSiteId !== localSiteId) {
+        setLocalSiteId(newSiteId);
+        fetchUpdates(newSiteId);
+      }
+    };
+
+    // Listen for storage events (when localStorage changes)
+    window.addEventListener("storage", handleSiteChange);
+    
+    // Also check periodically for changes within the same tab
+    const intervalId = setInterval(handleSiteChange, 500);
+
+    return () => {
+      window.removeEventListener("storage", handleSiteChange);
+      clearInterval(intervalId);
+    };
+  }, [localSiteId, fetchUpdates]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -73,7 +100,7 @@ const AvancesScreen = () => {
     setNewUpdate({
       title: "",
       description: "",
-      // media_type: null,
+      media_type: null,
       image_url: "",
     });
     setFileSelected(false);
@@ -109,6 +136,7 @@ const AvancesScreen = () => {
         title: newUpdate.title,
         description: newUpdate.description || "",
         user_id: user?.id,
+        user_name: user?.name || "Usuario desconocido",
         site_id: selectedSiteId,
         image_url: newUpdate.image_url || "",
       });
@@ -149,7 +177,7 @@ const AvancesScreen = () => {
 
       setNewUpdate({
         ...newUpdate,
-        // media_type: fileType as "image" | "video" | null,
+        media_type: fileType as "image" | "video" | null,
       });
     }
   };
@@ -243,12 +271,17 @@ const AvancesScreen = () => {
               />
 
               {/* Remaining cards */}
-              {updates.map((update) =>
-                update.image_url ? (
+              {updates.map((update) => {
+                // Mostrar el nombre del usuario si es su propio update, o usar el user_name guardado, o "Usuario"
+                const authorName = update.user_id === user?.id 
+                  ? (user?.name || "Usuario")
+                  : (update.user_name || "Usuario");
+                
+                return update.image_url ? (
                   <VideoCard
                     key={update.id}
                     title={update.title}
-                    author="Usuario"
+                    author={authorName}
                     timeAgo={formatTimeAgo(update.created_at)}
                     onPress={() => handleNoMediaPress(update.id)}
                   />
@@ -257,12 +290,12 @@ const AvancesScreen = () => {
                     key={update.id}
                     title={update.title}
                     description={update.description}
-                    author="Usuario"
+                    author={authorName}
                     timeAgo={formatTimeAgo(update.created_at)}
                     onPress={() => handleNoMediaPress(update.id)}
                   />
-                )
-              )}
+                );
+              })}
 
               {/* Loading indicator cuando se están cargando más updates */}
               {loading && updates.length > 0 && (

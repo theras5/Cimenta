@@ -203,6 +203,7 @@ export default function CalendarPage() {
   // Import hook lazily to avoid adding a top-level dependency in case of server render
   const [tasksLoaded, setTasksLoaded] = useState(false);
   const [categoriesMap, setCategoriesMap] = useState<Record<string,string>>({});
+  const [selectedSiteId, setSelectedSiteId] = useState<string>("");
   const innerRef = useRef<HTMLDivElement | null>(null);
   const [innerWidth, setInnerWidth] = useState<number>(0);
 
@@ -216,77 +217,97 @@ export default function CalendarPage() {
     return () => window.removeEventListener('resize', measure);
   }, []);
 
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      // Read selected site from localStorage (set by Sidebar)
-      const selectedSiteId = typeof window !== "undefined" ? localStorage.getItem("selectedSiteId") || "" : "";
-      if (!selectedSiteId) {
-        // No site selected: clear events and categories and mark loaded so UI can show a message
-        setEvents([]);
-        setCategoriesMap({});
-        setTasksLoaded(true);
-        return;
-      }
-      try {
-        const { useTasks } = await import("@/hooks/useTasks");
-        // useTasks is a hook; we can't call it outside a component, so instead call the API directly
-  const res = await fetch(`/api/tasks?site_id=${encodeURIComponent(selectedSiteId)}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!mounted) return;
-        // Map Task -> CalendarEvent
-        const mapped: CalendarEvent[] = data
-          .filter((t: any) => t.start_date) // only map tasks that have a start date
-          .map((t: any) => {
-            const start = t.start_date ? new Date(t.start_date) : null;
-            const end = t.end_date ? new Date(t.end_date) : null;
-            // Build local date string (yyyy-mm-dd)
-            const date = start ? `${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,'0')}-${String(start.getDate()).padStart(2,'0')}` : end ? `${end.getFullYear()}-${String(end.getMonth()+1).padStart(2,'0')}-${String(end.getDate()).padStart(2,'0')}` : "";
-            // Build local time strings HH:MM
-            const startTime = start ? `${String(start.getHours()).padStart(2,'0')}:${String(start.getMinutes()).padStart(2,'0')}` : "08:00";
-            const endTime = end ? `${String(end.getHours()).padStart(2,'0')}:${String(end.getMinutes()).padStart(2,'0')}` : "09:00";
-            return {
-              id: t.id?.toString() ?? String(Math.random()),
-              title: t.title ?? "Tarea",
-              description: t.description ?? "",
-              startTime,
-              endTime,
-              date,
-              startISO: t.start_date,
-              endISO: t.end_date,
-              startMs: start ? start.getTime() : undefined,
-              endMs: end ? end.getTime() : undefined,
-              type: t.category === "inspection" ? "inspection" : t.category === "deadline" ? "deadline" : "task",
-              attendees: [],
-              color: getCategoryColor(t.category),
-              category: t.category,
-            } as CalendarEvent;
-          });
-
-        setEvents((prev) => {
-          // merge but prefer mapped events
-          const byId = new Map(prev.map((e) => [e.id, e]));
-          for (const m of mapped) byId.set(m.id, m);
-          return Array.from(byId.values());
+  // Function to load tasks for a given site
+  const loadTasksForSite = async (siteId: string) => {
+    if (!siteId) {
+      // No site selected: clear events and categories and mark loaded so UI can show a message
+      setEvents([]);
+      setCategoriesMap({});
+      setTasksLoaded(true);
+      return;
+    }
+    
+    try {
+      const res = await fetch(`/api/tasks?site_id=${encodeURIComponent(siteId)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      
+      // Map Task -> CalendarEvent
+      const mapped: CalendarEvent[] = data
+        .filter((t: any) => t.start_date) // only map tasks that have a start date
+        .map((t: any) => {
+          const start = t.start_date ? new Date(t.start_date) : null;
+          const end = t.end_date ? new Date(t.end_date) : null;
+          // Build local date string (yyyy-mm-dd)
+          const date = start ? `${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,'0')}-${String(start.getDate()).padStart(2,'0')}` : end ? `${end.getFullYear()}-${String(end.getMonth()+1).padStart(2,'0')}-${String(end.getDate()).padStart(2,'0')}` : "";
+          // Build local time strings HH:MM
+          const startTime = start ? `${String(start.getHours()).padStart(2,'0')}:${String(start.getMinutes()).padStart(2,'0')}` : "08:00";
+          const endTime = end ? `${String(end.getHours()).padStart(2,'0')}:${String(end.getMinutes()).padStart(2,'0')}` : "09:00";
+          return {
+            id: t.id?.toString() ?? String(Math.random()),
+            title: t.title ?? "Tarea",
+            description: t.description ?? "",
+            startTime,
+            endTime,
+            date,
+            startISO: t.start_date,
+            endISO: t.end_date,
+            startMs: start ? start.getTime() : undefined,
+            endMs: end ? end.getTime() : undefined,
+            type: t.category === "inspection" ? "inspection" : t.category === "deadline" ? "deadline" : "task",
+            attendees: [],
+            color: getCategoryColor(t.category),
+            category: t.category,
+          } as CalendarEvent;
         });
 
-        // Build categories legend map from tasks
-        const catMap: Record<string,string> = {};
-        for (const t of data) {
-          if (t.category) catMap[t.category] = getCategoryColor(t.category);
-        }
-        setCategoriesMap(catMap);
-        setTasksLoaded(true);
-      } catch (e) {
-        // ignore - do not log to console in production-like environments
+      setEvents((prev) => {
+        // merge but prefer mapped events
+        const byId = new Map(prev.map((e) => [e.id, e]));
+        for (const m of mapped) byId.set(m.id, m);
+        return Array.from(byId.values());
+      });
+
+      // Build categories legend map from tasks
+      const catMap: Record<string,string> = {};
+      for (const t of data) {
+        if (t.category) catMap[t.category] = getCategoryColor(t.category);
       }
-    })();
+      setCategoriesMap(catMap);
+      setTasksLoaded(true);
+    } catch (e) {
+      // ignore - do not log to console in production-like environments
+    }
+  };
+
+  // Load tasks on initial mount
+  useEffect(() => {
+    const siteId = localStorage.getItem("selectedSiteId") || "";
+    setSelectedSiteId(siteId);
+    loadTasksForSite(siteId);
+  }, []);
+
+  // Listen for site changes and refresh data
+  useEffect(() => {
+    const handleSiteChange = () => {
+      const newSiteId = localStorage.getItem("selectedSiteId");
+      if (newSiteId && newSiteId !== selectedSiteId) {
+        setSelectedSiteId(newSiteId);
+        loadTasksForSite(newSiteId);
+      }
+    };
+
+    // Listen for storage events (when localStorage changes)
+    window.addEventListener("storage", handleSiteChange);
+    
+    // Also check periodically for changes within the same tab
+    const intervalId = setInterval(handleSiteChange, 500);
 
     return () => {
-      mounted = false;
+      window.removeEventListener("storage", handleSiteChange);
+      clearInterval(intervalId);
     };
-  }, []);
+  }, [selectedSiteId]);
 
   const getEventsForDate = (date: string) => {
     // Return events that overlap the selected date (00:00 - 24:00 local time)

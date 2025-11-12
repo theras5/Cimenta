@@ -14,4 +14,9 @@ if (!supabaseUrl || !supabaseServiceKey) {
   throw new Error('Las variables de entorno de Supabase no están definidas.');
 }
 
-export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseServiceKey);
+export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false
+  }
+});

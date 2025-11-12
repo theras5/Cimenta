@@ -25,17 +25,28 @@ import {
 } from "@/components/ui/dialog";
 import { Purchase } from "@/hooks/usePurchases";
 
-// Definir colores por categoría
-const categoryColors = {
-  MATERIALES: "bg-gray-500",
-  ELECTRICIDAD: "bg-blue-500",
-  PINTURA: "bg-pink-500",
-  PLOMERÍA: "bg-cyan-500",
-  HERRAMIENTAS: "bg-purple-500",
-  construccion: "bg-gray-500",
-  electricidad: "bg-blue-500",
-  pintura: "bg-pink-500",
-  plomeria: "bg-cyan-500",
+// Definir colores por categoría (coinciden con calendar/TaskCard)
+const getCategoryColor = (category: string) => {
+  if (!category) return "#999999";
+  const c = category.toLowerCase();
+  switch (c) {
+    case "electricidad":
+    case "electric":
+      return "#007AFF"; // blue
+    case "plomería":
+    case "plomeria":
+    case "plumbing":
+      return "#FF9500"; // orange
+    case "construcción":
+    case "construccion":
+    case "construction":
+      return "#8A2BE2"; // purple
+    case "pintura":
+    case "paint":
+      return "#FF2D92"; // pink
+    default:
+      return "#10B981"; // green-ish default to match calendar
+  }
 };
 
 // Adaptar modelo de backend al modelo de UI
@@ -178,16 +189,17 @@ const handleStatusChange = async (newStatus: Purchase['status']) => {
   return (
     <>
     <div
-      className={`flex-shrink-0 w-80 bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md transition-shadow ${isUpdating ? 'opacity-70' : ''}`}
+      className={`flex-shrink-0 w-80 bg-white rounded-lg shadow-sm border border-gray-200 p-3 hover:shadow-md transition-all duration-200 ${isUpdating ? 'opacity-70' : ''}`}
     >
-      <div className="mb-3 flex justify-between items-start">
-        <h3 className="font-semibold text-gray-900 text-sm leading-tight">
+      {/* Header con título y dropdown */}
+      <div className="mb-1 flex justify-between items-start gap-2">
+        <h3 className="font-medium text-gray-900 text-sm leading-tight flex-1">
           {uiPurchase.title}
         </h3>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="p-1 rounded-full hover:bg-gray-100">
-              <ChevronDown className="h-4 w-4 text-gray-500" />
+            <button className="p-0.5 rounded hover:bg-gray-100 transition-colors flex-shrink-0">
+              <ChevronDown className="h-3.5 w-3.5 text-gray-500" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -234,58 +246,52 @@ const handleStatusChange = async (newStatus: Purchase['status']) => {
         </DropdownMenu>
       </div>
 
-      <p className="text-xs text-gray-600 mb-4 line-clamp-2">
-        {uiPurchase.description}
-      </p>
-
-      <div className="space-y-2 mb-4">
-        <div className="flex items-center justify-between text-xs">
-          <span className="text-gray-500">Cantidad:</span>
-          <span className="font-medium">{uiPurchase.quantity}</span>
+      {/* Información principal compacta */}
+      <div className="space-y-0.5 mb-2 text-xs text-gray-500">
+        <div className="flex items-center justify-between">
+          <span>Cantidad:</span>
+          <span className="font-medium text-gray-900">{uiPurchase.quantity}</span>
         </div>
-        <div className="flex items-center justify-between text-xs">
-          <span className="text-gray-500">Precio:</span>
-          <span className="font-medium text-green-600">
+        
+        <div className="flex items-center justify-between">
+          <span>Precio:</span>
+          <span className="font-semibold text-green-600">
             {formatPrice(uiPurchase.estimatedPrice || 0)}
           </span>
         </div>
-        <div className="flex items-center justify-between text-xs">
-          <span className="text-gray-500">Proveedor:</span>
-          <span className="font-medium">{uiPurchase.supplier || "No especificado"}</span>
+        
+        <div className="flex items-center justify-between">
+          <span>Proveedor:</span>
+          <span className="font-medium text-gray-900 truncate ml-2">{uiPurchase.supplier || "No especificado"}</span>
         </div>
-        {uiPurchase.orderDate && (
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-gray-500">Pedido:</span>
-            <span className="font-medium">{new Date(uiPurchase.orderDate).toLocaleDateString()}</span>
-          </div>
-        )}
-        {uiPurchase.deliveryDate && (
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-gray-500">Entregado:</span>
-            <span className="font-medium">{new Date(uiPurchase.deliveryDate).toLocaleDateString()}</span>
-          </div>
-        )}
       </div>
 
+      {/* Footer con categoría */}
       <div className="flex items-center justify-between">
-        <span
-          className={`${categoryColors[uiPurchase.category as keyof typeof categoryColors] || 'bg-gray-500'} text-white text-xs px-2 py-1 rounded-full font-medium`}
+        <div 
+          style={{ backgroundColor: getCategoryColor(uiPurchase.category) }}
+          className="px-1.5 py-0.5 rounded-full flex items-center justify-center"
         >
-          {uiPurchase.category}
-        </span>
-        <div className="flex items-center gap-1">
-          <div className="w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center text-white text-xs font-medium">
-            {uiPurchase.supplier?.charAt(0) || "U"}
-          </div>
+          <span className="text-white text-[10px] font-medium uppercase leading-none">
+            {uiPurchase.category}
+          </span>
         </div>
+        {uiPurchase.supplier && (
+          <div 
+            style={{ backgroundColor: getCategoryColor(uiPurchase.category) }}
+            className="w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-bold"
+          >
+            {uiPurchase.supplier.charAt(0).toUpperCase()}
+          </div>
+        )}
       </div>
       
       {/* Botón para cambiar al siguiente estado */}
       {purchase.status !== 'delivered' && (
         <button
           onClick={() => handleStatusChange(getNextStatus(purchase.status))}
-          className={`mt-3 w-full py-1 px-2 text-xs font-medium rounded-md ${
-            isUpdating ? 'bg-gray-300' : 
+          className={`mt-2 w-full py-1.5 px-3 text-xs font-medium rounded-md transition-all ${
+            isUpdating ? 'bg-gray-300 cursor-not-allowed' : 
             purchase.status === 'pending' ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 
             'bg-green-100 text-green-700 hover:bg-green-200'
           }`}
