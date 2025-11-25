@@ -7,6 +7,7 @@ import auth from "./routes/auth";
 import purchases from "./routes/purchases";
 import employees from "./routes/employees";
 import clients from "./routes/clients";
+import suppliers from "./routes/supplier"
 
 // server/src/app.ts
 import cors from "cors";
@@ -39,6 +40,8 @@ app.use("/purchases", purchases);
 app.use("/employees", employees);
 
 app.use("/clients", clients);
+
+app.use("/suppliers", suppliers)
 
 app.use(errorMiddleware); // esto tiene que ir siempre al final
 
