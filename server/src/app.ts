@@ -41,7 +41,7 @@ app.use("/employees", employees);
 
 app.use("/clients", clients);
 
-app.use("/suppliers", suppliers)
+app.use("/suppliers", suppliers);
 
 app.use(errorMiddleware); // esto tiene que ir siempre al final
 
