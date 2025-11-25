@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 //todo: hasta que no se deploye el servidor hay que usar localhost. Luego cambiar por process.env.NEXT_PUBLIC_API_URL
-const API_URL =  'http://localhost:3000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
 export async function GET() {
   try {
