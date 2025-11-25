@@ -1,0 +1,15 @@
+import { Supplier } from "packages/dtos/src/types/supplier.dto";
+
+
+export const createTaskService = (apiUrl: string, baseHeaders: Record<string, string>) => ({
+  // Obtener todas los suppliers
+  async getTasks(): Promise<Supplier[]> {
+      const response = await fetch(`${apiUrl}/suppliers`); 
+      
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
+      }
+      
+      return await response.json();
+  }
+});
