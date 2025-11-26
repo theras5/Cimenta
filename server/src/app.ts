@@ -7,8 +7,9 @@ import auth from "./routes/auth";
 import purchases from "./routes/purchases";
 import employees from "./routes/employees";
 import clients from "./routes/clients";
-import suppliers from "./routes/supplier"
-import workers from "./routes/workers"
+import suppliers from "./routes/supplier";
+import workers from "./routes/workers";
+import assignedToRoutes from "./routes/assignedTo";
 
 // server/src/app.ts
 import cors from "cors";
@@ -44,7 +45,9 @@ app.use("/clients", clients);
 
 app.use("/suppliers", suppliers);
 
-app.use("/workers", workers)
+app.use("/workers", workers);
+
+app.use("/assigned-to", assignedToRoutes);
 
 app.use(errorMiddleware); // esto tiene que ir siempre al final
 

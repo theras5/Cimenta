@@ -8,9 +8,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Check,
-  Upload,
   RotateCcw,
   AlertCircle,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,11 +28,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import TaskSection from "@/components/TaskSection";
 import EditTaskModal from "@/components/EditTaskModal";
 import { useTasks } from "@/hooks/useTasks";
+import { useWorkers } from "@/hooks/useWorkers";
+import { useAssignedTo } from "@/hooks/useAssignedTo";
 import { Task } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 
 // Adaptar la interfaz local a la interfaz de la API
 interface LocalTask {
@@ -54,44 +59,19 @@ const categoryColors = {
   CARPINTERÍA: "bg-brown-500",
 };
 
-const teamMembers = [
-  "Juan",
-  "Pedro",
-  "María",
-  "Carlos",
-  "Ana",
-  "Luis",
-  "Sofia",
-  "Miguel",
-  "Carmen",
-  "Roberto",
-  "Elena",
-];
-
-// Función para convertir Task de API a LocalTask para la UI
-const convertApiTaskToLocal = (apiTask: Task): LocalTask => ({
-  id: parseInt(apiTask.id) || Math.random(),
-  title: apiTask.title,
-  description: apiTask.description || "",
-  status: apiTask.status,
-  category: apiTask.category || "construccion",
-  categoryColor:
-    categoryColors[apiTask.category as keyof typeof categoryColors] ||
-    "bg-gray-500",
-  assignedMembers: [], // Por ahora vacío, puedes expandir esto según tu backend
-});
-
 // Wrapper component for TaskSection with horizontal scroll
 const ScrollableTaskSection = ({
   title,
   tasks,
   changes = false,
   onEditTask,
+  onAssignWorkers,
 }: {
   title: string;
   tasks: Task[];
   changes?: boolean;
   onEditTask?: (task: Task) => void;
+  onAssignWorkers?: (task: Task) => void;
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showScrollButtons, setShowScrollButtons] = useState(false);
@@ -146,16 +126,22 @@ const ScrollableTaskSection = ({
         className="overflow-x-auto scrollbar-hide"
         style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
       >
-        <TaskSection title={title} tasks={tasks} changes={changes} onEditTask={onEditTask} />
+        <TaskSection 
+          title={title} 
+          tasks={tasks} 
+          changes={changes} 
+          onEditTask={onEditTask}
+          onAssignWorkers={onAssignWorkers}
+        />
       </div>
     </div>
   );
 };
 
 const TasksScreen = () => {
-  // Obtener el ID del sitio seleccionado desde localStorage
   const [selectedSiteId, setSelectedSiteId] = useState<string>("");
   const { user } = useAuth();
+  const { toast } = useToast();
 
   const {
     tasks,
@@ -168,12 +154,24 @@ const TasksScreen = () => {
     clearError,
   } = useTasks();
 
+  const { workers, fetchWorkersByEmployer } = useWorkers();
+  const { 
+    assignWorkerToTask, 
+    assignMultipleWorkersToTask,
+    getWorkersByTask,
+    unassignWorkerFromTask,
+    loading: assignLoading 
+  } = useAssignedTo();
+
   const [showModal, setShowModal] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showChangeModal, setShowChangeModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showAssignModal, setShowAssignModal] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
+  const [selectedWorkers, setSelectedWorkers] = useState<string[]>([]);
+  const [taskToAssign, setTaskToAssign] = useState<Task | null>(null);
+  const [assignedWorkers, setAssignedWorkers] = useState<string[]>([]);
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
   const [newTask, setNewTask] = useState({
     title: "",
@@ -192,20 +190,21 @@ const TasksScreen = () => {
 
   // Cargar el sitio seleccionado al iniciar
   useEffect(() => {
-    // Solo ejecutar en el cliente
     const siteId = localStorage.getItem("selectedSiteId");
     if (siteId) {
       setSelectedSiteId(siteId);
-      // Cargar tareas solo para este sitio
       fetchTasks(siteId);
     } else {
-      // Si no hay sitio seleccionado, redirigir a la selección de sitio
       window.location.href = "/select-site";
     }
   }, [fetchTasks]);
 
-  // Convertir tareas de API a formato local para la UI
-  // const tasks: Task[] = apiTasks.map(convertApiTaskToLocal);
+  // Cargar workers del usuario cuando esté autenticado
+  useEffect(() => {
+    if (user?.id) {
+      fetchWorkersByEmployer(user.id);
+    }
+  }, [user?.id, fetchWorkersByEmployer]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -222,7 +221,6 @@ const TasksScreen = () => {
     }
   };
 
-  // Agregar useEffect para detectar cambios en localStorage
   useEffect(() => {
     const handleStorageChange = () => {
       const newSiteId = localStorage.getItem("selectedSiteId");
@@ -234,7 +232,6 @@ const TasksScreen = () => {
 
     window.addEventListener("storage", handleStorageChange);
     
-    // También verificar periódicamente por cambios (para cambios en la misma pestaña)
     const interval = setInterval(() => {
       const currentSiteId = localStorage.getItem("selectedSiteId");
       if (currentSiteId && currentSiteId !== selectedSiteId) {
@@ -258,7 +255,7 @@ const TasksScreen = () => {
       start_date: undefined,
       end_date: undefined,
     });
-    setSelectedMembers([]);
+    setSelectedWorkers([]);
   };
 
   const resetChangeForm = () => {
@@ -268,7 +265,7 @@ const TasksScreen = () => {
       category: "",
       reason: "",
     });
-    setSelectedMembers([]);
+    setSelectedWorkers([]);
   };
 
   const handleCreateTask = () => {
@@ -298,13 +295,36 @@ const TasksScreen = () => {
           site_id: selectedSiteId,
         };
 
-        console.debug("handleAddTask payload:", payload);
+        const createdTask = await createTask(payload);
 
-        await createTask(payload);
+        // Si hay workers seleccionados, asignarlos
+        if (selectedWorkers.length > 0 && createdTask?.id) {
+          await assignMultipleWorkersToTask(createdTask.id, selectedWorkers);
+          toast({
+            title: "Éxito",
+            description: `Tarea creada y ${selectedWorkers.length} trabajador(es) asignado(s)`,
+          });
+        } else {
+          toast({
+            title: "Éxito",
+            description: "Tarea creada correctamente",
+          });
+        }
+
         resetTaskForm();
         setShowTaskModal(false);
+        
+        // Recargar tareas
+        if (selectedSiteId) {
+          await fetchTasks(selectedSiteId);
+        }
       } catch (error) {
         console.error("Error creating task:", error);
+        toast({
+          title: "Error",
+          description: "No se pudo crear la tarea",
+          variant: "destructive",
+        });
       }
     }
   };
@@ -312,7 +332,7 @@ const TasksScreen = () => {
   const handleAddChange = async () => {
     if (newChange.title && newChange.category) {
       try {
-        await createTask({
+        const createdTask = await createTask({
           title: newChange.title,
           description: newChange.description,
           status: "changes",
@@ -320,19 +340,101 @@ const TasksScreen = () => {
           site_id: selectedSiteId,
           user_id: user?.id,
         });
+
+        // Si hay workers seleccionados, asignarlos
+        if (selectedWorkers.length > 0 && createdTask?.id) {
+          await assignMultipleWorkersToTask(createdTask.id, selectedWorkers);
+        }
+
+        toast({
+          title: "Éxito",
+          description: "Solicitud de cambio creada correctamente",
+        });
+
         resetChangeForm();
         setShowChangeModal(false);
+        
+        if (selectedSiteId) {
+          await fetchTasks(selectedSiteId);
+        }
       } catch (error) {
         console.error("Error creating change request:", error);
+        toast({
+          title: "Error",
+          description: "No se pudo crear la solicitud de cambio",
+          variant: "destructive",
+        });
       }
     }
   };
 
-  const toggleMember = (member: string) => {
-    if (selectedMembers.includes(member)) {
-      setSelectedMembers(selectedMembers.filter((m) => m !== member));
+  const toggleWorker = (workerId: string) => {
+    if (selectedWorkers.includes(workerId)) {
+      setSelectedWorkers(selectedWorkers.filter((id) => id !== workerId));
     } else {
-      setSelectedMembers([...selectedMembers, member]);
+      setSelectedWorkers([...selectedWorkers, workerId]);
+    }
+  };
+
+  // Funciones para asignar workers
+  const handleOpenAssignModal = async (task: Task) => {
+    setTaskToAssign(task);
+    setShowAssignModal(true);
+    
+    // Cargar workers ya asignados a esta tarea
+    try {
+      const assigned = await getWorkersByTask(task.id);
+      const workerIds = assigned.map(a => a.worker_id);
+      setAssignedWorkers(workerIds);
+      setSelectedWorkers(workerIds);
+    } catch (error) {
+      console.error("Error loading assigned workers:", error);
+      setAssignedWorkers([]);
+      setSelectedWorkers([]);
+    }
+  };
+
+  const handleSaveWorkerAssignments = async () => {
+    if (!taskToAssign) return;
+
+    try {
+      // Encontrar workers a agregar (están en selectedWorkers pero no en assignedWorkers)
+      const workersToAdd = selectedWorkers.filter(id => !assignedWorkers.includes(id));
+      
+      // Encontrar workers a remover (están en assignedWorkers pero no en selectedWorkers)
+      const workersToRemove = assignedWorkers.filter(id => !selectedWorkers.includes(id));
+
+      // Agregar nuevos workers
+      for (const workerId of workersToAdd) {
+        await assignWorkerToTask(workerId, taskToAssign.id);
+      }
+
+      // Remover workers deseleccionados
+      for (const workerId of workersToRemove) {
+        await unassignWorkerFromTask(workerId, taskToAssign.id);
+      }
+
+      toast({
+        title: "Éxito",
+        description: "Trabajadores asignados correctamente",
+      });
+
+      setShowAssignModal(false);
+      setTaskToAssign(null);
+      setSelectedWorkers([]);
+      setAssignedWorkers([]);
+      
+      // Recargar tareas
+      if (selectedSiteId) {
+        await fetchTasks(selectedSiteId);
+      }
+    } catch (error) {
+      console.error("Error saving worker assignments:", error);
+      toast({
+        title: "Error",
+        description: "No se pudieron asignar los trabajadores",
+        variant: "destructive",
+      });
     }
   };
 
@@ -347,12 +449,22 @@ const TasksScreen = () => {
       await updateTask(id, updatedTask);
       setShowEditModal(false);
       setTaskToEdit(null);
-      // Refresh tasks for the current site
+      
+      toast({
+        title: "Éxito",
+        description: "Tarea actualizada correctamente",
+      });
+      
       if (selectedSiteId) {
         await fetchTasks(selectedSiteId);
       }
     } catch (error) {
       console.error("Error updating task:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar la tarea",
+        variant: "destructive",
+      });
     }
   };
 
@@ -409,9 +521,6 @@ const TasksScreen = () => {
   const inProgressTasks = tasks.filter((task) => task.status === "in_progress");
   const blockedTasks = tasks.filter((task) => task.status === "blocked");
   const completedTasks = tasks.filter((task) => task.status === "completed");
-
-  console.log("Las tareas pendientes son:", pendingTasks);
-  console.log(`La longitud es: ${pendingTasks.length}`);
 
   return (
     <div className="bg-gray-50">
@@ -558,7 +667,7 @@ const TasksScreen = () => {
                 </SelectContent>
               </Select>
 
-              {/* Fecha y hora inicio/fin (quick create) */}
+              {/* Fecha y hora inicio/fin */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">Fecha y hora de inicio</label>
@@ -580,27 +689,38 @@ const TasksScreen = () => {
                 </div>
               </div>
 
-              {/* Team Members Selection */}
+              {/* Workers Selection */}
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-2 block">
-                  Asignar miembros del equipo ({selectedMembers.length}{" "}
-                  seleccionados)
+                  Asignar trabajadores ({selectedWorkers.length} seleccionados)
                 </label>
-                <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto border rounded-md p-2">
-                  {teamMembers.map((member) => (
-                    <div
-                      key={member}
-                      className={`cursor-pointer p-2 rounded text-sm transition-colors ${
-                        selectedMembers.includes(member)
-                          ? "bg-blue-100 text-blue-800 border border-blue-300"
-                          : "bg-gray-50 hover:bg-gray-100"
-                      }`}
-                      onClick={() => toggleMember(member)}
-                    >
-                      {member}
-                    </div>
-                  ))}
-                </div>
+                {workers.length === 0 ? (
+                  <p className="text-sm text-gray-500 italic">
+                    No tienes trabajadores registrados. 
+                    <a href="/profile/empleados" className="text-blue-600 hover:underline ml-1">
+                      Agregar trabajadores
+                    </a>
+                  </p>
+                ) : (
+                  <div className="border rounded-md p-3 max-h-40 overflow-y-auto space-y-2">
+                    {workers.map((worker) => (
+                      <div
+                        key={worker.worker_id}
+                        className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded cursor-pointer"
+                        onClick={() => toggleWorker(worker.worker_id)}
+                      >
+                        <Checkbox
+                          checked={selectedWorkers.includes(worker.worker_id)}
+                          onCheckedChange={() => toggleWorker(worker.worker_id)}
+                        />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">{worker.worker_fullname}</p>
+                          <p className="text-xs text-gray-500">{worker.profession}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <Button
@@ -661,27 +781,35 @@ const TasksScreen = () => {
                 </SelectContent>
               </Select>
 
-              {/* Team Members Selection */}
+              {/* Workers Selection */}
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-2 block">
-                  Responsables del cambio ({selectedMembers.length}{" "}
-                  seleccionados)
+                  Responsables del cambio ({selectedWorkers.length} seleccionados)
                 </label>
-                <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto border rounded-md p-2">
-                  {teamMembers.map((member) => (
-                    <div
-                      key={member}
-                      className={`cursor-pointer p-2 rounded text-sm transition-colors ${
-                        selectedMembers.includes(member)
-                          ? "bg-orange-100 text-orange-800 border border-orange-300"
-                          : "bg-gray-50 hover:bg-gray-100"
-                      }`}
-                      onClick={() => toggleMember(member)}
-                    >
-                      {member}
-                    </div>
-                  ))}
-                </div>
+                {workers.length === 0 ? (
+                  <p className="text-sm text-gray-500 italic">
+                    No tienes trabajadores registrados.
+                  </p>
+                ) : (
+                  <div className="border rounded-md p-3 max-h-40 overflow-y-auto space-y-2">
+                    {workers.map((worker) => (
+                      <div
+                        key={worker.worker_id}
+                        className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded cursor-pointer"
+                        onClick={() => toggleWorker(worker.worker_id)}
+                      >
+                        <Checkbox
+                          checked={selectedWorkers.includes(worker.worker_id)}
+                          onCheckedChange={() => toggleWorker(worker.worker_id)}
+                        />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">{worker.worker_fullname}</p>
+                          <p className="text-xs text-gray-500">{worker.profession}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <Button
@@ -691,6 +819,89 @@ const TasksScreen = () => {
               >
                 Crear Solicitud de Cambio
               </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Assign Workers Modal */}
+        <Dialog open={showAssignModal} onOpenChange={setShowAssignModal}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-center text-xl">
+                Asignar Trabajadores
+              </DialogTitle>
+              {taskToAssign && (
+                <p className="text-sm text-gray-600 text-center mt-2">
+                  {taskToAssign.title}
+                </p>
+              )}
+            </DialogHeader>
+            <div className="space-y-4">
+              {workers.length === 0 ? (
+                <div className="text-center py-6">
+                  <Users className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                  <p className="text-gray-600 mb-2">No tienes trabajadores registrados</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => window.location.href = "/profile/empleados"}
+                  >
+                    Agregar trabajadores
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <div className="border rounded-md p-3 max-h-60 overflow-y-auto space-y-2">
+                    {workers.map((worker) => (
+                      <div
+                        key={worker.worker_id}
+                        className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
+                        onClick={() => toggleWorker(worker.worker_id)}
+                      >
+                        <Checkbox
+                          checked={selectedWorkers.includes(worker.worker_id)}
+                          onCheckedChange={() => toggleWorker(worker.worker_id)}
+                        />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">{worker.worker_fullname}</p>
+                          <p className="text-xs text-gray-500">
+                            {worker.profession} • {worker.worker_cellnumber}
+                          </p>
+                        </div>
+                        {assignedWorkers.includes(worker.worker_id) && (
+                          <Badge variant="secondary" className="text-xs">
+                            Asignado
+                          </Badge>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex justify-between items-center text-sm text-gray-600">
+                    <span>{selectedWorkers.length} trabajador(es) seleccionado(s)</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowAssignModal(false);
+                        setTaskToAssign(null);
+                        setSelectedWorkers([]);
+                        setAssignedWorkers([]);
+                      }}
+                      className="flex-1"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      onClick={handleSaveWorkerAssignments}
+                      className="flex-1"
+                      disabled={assignLoading}
+                    >
+                      {assignLoading ? "Guardando..." : "Guardar"}
+                    </Button>
+                  </div>
+                </>
+              )}
             </div>
           </DialogContent>
         </Dialog>
@@ -716,6 +927,7 @@ const TasksScreen = () => {
                   tasks={changes}
                   changes={true}
                   onEditTask={handleEditTask}
+                  onAssignWorkers={handleOpenAssignModal}
                 />
               )}
 
@@ -725,6 +937,7 @@ const TasksScreen = () => {
                   title="Pendientes"
                   tasks={pendingTasks}
                   onEditTask={handleEditTask}
+                  onAssignWorkers={handleOpenAssignModal}
                 />
               )}
 
@@ -734,6 +947,7 @@ const TasksScreen = () => {
                   title="En progreso"
                   tasks={inProgressTasks}
                   onEditTask={handleEditTask}
+                  onAssignWorkers={handleOpenAssignModal}
                 />
               )}
 
@@ -743,6 +957,7 @@ const TasksScreen = () => {
                   title="Bloqueadas"
                   tasks={blockedTasks}
                   onEditTask={handleEditTask}
+                  onAssignWorkers={handleOpenAssignModal}
                 />
               )}
 
@@ -752,6 +967,7 @@ const TasksScreen = () => {
                   title="Completadas"
                   tasks={completedTasks}
                   onEditTask={handleEditTask}
+                  onAssignWorkers={handleOpenAssignModal}
                 />
               )}
             </div>
