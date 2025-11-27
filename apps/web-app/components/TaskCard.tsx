@@ -70,13 +70,6 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, changes, onEdit, onAssignWork
   const descRef = useRef<HTMLParagraphElement | null>(null);
   const [descOverflow, setDescOverflow] = useState(false);
 
-  console.log('TaskCard rendered with task:', {
-  id: task?.id,
-  title: task?.title,
-  hasId: !!task?.id,
-  idType: typeof task?.id
-  });
-
   // Cargar el número de workers asignados
   useEffect(() => {
     const loadAssignedWorkers = async () => {
@@ -158,7 +151,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, changes, onEdit, onAssignWork
           )}
 
           {/* Assigned Workers Badge */}
-          {!loadingWorkers && assignedCount > 0 && (
+          {!loadingWorkers && assignedCount > 0 && !changes && (
             <div className="mt-2 inline-flex items-center bg-blue-500/20 px-2 py-1 rounded-full">
               <Users className="w-3 h-3 text-blue-600 mr-1" />
               <span className="text-xs font-medium text-blue-600">
@@ -182,7 +175,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, changes, onEdit, onAssignWork
               </button>
             )}
             
-            {onAssignWorkers && (
+            {onAssignWorkers && !changes && (
               <button
                 onClick={handleAssignWorkers}
                 className="p-2 rounded-md hover:bg-white/50 transition-colors opacity-70 hover:opacity-100"
