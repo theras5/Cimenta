@@ -6,7 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
 import { useAssignedTo } from "@/hooks/useAssignedTo";
 
-export interface Category {
+export interface Category{
   name: string;
   color: string;
 }
@@ -112,7 +112,10 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, changes }) => {
         {/* Footer fijo en la parte inferior */}
         <View className="flex-row justify-between items-center">
           {/* Workers asignados */}
-          <View className="flex-row items-center">
+
+          {/* Para implementar esta propiedad tengo que ver de que cuando voy para la pantalla de tasks después de editar una tarea se actualice la info de la TaskCard */}
+
+          {/* <View className="flex-row items-center">
             {loadingWorkers ? (
               <ActivityIndicator size="small" color="#6B7280" />
             ) : assignedWorkersCount > 0 ? (
@@ -130,7 +133,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, changes }) => {
                 </Text>
               </View>
             )}
-          </View>
+          </View> */}
 
           {/* Categoría */}
           <View
