@@ -21,6 +21,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/components/ui/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useUserRole } from "@/hooks/useUserRole";
+import { useRouter } from "next/navigation";
 
 // Interfaz para los updates de la API
 interface ApiUpdate {
@@ -36,6 +38,10 @@ interface ApiUpdate {
 const AvancesScreen = () => {
   const { updates, loading, error, fetchUpdates, createUpdate, clearError, selectedSiteId } = useUpdates();
   const { user } = useAuth();
+  const { role, loading: roleLoading } = useUserRole();
+  const normalizedRole = role?.toLowerCase();
+  const isAdmin = normalizedRole === "admin";
+  const router = useRouter();
   const { toast } = useToast();
   const [refreshing, setRefreshing] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -108,6 +114,7 @@ const AvancesScreen = () => {
   };
 
   const handleAddUpdate = () => {
+    if (!isAdmin || roleLoading) return;
     setShowModal(true);
   };
 
@@ -183,7 +190,7 @@ const AvancesScreen = () => {
   };
 
   const handleNoMediaPress = (id: string) => {
-    console.log(`Pressed update with id: ${id}`);
+    router.push(`/updates/${id}`);
   };
 
   // Loading state
@@ -222,14 +229,16 @@ const AvancesScreen = () => {
         {/* Header */}
         <div className="fixed top-0 left-64 right-0 z-40 flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200">
           <h1 className="text-2xl font-bold text-gray-800">Avances</h1>
-          <Button
-            onClick={handleAddUpdate}
-            className="rounded-full bg-blue-600 hover:bg-blue-700 shadow-lg px-6 h-10"
-            disabled={loading}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Nuevo Avance
-          </Button>
+          {!roleLoading && isAdmin && (
+            <Button
+              onClick={handleAddUpdate}
+              className="rounded-full bg-blue-600 hover:bg-blue-700 shadow-lg px-6 h-10"
+              disabled={loading}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Nuevo Avance
+            </Button>
+          )}
         </div>
 
         {/* Error Alert */}
@@ -461,3 +470,5 @@ const AvancesScreen = () => {
 };
 
 export default AvancesScreen;
+
+

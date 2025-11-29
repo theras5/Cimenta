@@ -8,22 +8,14 @@ import {
   RefreshControl,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import VideoCard from "@/components/VideoCard";
-import NotificationCard from "@/components/NotificationCard";
-import NoMediaCard from "@/components/NoMediaCard";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useUpdates } from "@/hooks/useUpdates";
 import { useState } from "react";
+import { useUserRole } from "@/hooks/useUserRole";
 import UpdateCard from "@/components/UpdateCard";
 
 const Avances = () => {
-  const handleNoMediaPress = (id: number) => {
-    console.log(`Pressed no media card with id: ${id}`);
-    // Aquí puedes navegar a la pantalla de detalle del avance
-    // router.push(`/updates/${id}`);
-  };
-
   // Helper para mostrar "Hace X"
   const formatTime = (iso?: string) => {
     if (!iso) return "Hace poco";
@@ -35,11 +27,14 @@ const Avances = () => {
     const hours = Math.floor(minutes / 60);
     if (hours < 24) return `Hace ${hours} hora${hours > 1 ? "s" : ""}`;
     const days = Math.floor(hours / 24);
-    return `Hace ${days} día${days > 1 ? "s" : ""}`;
+    return `Hace ${days} dia${days > 1 ? "s" : ""}`;
   };
 
   const { updates, isLoading, error, fetchUpdates } = useUpdates();
   const [refreshing, setRefreshing] = useState(false);
+  const { role, loading: roleLoading } = useUserRole();
+  const normalizedRole = role?.toLowerCase();
+  const isAdmin = normalizedRole === "admin";
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -61,7 +56,7 @@ const Avances = () => {
       <SafeAreaView className="flex-1 bg-gray-50 justify-center items-center px-4">
         <Ionicons name="alert-circle-outline" size={64} color="#EF4444" />
         <Text className="text-red-600 text-lg font-medium mt-4 text-center">
-          Error al cargar las tareas
+          Error al cargar los avances
         </Text>
         <Text className="text-gray-600 mt-2 text-center mb-4">{error}</Text>
         <TouchableOpacity
@@ -79,20 +74,22 @@ const Avances = () => {
       {/* Header */}
       <View className="flex-row items-center justify-between px-6 py-4">
         <Text className="text-gray-800 font-bold text-2xl">Avances</Text>
-        {/* Floating action button */}
-        <TouchableOpacity
-          onPress={() => router.push("/updates/new-update")}
-          className="bg-blue-600 w-12 h-12 rounded-full items-center justify-center"
-          style={{
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.25,
-            shadowRadius: 3.84,
-            elevation: 5,
-          }}
-        >
-          <Ionicons name="add" size={24} color="white" />
-        </TouchableOpacity>
+        {/* Floating action button (solo admin) */}
+        {!roleLoading && isAdmin && (
+          <TouchableOpacity
+            onPress={() => router.push("/updates/new-update")}
+            className="bg-blue-600 w-12 h-12 rounded-full items-center justify-center"
+            style={{
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.25,
+              shadowRadius: 3.84,
+              elevation: 5,
+            }}
+          >
+            <Ionicons name="add" size={24} color="white" />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Content */}
@@ -110,9 +107,11 @@ const Avances = () => {
             <Text className="text-gray-500 text-lg font-medium mt-4">
               No hay avances aún
             </Text>
-            <Text className="text-gray-400 mt-2 text-center px-6">
-              Crea tu primer avance usando el botón +
-            </Text>
+            {isAdmin && (
+              <Text className="text-gray-400 mt-2 text-center px-6">
+                Crea tu primer avance usando el botón +
+              </Text>
+            )}
           </View>
         ) : (
           <View className="px-2 pb-6">
@@ -124,8 +123,7 @@ const Avances = () => {
                 author="Usuario"
                 timeAgo={formatTime(u.created_at)}
                 imageUrl={u.image_url}
-                // hasPlayButton={!!u.image_url}
-                // onPress={() => router.push(`/updates/${u.id}`)}
+                onPress={() => router.push(`/updates/${u.id}`)}
               />
             ))}
           </View>
