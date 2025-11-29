@@ -34,24 +34,18 @@ interface EditTaskModalProps {
   onClose: () => void
   task: Task | null
   onSave: (id: string, updatedTask: Partial<Task>) => Promise<void>
+  canEdit?: boolean
+  isChange?: boolean
+  showApproveReject?: boolean
+  onApproveChange?: (id: string) => Promise<void>
+  onRejectChange?: (id: string) => Promise<void>
 }
-
-const teamMembers = [
-  "Ana García",
-  "Carlos López",
-  "María Rodríguez",
-  "Juan Pérez",
-  "Sofia Martinez",
-  "Diego Fernández",
-  "Lucía González",
-  "Roberto Silva"
-]
 
 const categories = [
   { value: "electricidad", label: "ELECTRICIDAD" },
   { value: "pintura", label: "PINTURA" },
-  { value: "plomeria", label: "PLOMERÍA" },
-  { value: "construccion", label: "CONSTRUCCIÓN" }
+  { value: "plomeria", label: "PLOMERIA" },
+  { value: "construccion", label: "CONSTRUCCION" },
 ]
 
 const EditTaskModal: React.FC<EditTaskModalProps> = ({
@@ -59,6 +53,11 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
   onClose,
   task,
   onSave,
+  canEdit = true,
+  isChange = false,
+  showApproveReject = false,
+  onApproveChange,
+  onRejectChange,
 }) => {
   const [editedTask, setEditedTask] = useState({
     title: "",
@@ -74,9 +73,8 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
   // Actualizar el formulario cuando cambie la tarea
   useEffect(() => {
     if (task) {
-      // Normalizar la categoría a minúsculas para que coincida con las opciones del select
       const normalizedCategory = task.category?.toLowerCase() || ""
-      
+
       setEditedTask({
         title: task.title || "",
         description: task.description || "",
@@ -90,13 +88,16 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
   }, [task])
 
   const handleSave = async () => {
-    if (!task || !editedTask.title || !editedTask.category) return
+    if (!canEdit || !task || !editedTask.title || !editedTask.category) return
 
     setIsSaving(true)
     try {
-      // Convertir valores de datetime-local (si vienen) a ISO
-      const startIso = editedTask.start_date ? new Date(editedTask.start_date).toISOString() : undefined
-      const endIso = editedTask.end_date ? new Date(editedTask.end_date).toISOString() : undefined
+      const startIso = editedTask.start_date
+        ? new Date(editedTask.start_date).toISOString()
+        : undefined
+      const endIso = editedTask.end_date
+        ? new Date(editedTask.end_date).toISOString()
+        : undefined
 
       await onSave(task.id, {
         ...editedTask,
@@ -112,18 +113,29 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
     }
   }
 
-  const toggleMember = (member: string) => {
-    if (selectedMembers.includes(member)) {
-      setSelectedMembers(selectedMembers.filter((m) => m !== member))
-    } else {
-      setSelectedMembers([...selectedMembers, member])
+  const handleApprove = async () => {
+    if (!task || !onApproveChange) return
+    setIsSaving(true)
+    try {
+      await onApproveChange(task.id)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleReject = async () => {
+    if (!task || !onRejectChange) return
+    setIsSaving(true)
+    try {
+      await onRejectChange(task.id)
+    } finally {
+      setIsSaving(false)
     }
   }
 
   const formatDateTimeForInput = (dateString?: string) => {
     if (!dateString) return ""
     const date = new Date(dateString)
-    // Produce a value suitable for <input type="datetime-local">: yyyy-MM-ddTHH:mm
     const pad = (n: number) => n.toString().padStart(2, "0")
     const yyyy = date.getFullYear()
     const mm = pad(date.getMonth() + 1)
@@ -135,12 +147,15 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
 
   if (!task) return null
 
+  const fieldsDisabled = !canEdit
+  const statusDisabled = fieldsDisabled || isChange
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="w-[95vw] sm:max-w-md md:max-w-lg lg:max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-center text-lg sm:text-xl">
-            Editar Tarea
+            {isChange ? "Solicitud de cambio" : "Tarea"}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
@@ -148,6 +163,7 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
           <Input
             placeholder="Título de la tarea"
             value={editedTask.title}
+            disabled={fieldsDisabled}
             onChange={(e) =>
               setEditedTask({ ...editedTask, title: e.target.value })
             }
@@ -157,6 +173,7 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
           <Textarea
             placeholder="Descripción detallada de la tarea"
             value={editedTask.description}
+            disabled={fieldsDisabled}
             onChange={(e) =>
               setEditedTask({ ...editedTask, description: e.target.value })
             }
@@ -166,6 +183,7 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
           {/* Categoría */}
           <Select
             value={editedTask.category}
+            disabled={fieldsDisabled}
             onValueChange={(value) =>
               setEditedTask({ ...editedTask, category: value })
             }
@@ -185,6 +203,7 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
           {/* Estado */}
           <Select
             value={editedTask.status}
+            disabled={statusDisabled}
             onValueChange={(value) =>
               setEditedTask({ ...editedTask, status: value as Task["status"] })
             }
@@ -210,6 +229,7 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
               <Input
                 type="datetime-local"
                 value={formatDateTimeForInput(editedTask.start_date)}
+                disabled={fieldsDisabled}
                 onChange={(e) =>
                   setEditedTask({ ...editedTask, start_date: e.target.value })
                 }
@@ -223,6 +243,7 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
               <Input
                 type="datetime-local"
                 value={formatDateTimeForInput(editedTask.end_date)}
+                disabled={fieldsDisabled}
                 onChange={(e) =>
                   setEditedTask({ ...editedTask, end_date: e.target.value })
                 }
@@ -231,7 +252,6 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
             </div>
           </div>
 
-          
           {/* Botones */}
           <div className="flex flex-col sm:flex-row gap-2 pt-4">
             <Button
@@ -240,15 +260,36 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
               className="flex-1"
               disabled={isSaving}
             >
-              Cancelar
+              Cerrar
             </Button>
-            <Button
-              onClick={handleSave}
-              className="flex-1"
-              disabled={!editedTask.title || !editedTask.category || isSaving}
-            >
-              {isSaving ? "Guardando..." : "Guardar Cambios"}
-            </Button>
+            {canEdit && (
+              <Button
+                onClick={handleSave}
+                className="flex-1"
+                disabled={!editedTask.title || !editedTask.category || isSaving}
+              >
+                {isSaving ? "Guardando..." : "Guardar Cambios"}
+              </Button>
+            )}
+            {showApproveReject && (
+              <div className="flex flex-1 flex-col sm:flex-row gap-2">
+                <Button
+                  variant="destructive"
+                  onClick={handleReject}
+                  disabled={isSaving || !onRejectChange}
+                  className="flex-1"
+                >
+                  Rechazar
+                </Button>
+                <Button
+                  onClick={handleApprove}
+                  disabled={isSaving || !onApproveChange}
+                  className="flex-1 bg-green-600 hover:bg-green-700"
+                >
+                  Aceptar
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </DialogContent>

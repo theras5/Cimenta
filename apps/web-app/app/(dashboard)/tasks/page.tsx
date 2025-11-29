@@ -8,7 +8,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Check,
-  Upload,
   RotateCcw,
   AlertCircle,
 } from "lucide-react";
@@ -33,31 +32,12 @@ import EditTaskModal from "@/components/EditTaskModal";
 import { useTasks } from "@/hooks/useTasks";
 import { Task } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
-
-// Adaptar la interfaz local a la interfaz de la API
-interface LocalTask {
-  id: number;
-  title: string;
-  description: string;
-  status: "pending" | "in_progress" | "completed" | "changes" | "blocked";
-  category: string;
-  categoryColor: string;
-  assignedMembers: string[];
-}
-
-const categoryColors = {
-  ELECTRICIDAD: "bg-blue-500",
-  PINTURA: "bg-pink-500",
-  PLOMERÍA: "bg-orange-500",
-  CONSTRUCCIÓN: "bg-gray-500",
-  ALBAÑILERÍA: "bg-yellow-500",
-  CARPINTERÍA: "bg-brown-500",
-};
+import { useUserRole } from "@/hooks/useUserRole";
 
 const teamMembers = [
   "Juan",
   "Pedro",
-  "María",
+  "Maria",
   "Carlos",
   "Ana",
   "Luis",
@@ -68,20 +48,6 @@ const teamMembers = [
   "Elena",
 ];
 
-// Función para convertir Task de API a LocalTask para la UI
-const convertApiTaskToLocal = (apiTask: Task): LocalTask => ({
-  id: parseInt(apiTask.id) || Math.random(),
-  title: apiTask.title,
-  description: apiTask.description || "",
-  status: apiTask.status,
-  category: apiTask.category || "construccion",
-  categoryColor:
-    categoryColors[apiTask.category as keyof typeof categoryColors] ||
-    "bg-gray-500",
-  assignedMembers: [], // Por ahora vacío, puedes expandir esto según tu backend
-});
-
-// Wrapper component for TaskSection with horizontal scroll
 const ScrollableTaskSection = ({
   title,
   tasks,
@@ -153,9 +119,12 @@ const ScrollableTaskSection = ({
 };
 
 const TasksScreen = () => {
-  // Obtener el ID del sitio seleccionado desde localStorage
   const [selectedSiteId, setSelectedSiteId] = useState<string>("");
   const { user } = useAuth();
+  const { role, loading: roleLoading } = useUserRole();
+  const normalizedRole = role?.toLowerCase() ?? null;
+  const isClient = normalizedRole === "client";
+  const isAdmin = normalizedRole === "admin";
 
   const {
     tasks,
@@ -163,7 +132,6 @@ const TasksScreen = () => {
     error,
     createTask,
     updateTask,
-    deleteTask,
     fetchTasks,
     clearError,
   } = useTasks();
@@ -190,22 +158,15 @@ const TasksScreen = () => {
     reason: "",
   });
 
-  // Cargar el sitio seleccionado al iniciar
   useEffect(() => {
-    // Solo ejecutar en el cliente
     const siteId = localStorage.getItem("selectedSiteId");
     if (siteId) {
       setSelectedSiteId(siteId);
-      // Cargar tareas solo para este sitio
       fetchTasks(siteId);
     } else {
-      // Si no hay sitio seleccionado, redirigir a la selección de sitio
       window.location.href = "/select-site";
     }
   }, [fetchTasks]);
-
-  // Convertir tareas de API a formato local para la UI
-  // const tasks: Task[] = apiTasks.map(convertApiTaskToLocal);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -215,14 +176,13 @@ const TasksScreen = () => {
         setSelectedSiteId(siteId);
         await fetchTasks(siteId);
       }
-    } catch (error) {
-      console.error("Error refreshing tasks:", error);
+    } catch (err) {
+      console.error("Error refreshing tasks:", err);
     } finally {
       setRefreshing(false);
     }
   };
 
-  // Agregar useEffect para detectar cambios en localStorage
   useEffect(() => {
     const handleStorageChange = () => {
       const newSiteId = localStorage.getItem("selectedSiteId");
@@ -233,8 +193,6 @@ const TasksScreen = () => {
     };
 
     window.addEventListener("storage", handleStorageChange);
-    
-    // También verificar periódicamente por cambios (para cambios en la misma pestaña)
     const interval = setInterval(() => {
       const currentSiteId = localStorage.getItem("selectedSiteId");
       if (currentSiteId && currentSiteId !== selectedSiteId) {
@@ -272,11 +230,19 @@ const TasksScreen = () => {
   };
 
   const handleCreateTask = () => {
+    if (!roleLoading && !isAdmin) {
+      alert("Solo un admin puede crear tareas");
+      return;
+    }
     setShowModal(false);
     setShowTaskModal(true);
   };
 
   const handleCreateChange = () => {
+    if (!roleLoading && !isClient) {
+      alert("Solo un cliente puede crear cambios");
+      return;
+    }
     setShowModal(false);
     setShowChangeModal(true);
   };
@@ -287,7 +253,7 @@ const TasksScreen = () => {
         const startIso = newTask.start_date ? new Date(newTask.start_date).toISOString() : undefined;
         const endIso = newTask.end_date ? new Date(newTask.end_date).toISOString() : undefined;
 
-        const payload = {
+        await createTask({
           title: newTask.title,
           description: newTask.description,
           status: newTask.status,
@@ -296,15 +262,11 @@ const TasksScreen = () => {
           end_date: endIso,
           user_id: user?.id,
           site_id: selectedSiteId,
-        };
-
-        console.debug("handleAddTask payload:", payload);
-
-        await createTask(payload);
+        });
         resetTaskForm();
         setShowTaskModal(false);
-      } catch (error) {
-        console.error("Error creating task:", error);
+      } catch (err) {
+        console.error("Error creating task:", err);
       }
     }
   };
@@ -322,10 +284,26 @@ const TasksScreen = () => {
         });
         resetChangeForm();
         setShowChangeModal(false);
-      } catch (error) {
-        console.error("Error creating change request:", error);
+      } catch (err) {
+        console.error("Error creating change request:", err);
       }
     }
+  };
+
+  const handleOpenCreate = () => {
+    if (roleLoading) {
+      setShowModal(true);
+      return;
+    }
+    if (isAdmin) {
+      setShowTaskModal(true);
+      return;
+    }
+    if (isClient) {
+      setShowChangeModal(true);
+      return;
+    }
+    setShowModal(true);
   };
 
   const toggleMember = (member: string) => {
@@ -336,7 +314,6 @@ const TasksScreen = () => {
     }
   };
 
-  // Funciones para editar tarea
   const handleEditTask = (task: Task) => {
     setTaskToEdit(task);
     setShowEditModal(true);
@@ -347,16 +324,40 @@ const TasksScreen = () => {
       await updateTask(id, updatedTask);
       setShowEditModal(false);
       setTaskToEdit(null);
-      // Refresh tasks for the current site
       if (selectedSiteId) {
         await fetchTasks(selectedSiteId);
       }
-    } catch (error) {
-      console.error("Error updating task:", error);
+    } catch (err) {
+      console.error("Error updating task:", err);
     }
   };
 
-  // Mostrar loading state
+  const handleApproveChangeStatus = async (id: string) => {
+    try {
+      await updateTask(id, { status: "pending" });
+      setShowEditModal(false);
+      setTaskToEdit(null);
+      if (selectedSiteId) {
+        await fetchTasks(selectedSiteId);
+      }
+    } catch (err) {
+      console.error("Error approving change:", err);
+    }
+  };
+
+  const handleRejectChangeStatus = async (id: string) => {
+    try {
+      await updateTask(id, { status: "rejected" });
+      setShowEditModal(false);
+      setTaskToEdit(null);
+      if (selectedSiteId) {
+        await fetchTasks(selectedSiteId);
+      }
+    } catch (err) {
+      console.error("Error rejecting change:", err);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex h-screen bg-gray-50 items-center justify-center">
@@ -368,7 +369,6 @@ const TasksScreen = () => {
     );
   }
 
-  // Mostrar error state
   if (error) {
     return (
       <div className="flex h-screen bg-gray-50 items-center justify-center">
@@ -376,9 +376,7 @@ const TasksScreen = () => {
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <p className="text-red-600 mb-4">{error}</p>
           <div className="space-x-4">
-            <Button onClick={() => window.location.reload()}>
-              Recargar página
-            </Button>
+            <Button onClick={() => window.location.reload()}>Recargar página</Button>
             <Button variant="outline" onClick={clearError}>
               Intentar de nuevo
             </Button>
@@ -388,7 +386,6 @@ const TasksScreen = () => {
     );
   }
 
-  // Mensaje si no hay sitio seleccionado
   if (!selectedSiteId) {
     return (
       <div className="flex h-screen bg-gray-50 items-center justify-center">
@@ -403,35 +400,37 @@ const TasksScreen = () => {
     );
   }
 
-  // Group tasks by status
   const changes = tasks.filter((task) => task.status === "changes");
   const pendingTasks = tasks.filter((task) => task.status === "pending");
   const inProgressTasks = tasks.filter((task) => task.status === "in_progress");
   const blockedTasks = tasks.filter((task) => task.status === "blocked");
   const completedTasks = tasks.filter((task) => task.status === "completed");
 
-  console.log("Las tareas pendientes son:", pendingTasks);
-  console.log(`La longitud es: ${pendingTasks.length}`);
+  const currentIsChange = taskToEdit?.status === "changes";
+  const canEditCurrent = taskToEdit
+    ? roleLoading
+      ? false
+      : currentIsChange
+        ? isClient
+        : !isClient
+    : false;
+  const showApproveReject = !!(taskToEdit && currentIsChange && isAdmin && !roleLoading);
+  const createLabel = isClient ? "Nuevo cambio" : "Nueva tarea";
 
   return (
     <div className="bg-gray-50">
-      {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
         <div className="fixed top-0 left-64 right-0 z-40 flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200">
-          <h1 className="text-2xl font-bold text-gray-800">
-            Tareas ({tasks.length})
-          </h1>
+          <h1 className="text-2xl font-bold text-gray-800">Tareas ({tasks.length})</h1>
           <Button
-            onClick={() => setShowModal(true)}
+            onClick={handleOpenCreate}
             className="rounded-full bg-blue-600 hover:bg-blue-700 shadow-lg px-6 h-10"
           >
             <Plus className="w-4 h-4 mr-2" />
-            Nueva Tarea
+            {createLabel}
           </Button>
         </div>
 
-        {/* Error banner */}
         {error && (
           <div className="bg-red-50 border-l-4 border-red-400 p-4 mx-6 mt-4">
             <div className="flex items-center">
@@ -449,55 +448,53 @@ const TasksScreen = () => {
           </div>
         )}
 
-        {/* Selection Modal */}
         <Dialog open={showModal} onOpenChange={setShowModal}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle className="text-center text-xl">
-                ¿Qué quieres crear?
-              </DialogTitle>
+              <DialogTitle className="text-center text-xl">¿Qué quieres crear?</DialogTitle>
             </DialogHeader>
             <div className="space-y-3">
-              <Button
-                onClick={handleCreateTask}
-                className="w-full justify-start h-auto p-4 bg-blue-50 hover:bg-blue-100 text-gray-800 border border-blue-200"
-                variant="outline"
-              >
-                <div className="flex items-center">
-                  <div className="bg-blue-500 p-3 rounded-4xl mr-4">
-                    <Check className="text-white" />
-                  </div>
-                  <div className="text-left">
-                    <div className="font-semibold">Tarea</div>
-                    <div className="text-sm text-gray-600">
-                      Crear una nueva tarea para realizar
-                    </div>
-                  </div>
-                </div>
-              </Button>
+              {roleLoading && <p className="text-sm text-gray-500 text-center">Cargando permisos...</p>}
 
-              <Button
-                onClick={handleCreateChange}
-                className="w-full justify-start h-auto p-4 bg-orange-50 hover:bg-orange-100 text-gray-800 border border-orange-200"
-                variant="outline"
-              >
-                <div className="flex items-center">
-                  <div className="bg-orange-500 p-3 rounded-full mr-4">
-                    <RotateCcw className="text-white" />
-                  </div>
-                  <div className="text-left">
-                    <div className="font-semibold">Cambio</div>
-                    <div className="text-sm text-gray-600">
-                      Solicitar un cambio en el proyecto
+              {!roleLoading && (isAdmin || (!isAdmin && !isClient)) && (
+                <Button
+                  onClick={handleCreateTask}
+                  className="w-full justify-start h-auto p-4 bg-blue-50 hover:bg-blue-100 text-gray-800 border border-blue-200"
+                  variant="outline"
+                >
+                  <div className="flex items-center">
+                    <div className="bg-blue-500 p-3 rounded-4xl mr-4">
+                      <Check className="text-white" />
+                    </div>
+                    <div className="text-left">
+                      <div className="font-semibold">Tarea</div>
+                      <div className="text-sm text-gray-600">Crear una nueva tarea para realizar</div>
                     </div>
                   </div>
-                </div>
-              </Button>
+                </Button>
+              )}
+
+              {!roleLoading && (isClient || (!isAdmin && !isClient)) && (
+                <Button
+                  onClick={handleCreateChange}
+                  className="w-full justify-start h-auto p-4 bg-orange-50 hover:bg-orange-100 text-gray-800 border border-orange-200"
+                  variant="outline"
+                >
+                  <div className="flex items-center">
+                    <div className="bg-orange-500 p-3 rounded-full mr-4">
+                      <RotateCcw className="text-white" />
+                    </div>
+                    <div className="text-left">
+                      <div className="font-semibold">Cambio</div>
+                      <div className="text-sm text-gray-600">Solicitar un cambio en el proyecto</div>
+                    </div>
+                  </div>
+                </Button>
+              )}
             </div>
           </DialogContent>
         </Dialog>
 
-        {/* Task Creation Modal */}
         <Dialog
           open={showTaskModal}
           onOpenChange={(open) => {
@@ -507,31 +504,23 @@ const TasksScreen = () => {
         >
           <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle className="text-center text-xl">
-                Crear Nueva Tarea
-              </DialogTitle>
+              <DialogTitle className="text-center text-xl">Crear Nueva Tarea</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <Input
                 placeholder="Título de la tarea"
                 value={newTask.title}
-                onChange={(e) =>
-                  setNewTask({ ...newTask, title: e.target.value })
-                }
+                onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
               />
               <Textarea
                 placeholder="Descripción detallada de la tarea"
                 value={newTask.description}
-                onChange={(e) =>
-                  setNewTask({ ...newTask, description: e.target.value })
-                }
+                onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
                 rows={3}
               />
               <Select
                 value={newTask.category}
-                onValueChange={(value) =>
-                  setNewTask({ ...newTask, category: value })
-                }
+                onValueChange={(value) => setNewTask({ ...newTask, category: value })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccionar categoría" />
@@ -539,15 +528,13 @@ const TasksScreen = () => {
                 <SelectContent>
                   <SelectItem value="electricidad">ELECTRICIDAD</SelectItem>
                   <SelectItem value="pintura">PINTURA</SelectItem>
-                  <SelectItem value="plomeria">PLOMERÍA</SelectItem>
-                  <SelectItem value="construccion">CONSTRUCCIÓN</SelectItem>
+                  <SelectItem value="plomeria">PLOMERIA</SelectItem>
+                  <SelectItem value="construccion">CONSTRUCCION</SelectItem>
                 </SelectContent>
               </Select>
               <Select
                 value={newTask.status}
-                onValueChange={(value) =>
-                  setNewTask({ ...newTask, status: value as Task["status"] })
-                }
+                onValueChange={(value) => setNewTask({ ...newTask, status: value as Task["status"] })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Estado inicial" />
@@ -558,7 +545,6 @@ const TasksScreen = () => {
                 </SelectContent>
               </Select>
 
-              {/* Fecha y hora inicio/fin (quick create) */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">Fecha y hora de inicio</label>
@@ -580,11 +566,9 @@ const TasksScreen = () => {
                 </div>
               </div>
 
-              {/* Team Members Selection */}
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-2 block">
-                  Asignar miembros del equipo ({selectedMembers.length}{" "}
-                  seleccionados)
+                  Asignar miembros del equipo ({selectedMembers.length} seleccionados)
                 </label>
                 <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto border rounded-md p-2">
                   {teamMembers.map((member) => (
@@ -614,7 +598,6 @@ const TasksScreen = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Change Request Modal */}
         <Dialog
           open={showChangeModal}
           onOpenChange={(open) => {
@@ -624,31 +607,23 @@ const TasksScreen = () => {
         >
           <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle className="text-center text-xl">
-                Solicitar Cambio
-              </DialogTitle>
+              <DialogTitle className="text-center text-xl">Solicitar Cambio</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <Input
                 placeholder="Título del cambio"
                 value={newChange.title}
-                onChange={(e) =>
-                  setNewChange({ ...newChange, title: e.target.value })
-                }
+                onChange={(e) => setNewChange({ ...newChange, title: e.target.value })}
               />
               <Textarea
                 placeholder="Descripción del cambio propuesto"
                 value={newChange.description}
-                onChange={(e) =>
-                  setNewChange({ ...newChange, description: e.target.value })
-                }
+                onChange={(e) => setNewChange({ ...newChange, description: e.target.value })}
                 rows={3}
               />
               <Select
                 value={newChange.category}
-                onValueChange={(value) =>
-                  setNewChange({ ...newChange, category: value })
-                }
+                onValueChange={(value) => setNewChange({ ...newChange, category: value })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Categoría afectada" />
@@ -656,16 +631,14 @@ const TasksScreen = () => {
                 <SelectContent>
                   <SelectItem value="electricidad">ELECTRICIDAD</SelectItem>
                   <SelectItem value="pintura">PINTURA</SelectItem>
-                  <SelectItem value="plomeria">PLOMERÍA</SelectItem>
-                  <SelectItem value="construccion">CONSTRUCCIÓN</SelectItem>
+                  <SelectItem value="plomeria">PLOMERIA</SelectItem>
+                  <SelectItem value="construccion">CONSTRUCCION</SelectItem>
                 </SelectContent>
               </Select>
 
-              {/* Team Members Selection */}
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-2 block">
-                  Responsables del cambio ({selectedMembers.length}{" "}
-                  seleccionados)
+                  Responsables del cambio ({selectedMembers.length} seleccionados)
                 </label>
                 <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto border rounded-md p-2">
                   {teamMembers.map((member) => (
@@ -695,21 +668,15 @@ const TasksScreen = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Content - Scrollable */}
         <div className="flex-1 overflow-y-auto px-6 py-20">
           {tasks.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20">
               <Clipboard className="w-16 h-16 text-gray-400 mb-4" />
-              <h3 className="text-lg font-medium text-gray-500 mb-2">
-                No hay tareas aún
-              </h3>
-              <p className="text-gray-400 text-center px-6">
-                Crea tu primera tarea usando el botón +
-              </p>
+              <h3 className="text-lg font-medium text-gray-500 mb-2">No hay tareas aún</h3>
+              <p className="text-gray-400 text-center px-6">Crea tu primera tarea usando el botón +</p>
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Changes */}
               {changes.length > 0 && (
                 <ScrollableTaskSection
                   title="Cambios"
@@ -718,8 +685,6 @@ const TasksScreen = () => {
                   onEditTask={handleEditTask}
                 />
               )}
-
-              {/* Pending */}
               {pendingTasks.length > 0 && (
                 <ScrollableTaskSection
                   title="Pendientes"
@@ -727,8 +692,6 @@ const TasksScreen = () => {
                   onEditTask={handleEditTask}
                 />
               )}
-
-              {/* In Progress */}
               {inProgressTasks.length > 0 && (
                 <ScrollableTaskSection
                   title="En progreso"
@@ -736,8 +699,6 @@ const TasksScreen = () => {
                   onEditTask={handleEditTask}
                 />
               )}
-
-              {/* Blocked */}
               {blockedTasks.length > 0 && (
                 <ScrollableTaskSection
                   title="Bloqueadas"
@@ -745,8 +706,6 @@ const TasksScreen = () => {
                   onEditTask={handleEditTask}
                 />
               )}
-
-              {/* Completed */}
               {completedTasks.length > 0 && (
                 <ScrollableTaskSection
                   title="Completadas"
@@ -758,7 +717,6 @@ const TasksScreen = () => {
           )}
         </div>
 
-        {/* Edit Task Modal */}
         <EditTaskModal
           isOpen={showEditModal}
           onClose={() => {
@@ -767,9 +725,13 @@ const TasksScreen = () => {
           }}
           task={taskToEdit}
           onSave={handleSaveTask}
+          canEdit={canEditCurrent}
+          isChange={currentIsChange}
+          showApproveReject={showApproveReject}
+          onApproveChange={handleApproveChangeStatus}
+          onRejectChange={handleRejectChangeStatus}
         />
 
-        {/* Refresh Button */}
         <div className="fixed bottom-6 right-6">
           <Button
             onClick={handleRefresh}
@@ -778,9 +740,7 @@ const TasksScreen = () => {
             className="w-12 h-12 rounded-full bg-white shadow-lg"
             disabled={refreshing}
           >
-            <RefreshCw
-              className={`w-5 h-5 ${refreshing ? "animate-spin" : ""}`}
-            />
+            <RefreshCw className={`w-5 h-5 ${refreshing ? "animate-spin" : ""}`} />
           </Button>
         </div>
       </main>
