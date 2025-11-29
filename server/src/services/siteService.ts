@@ -120,3 +120,19 @@ export const getSitesByUserService = async (userId: string) => {
     
     return sites || [];
 };
+
+export const getUserRoleInSiteService = async (userId: string, siteId: string): Promise<string | null> => {
+    const { data, error } = await supabase
+        .from('belongs_to')
+        .select('role')
+        .eq('user_id', userId)
+        .eq('site_id', siteId)
+        .single();
+    
+    if (error) {
+        console.error('Error obteniendo rol del usuario:', error);
+        return null;
+    }
+    
+    return data?.role || null;
+};

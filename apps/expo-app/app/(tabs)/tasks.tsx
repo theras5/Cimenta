@@ -15,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import TaskSection from "../../components/TaskSection";
 import TaskCard from "@/components/TaskCard";
 import { useTasks } from "@/hooks/useTasks";
+import { useUserRole } from "@/hooks/useUserRole";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 
@@ -24,6 +25,7 @@ const handleAddTask = () => {
 
 export default function Tasks() {
   const { tasks, isLoading, error, fetchTasks } = useTasks();
+  const { role, loading: roleLoading } = useUserRole();
   const [refreshing, setRefreshing] = useState(false);
   const [showModal, setShowModal] = useState(false);
 
@@ -101,7 +103,6 @@ export default function Tasks() {
         </TouchableOpacity>
       </View>
 
-      {/* Modal de selección */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -118,37 +119,47 @@ export default function Tasks() {
               ¿Qué quieres crear?
             </Text>
             
-            {/* Opción Tarea */}
-            <TouchableOpacity
-              onPress={handleCreateTask}
-              className="flex-row items-center p-4 bg-blue-50 rounded-xl mb-3"
-            >
-              <View className="bg-blue-500 p-3 rounded-full mr-4">
-                <Ionicons name="checkbox-outline" size={24} color="white" />
-              </View>
-              <View className="flex-1">
-                <Text className="text-gray-800 font-semibold text-lg">Tarea</Text>
-                <Text className="text-gray-600 text-sm mt-1">
-                  Crear una nueva tarea para realizar
+            {/* Mostrar opciones según el rol */}
+            {role === 'admin' ? (
+              // Solo mostrar Tarea si es admin
+              <TouchableOpacity
+                onPress={handleCreateTask}
+                className="flex-row items-center p-4 bg-blue-50 rounded-xl mb-4"
+              >
+                <View className="bg-blue-500 p-3 rounded-full mr-4">
+                  <Ionicons name="checkbox-outline" size={24} color="white" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-gray-800 font-semibold text-lg">Tarea</Text>
+                  <Text className="text-gray-600 text-sm mt-1">
+                    Crear una nueva tarea para realizar
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ) : role === 'client' ? (
+              // Solo mostrar Cambio si es client
+              <TouchableOpacity
+                onPress={handleCreateChange}
+                className="flex-row items-center p-4 bg-orange-50 rounded-xl mb-4"
+              >
+                <View className="bg-orange-500 p-3 rounded-full mr-4">
+                  <Ionicons name="swap-horizontal-outline" size={24} color="white" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-gray-800 font-semibold text-lg">Cambio</Text>
+                  <Text className="text-gray-600 text-sm mt-1">
+                    Solicitar un cambio en el proyecto
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ) : (
+              // Mostrar mensaje si no hay rol o está cargando
+              <View className="p-4 bg-gray-50 rounded-xl mb-4">
+                <Text className="text-gray-600 text-center">
+                  {roleLoading ? 'Cargando...' : 'No tienes permisos asignados'}
                 </Text>
               </View>
-            </TouchableOpacity>
-
-            {/* Opción Cambio */}
-            <TouchableOpacity
-              onPress={handleCreateChange}
-              className="flex-row items-center p-4 bg-orange-50 rounded-xl mb-4"
-            >
-              <View className="bg-orange-500 p-3 rounded-full mr-4">
-                <Ionicons name="swap-horizontal-outline" size={24} color="white" />
-              </View>
-              <View className="flex-1">
-                <Text className="text-gray-800 font-semibold text-lg">Cambio</Text>
-                <Text className="text-gray-600 text-sm mt-1">
-                  Solicitar un cambio en el proyecto
-                </Text>
-              </View>
-            </TouchableOpacity>
+            )}
 
             {/* Botón Cancelar */}
             <TouchableOpacity

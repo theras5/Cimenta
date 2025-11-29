@@ -7,6 +7,7 @@ import auth from "./routes/auth";
 import purchases from "./routes/purchases";
 import employees from "./routes/employees";
 import clients from "./routes/clients";
+import userRole from "./routes/userRole";
 
 // server/src/app.ts
 import cors from "cors";
@@ -40,6 +41,6 @@ app.use("/employees", employees);
 
 app.use("/clients", clients);
 
-app.use(errorMiddleware); // esto tiene que ir siempre al final
+app.use("/user-role", userRole);
 
 export default app;

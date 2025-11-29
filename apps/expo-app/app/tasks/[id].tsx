@@ -18,6 +18,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTask } from "@/hooks/useTasks";
 import { Task, ISODateString } from "@/services/taskService";
+import { useUserRole } from "@/hooks/useUserRole";
 
 // Categories with hex colors matching teamCalendar
 const electricidad: Category = { name: "electricidad", color: '#007AFF' };
@@ -87,6 +88,9 @@ export default function TaskDetail() {
     updateTask,
     deleteTask,
   } = useTask(id);
+  const { role, loading: roleLoading } = useUserRole();
+  const normalizedRole = role?.toLowerCase() ?? null;
+  const isClient = normalizedRole === "client";
 
   // Form states
   const [title, setTitle] = useState("");
@@ -98,6 +102,12 @@ export default function TaskDetail() {
   const [selectedStatus, setSelectedStatus] = useState<
     "changes" | "pending" | "in_progress" | "completed" | "blocked" | "rejected"
   >("pending");
+  
+  useEffect(() => {
+    if (isClient && isEditing) {
+      setIsEditing(false);
+    }
+  }, [isClient, isEditing]);
   
   // Estados para controlar los pickers - ya no necesarios con QuickDateSelector
 
@@ -247,6 +257,11 @@ export default function TaskDetail() {
   };
 
   const handleSaveChanges = async () => {
+    if (isClient) {
+      Alert.alert("Solo lectura", "No tienes permiso para editar esta tarea");
+      return;
+    }
+
     try {
       // Función para formatear fechas con horarios incluidos
       const formatDateTime = (date: Date | null) => {
@@ -283,6 +298,11 @@ export default function TaskDetail() {
   };
 
   const handleDelete = () => {
+    if (isClient) {
+      Alert.alert("Solo lectura", "No tienes permiso para eliminar esta tarea");
+      return;
+    }
+
     Alert.alert(
       "Eliminar tarea",
       "¿Estás seguro de que quieres eliminar esta tarea? Esta acción no se puede deshacer.",
@@ -329,20 +349,22 @@ export default function TaskDetail() {
         </View>
 
         {/* Edit/Save Button */}
-        {isEditing ? (
-          <TouchableOpacity
-            onPress={handleSaveChanges}
-            className="bg-blue-500 px-4 py-2 rounded-full"
-          >
-            <Text className="text-white font-medium">Guardar</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity
-            onPress={() => setIsEditing(true)}
-            className="bg-blue-500 px-4 py-2 rounded-full"
-          >
-            <Text className="text-white font-medium">Editar</Text>
-          </TouchableOpacity>
+        {!roleLoading && !isClient && (
+          isEditing ? (
+            <TouchableOpacity
+              onPress={handleSaveChanges}
+              className="bg-blue-500 px-4 py-2 rounded-full"
+            >
+              <Text className="text-white font-medium">Guardar</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              onPress={() => setIsEditing(true)}
+              className="bg-blue-500 px-4 py-2 rounded-full"
+            >
+              <Text className="text-white font-medium">Editar</Text>
+            </TouchableOpacity>
+          )
         )}
       </View>
 
@@ -603,17 +625,19 @@ export default function TaskDetail() {
         </View> */}
 
         {/* Botón de eliminación */}
-        <View className="mb-8 mt-6 px-4">
-          <TouchableOpacity
-            onPress={handleDelete}
-            className="bg-red-500 py-4 rounded-xl items-center flex-row justify-center"
-          >
-            <Ionicons name="trash-outline" size={20} color="white" />
-            <Text className="text-white font-medium text-base ml-2">
-              Eliminar tarea
-            </Text>
-          </TouchableOpacity>
-        </View>
+        {!roleLoading && !isClient && (
+          <View className="mb-8 mt-6 px-4">
+            <TouchableOpacity
+              onPress={handleDelete}
+              className="bg-red-500 py-4 rounded-xl items-center flex-row justify-center"
+            >
+              <Ionicons name="trash-outline" size={20} color="white" />
+              <Text className="text-white font-medium text-base ml-2">
+                Eliminar tarea
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </ScrollView>
 
       {/* Date pickers ahora manejados por QuickDateSelector */}

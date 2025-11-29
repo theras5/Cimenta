@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from 'expo-image-picker';
 import { useTask } from "@/hooks/useTasks"; // Importamos el hook para obtener los datos reales
+import { useUserRole } from "@/hooks/useUserRole";
 
 // Reuse the same categories from task-detail.tsx
 const electricidad: Category = { name: "electricidad", color: "bg-blue-500" };
@@ -52,8 +53,20 @@ export default function ChangeDetail() {
   const [isEditing, setIsEditing] = useState(false);
   const [changeRequest, setChangeRequest] = useState<ChangeRequest | null>(null);
 
+  const { role, loading: roleLoading } = useUserRole();
+  const normalizedRole = role?.toLowerCase() ?? null;
+  const isAdmin = normalizedRole === "admin";
+  const isClient = normalizedRole === "client";
+
   // Usa el hook useTask para obtener los datos reales de la tarea/cambio
   const { task, isLoading: taskLoading, error: taskError, updateTask, refetch: fetchTask, deleteTask } = useTask(id);
+  const isChange = task?.status === "changes";
+
+  useEffect(() => {
+    if (isAdmin && isChange && isEditing) {
+      setIsEditing(false);
+    }
+  }, [isAdmin, isChange, isEditing]);
 
   // Form states
   const [title, setTitle] = useState("");
@@ -133,6 +146,11 @@ export default function ChangeDetail() {
   };
 
   const handleSaveChanges = async () => {
+    if (isAdmin && isChange) {
+      Alert.alert("Solo aceptar/rechazar", "Como admin solo puedes aprobar o rechazar este cambio.");
+      return;
+    }
+
     if (!title.trim()) {
       Alert.alert("Error", "Por favor completa todos los campos requeridos");
       return;
@@ -207,6 +225,11 @@ export default function ChangeDetail() {
   };
 
   const handleApproveChange = () => {
+    if (!isAdmin || !isChange) {
+      Alert.alert("Sin permiso", "Solo un admin puede aceptar este cambio.");
+      return;
+    }
+
     Alert.alert(
       "Aprobar cambio",
       "¿Estás seguro de que quieres aprobar esta solicitud de cambio? Se convertirá en una tarea pendiente.",
@@ -257,6 +280,11 @@ export default function ChangeDetail() {
   };
 
   const handleRejectChange = () => {
+    if (!isAdmin || !isChange) {
+      Alert.alert("Sin permiso", "Solo un admin puede rechazar este cambio.");
+      return;
+    }
+
     Alert.alert(
       "Rechazar cambio",
       "¿Estás seguro de que quieres rechazar esta solicitud de cambio? Se moverá a la sección de cambios rechazados.",
@@ -312,6 +340,10 @@ export default function ChangeDetail() {
 
   // Función para alternar entre modos de edición y vista
   const toggleEditMode = () => {
+    if (isAdmin && isChange) {
+      Alert.alert("Solo aceptar/rechazar", "Como admin solo puedes aprobar o rechazar este cambio.");
+      return;
+    }
     // Si estamos saliendo del modo de edición, restaurar valores originales
     if (isEditing && changeRequest) {
       setTitle(changeRequest.title);
@@ -339,7 +371,7 @@ export default function ChangeDetail() {
         </View>
 
         {/* Edit Button (only show if not creating new and not loading) */}
-        {id && !taskLoading && (
+        {id && !taskLoading && !roleLoading && !(isAdmin && isChange) && (
           <TouchableOpacity
             onPress={toggleEditMode}
             className="bg-blue-500 px-4 py-2 rounded-full"
@@ -545,21 +577,23 @@ export default function ChangeDetail() {
             </Text>
           </TouchableOpacity>
         ) : (
-          <View className="flex-row gap-4">
-            <TouchableOpacity
-              onPress={handleRejectChange}
-              className="flex-1 bg-red-500 py-4 rounded-xl items-center"
-            >
-              <Text className="text-white font-medium text-base">Rechazar</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              onPress={handleApproveChange}
-              className="flex-1 bg-green-500 py-4 rounded-xl items-center"
-            >
-              <Text className="text-white font-medium text-base">Aceptar</Text>
-            </TouchableOpacity>
-          </View>
+          !roleLoading && isAdmin && isChange ? (
+            <View className="flex-row gap-4">
+              <TouchableOpacity
+                onPress={handleRejectChange}
+                className="flex-1 bg-red-500 py-4 rounded-xl items-center"
+              >
+                <Text className="text-white font-medium text-base">Rechazar</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                onPress={handleApproveChange}
+                className="flex-1 bg-green-500 py-4 rounded-xl items-center"
+              >
+                <Text className="text-white font-medium text-base">Aceptar</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null
         )}
       </View>
       </ScrollView>
