@@ -15,12 +15,15 @@ import Sidebar from "@/components/SideBar";
 import { useState, useEffect } from "react";
 import { useTasks } from "@/hooks/useTasks";
 import { usePurchases } from "@/hooks/usePurchases";
+import { useUserRole } from "@/hooks/useUserRole";
 
 export default function CimentaDashboard() {
   const router = useRouter();
   const [selectedSiteId, setSelectedSiteId] = useState<string>("");
   const { tasks, fetchTasks } = useTasks();
   const { purchases, fetchPurchases } = usePurchases();
+  const { role, loading: roleLoading } = useUserRole();
+  const normalizedRole = role?.toLowerCase();
 
   // Load selected site and fetch data
   useEffect(() => {
@@ -168,23 +171,43 @@ export default function CimentaDashboard() {
           <div>
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Atajos</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Crear tarea */}
-              <button
-                onClick={() => router.push("/tasks/new-task")}
-                className="group flex flex-col items-center p-6 bg-white rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all duration-200 hover:shadow-md"
-              >
-                <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mb-3 group-hover:bg-blue-200 transition-colors">
-                  <CheckSquareIcon className="w-6 h-6 text-blue-600" />
-                </div>
-                <h3 className="text-md font-semibold text-gray-900 text-center mb-1">
-                  Crear tarea
-                </h3>
-                <p className="text-xs text-gray-500 text-center">
-                  Agregar nueva tarea al proyecto
-                </p>
-              </button>
+              {/* Crear tarea (solo admin) */}
+              {!roleLoading && normalizedRole === "admin" && (
+                <button
+                  onClick={() => router.push("/tasks/new-task")}
+                  className="group flex flex-col items-center p-6 bg-white rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all duration-200 hover:shadow-md"
+                >
+                  <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mb-3 group-hover:bg-blue-200 transition-colors">
+                    <CheckSquareIcon className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <h3 className="text-md font-semibold text-gray-900 text-center mb-1">
+                    Crear tarea
+                  </h3>
+                  <p className="text-xs text-gray-500 text-center">
+                    Agregar nueva tarea al proyecto
+                  </p>
+                </button>
+              )}
 
-              {/* Crear solicitud de compra */}
+              {/* Crear solicitud de cambio (solo client) */}
+              {!roleLoading && normalizedRole === "client" && (
+                <button
+                  onClick={() => router.push("/tasks/new-change")}
+                  className="group flex flex-col items-center p-6 bg-white rounded-xl border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-all duration-200 hover:shadow-md"
+                >
+                  <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center mb-3 group-hover:bg-purple-200 transition-colors">
+                    <RefreshCcwIcon className="w-6 h-6 text-purple-600" />
+                  </div>
+                  <h3 className="text-md font-semibold text-gray-900 text-center mb-1">
+                    Crear solicitud de cambio
+                  </h3>
+                  <p className="text-xs text-gray-500 text-center">
+                    Proponer modificaciones al proyecto
+                  </p>
+                </button>
+              )}
+
+              {/* Crear solicitud de compra (siempre visible) */}
               <button
                 onClick={() => router.push("/purchases/new-purchase")}
                 className="group flex flex-col items-center p-6 bg-white rounded-xl border border-gray-200 hover:border-orange-300 hover:bg-orange-50 transition-all duration-200 hover:shadow-md"
@@ -197,22 +220,6 @@ export default function CimentaDashboard() {
                 </h3>
                 <p className="text-xs text-gray-500 text-center">
                   Solicitar materiales o equipos
-                </p>
-              </button>
-
-              {/* Crear solicitud de cambio */}
-              <button
-                onClick={() => router.push("/tasks/new-change")}
-                className="group flex flex-col items-center p-6 bg-white rounded-xl border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-all duration-200 hover:shadow-md"
-              >
-                <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center mb-3 group-hover:bg-purple-200 transition-colors">
-                  <RefreshCcwIcon className="w-6 h-6 text-purple-600" />
-                </div>
-                <h3 className="text-md font-semibold text-gray-900 text-center mb-1">
-                  Crear solicitud de cambio
-                </h3>
-                <p className="text-xs text-gray-500 text-center">
-                  Proponer modificaciones al proyecto
                 </p>
               </button>
             </div>

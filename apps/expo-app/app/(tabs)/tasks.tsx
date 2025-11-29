@@ -13,19 +13,15 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import TaskSection from "../../components/TaskSection";
-import TaskCard from "@/components/TaskCard";
 import { useTasks } from "@/hooks/useTasks";
 import { useUserRole } from "@/hooks/useUserRole";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 
-const handleAddTask = () => {
-  router.push("/tasks/new-task");
-};
-
 export default function Tasks() {
   const { tasks, isLoading, error, fetchTasks } = useTasks();
   const { role, loading: roleLoading } = useUserRole();
+  const normalizedRole = role?.toLowerCase();
   const [refreshing, setRefreshing] = useState(false);
   const [showModal, setShowModal] = useState(false);
 
@@ -43,6 +39,19 @@ export default function Tasks() {
   const handleCreateChange = () => {
     setShowModal(false);
     router.push("/changes/new-change");
+  };
+
+  const handleFabPress = () => {
+    if (roleLoading) return;
+    if (normalizedRole === "admin") {
+      router.push("/tasks/new-task");
+      return;
+    }
+    if (normalizedRole === "client") {
+      router.push("/changes/new-change");
+      return;
+    }
+    setShowModal(true);
   };
 
   // Agrupar tareas por estado
@@ -89,7 +98,7 @@ export default function Tasks() {
         <Text className="text-gray-800 font-bold text-2xl">Tareas</Text>
         {/* Floating action button */}
         <TouchableOpacity
-          onPress={() => setShowModal(true)}
+          onPress={handleFabPress}
           className="bg-blue-600 w-12 h-12 rounded-full items-center justify-center"
           style={{
             shadowColor: "#000",

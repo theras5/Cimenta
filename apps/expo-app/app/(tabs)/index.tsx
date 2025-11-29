@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTasks } from '../../hooks/useTasks';
+import { useUserRole } from '@/hooks/useUserRole';
 
 const { width, height } = Dimensions.get('window');
 
@@ -98,6 +99,8 @@ const SCALED_VALUES = {
 
 export default function HomeScreen() {
   const { tasks, isLoading, fetchTasks } = useTasks();
+  const { role, loading: roleLoading } = useUserRole();
+  const normalizedRole = role?.toLowerCase();
   const [todayEvents, setTodayEvents] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -198,6 +201,7 @@ export default function HomeScreen() {
   const navigateToCalendar = () => router.push("/(tabs)/teamCalendar");
   const navigateToGantt = () => router.push("/gantt/project-1");
   const navigateToNewTask = () => router.push("/tasks/new-task");
+  const navigateToNewChange = () => router.push("/tasks/new-change");
   const navigateToNewPurchase = () => router.push("/purchases/new-purchase");
   const navigateToNewUpdate = () => router.push("/updates/new-update");
 
@@ -449,18 +453,29 @@ export default function HomeScreen() {
         {/* Atajos Section */}
         <Text style={styles.sectionTitle}>Atajos</Text>
         <View style={styles.shortcutsContainer}>
+          {!roleLoading && normalizedRole === 'admin' && (
+            <TouchableOpacity onPress={navigateToNewTask} style={styles.shortcutItem}>
+              <View style={styles.shortcutIcon}>
+                <Image source={require('../../assets/icons/task-icon.png')} style={styles.shortcutIconImage} />
+              </View>
+              <Text style={styles.shortcutLabel}>Crear Tarea</Text>
+            </TouchableOpacity>
+          )}
+
+          {!roleLoading && normalizedRole === 'client' && (
+            <TouchableOpacity onPress={navigateToNewChange} style={styles.shortcutItem}>
+              <View style={styles.shortcutIcon}>
+                <Image source={require('../../assets/icons/change-icon.png')} style={styles.shortcutIconImage} />
+              </View>
+              <Text style={styles.shortcutLabel}>Crear Solicitud de Cambio</Text>
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity onPress={navigateToNewUpdate} style={styles.shortcutItem}>
             <View style={styles.shortcutIcon}>
               <Image source={require('../../assets/icons/update-icon.png')} style={styles.shortcutIconImage} />
             </View>
             <Text style={styles.shortcutLabel}>Subir Avance</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={navigateToNewTask} style={styles.shortcutItem}>
-            <View style={styles.shortcutIcon}>
-              <Image source={require('../../assets/icons/task-icon.png')} style={styles.shortcutIconImage} />
-            </View>
-            <Text style={styles.shortcutLabel}>Crear Tarea</Text>
           </TouchableOpacity>
 
           <TouchableOpacity onPress={navigateToNewPurchase} style={styles.shortcutItem}>

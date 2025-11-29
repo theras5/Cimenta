@@ -152,7 +152,7 @@ export default function NewRequest() {
           <TouchableOpacity onPress={() => router.back()} className="mr-4">
             <Ionicons name="chevron-back" size={24} color="#374151" />
           </TouchableOpacity>
-          <Text className="text-gray-800 font-bold text-2xl">Nueva Solicitud</Text>
+          <Text className="text-gray-800 font-bold text-2xl">Nueva Solicitud De Cambio</Text>
         </View>
 
         {/* Save Button */}

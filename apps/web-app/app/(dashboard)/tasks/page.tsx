@@ -607,7 +607,7 @@ const TasksScreen = () => {
         >
           <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle className="text-center text-xl">Solicitar Cambio</DialogTitle>
+              <DialogTitle className="text-center text-xl">Nueva Solicitud de Cambio</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <Input
