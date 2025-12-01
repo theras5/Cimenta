@@ -23,6 +23,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useRouter } from "next/navigation";
+import { Dialog as DetailDialog, DialogContent as DetailContent, DialogHeader as DetailHeader, DialogTitle as DetailTitle } from "@/components/ui/dialog";
 
 // Interfaz para los updates de la API
 interface ApiUpdate {
@@ -59,6 +60,8 @@ const AvancesScreen = () => {
   const [fileSelected, setFileSelected] = useState(false);
   const [fileName, setFileName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailData, setDetailData] = useState<ApiUpdate | null>(null);
 
   // Cargar updates al montar el componente
   useEffect(() => {
@@ -136,14 +139,10 @@ const AvancesScreen = () => {
     try {
       setIsSubmitting(true);
 
-      // En una implementación real, aquí se subiría el archivo multimedia
-      // y se obtendría la URL para incluirla en el update
-
       await createUpdate({
         title: newUpdate.title,
         description: newUpdate.description || "",
         user_id: user?.id,
-        user_name: user?.name || "Usuario desconocido",
         site_id: selectedSiteId,
         image_url: newUpdate.image_url || "",
       });
@@ -190,7 +189,9 @@ const AvancesScreen = () => {
   };
 
   const handleNoMediaPress = (id: string) => {
-    router.push(`/updates/${id}`);
+    const current = updates.find((u) => u.id === id);
+    setDetailData(current || null);
+    setDetailOpen(true);
   };
 
   // Loading state
@@ -464,6 +465,36 @@ const AvancesScreen = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Detalle de avance en modal */}
+      <DetailDialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DetailContent className="sm:max-w-lg">
+          <DetailHeader>
+            <DetailTitle className="text-xl font-semibold">
+              {detailData?.title || "Detalle de avance"}
+            </DetailTitle>
+          </DetailHeader>
+          <div className="space-y-4">
+            <div className="text-sm text-gray-500">
+              {detailData?.created_at
+                ? new Date(detailData.created_at).toLocaleString()
+                : ""}
+            </div>
+            <p className="text-gray-700 leading-6">
+              {detailData?.description || "Sin descripción"}
+            </p>
+            {detailData?.image_url && (
+              <div className="relative w-full overflow-hidden rounded-xl border border-gray-200">
+                <img
+                  src={detailData.image_url}
+                  alt={detailData.title}
+                  className="w-full object-cover max-h-80"
+                />
+              </div>
+            )}
+          </div>
+        </DetailContent>
+      </DetailDialog>
       </main>
     </div>
   );
