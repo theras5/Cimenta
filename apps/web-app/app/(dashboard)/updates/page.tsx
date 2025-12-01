@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { Plus, RefreshCw, Clipboard, Loader2, Upload, X, Camera, Video, AlertCircle } from "lucide-react";
@@ -129,8 +129,8 @@ const AvancesScreen = () => {
   const handleSubmitUpdate = async () => {
     if (!newUpdate.title) {
       toast({
-        title: "Falta información",
-        description: "Por favor ingresa al menos un título para el avance.",
+        title: "Falta informaci├│n",
+        description: "Por favor ingresa al menos un t├¡tulo para el avance.",
         variant: "destructive",
       });
       return;
@@ -148,7 +148,7 @@ const AvancesScreen = () => {
       });
 
       toast({
-        title: "¡Éxito!",
+        title: "┬í├ëxito!",
         description: "Avance creado correctamente.",
       });
 
@@ -165,27 +165,30 @@ const AvancesScreen = () => {
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setFileName(file.name);
-      setFileSelected(true);
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!(e.target.files && e.target.files[0])) return;
 
-      // En una implementación real, aquí se subiría el archivo
-      // Por ahora solo guardamos el nombre
+    const file = e.target.files[0];
+    const fileType = file.type.startsWith("image/")
+      ? "image"
+      : file.type.startsWith("video/")
+        ? "video"
+        : null;
 
-      // Determinar tipo de archivo
-      const fileType = file.type.startsWith("image/")
-        ? "image"
-        : file.type.startsWith("video/")
-          ? "video"
-          : null;
+    setFileName(file.name);
+    setFileSelected(true);
 
-      setNewUpdate({
-        ...newUpdate,
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const dataUrl = typeof reader.result === "string" ? reader.result : "";
+      setNewUpdate((prev) => ({
+        ...prev,
         media_type: fileType as "image" | "video" | null,
-      });
-    }
+        image_url: dataUrl,
+      }));
+    };
+
+    reader.readAsDataURL(file);
   };
 
   const handleNoMediaPress = (id: string) => {
@@ -215,7 +218,7 @@ const AvancesScreen = () => {
     const diffInDays = Math.floor(diffInHours / 24);
 
     if (diffInDays > 0) {
-      return `Hace ${diffInDays} día${diffInDays > 1 ? "s" : ""}`;
+      return `Hace ${diffInDays} d├¡a${diffInDays > 1 ? "s" : ""}`;
     } else if (diffInHours > 0) {
       return `Hace ${diffInHours} hora${diffInHours > 1 ? "s" : ""}`;
     } else {
@@ -266,10 +269,10 @@ const AvancesScreen = () => {
             <div className="flex flex-col items-center justify-center py-20">
               <Clipboard className="w-16 h-16 text-gray-400 mb-4" />
               <h3 className="text-lg font-medium text-gray-500 mb-2">
-                No hay avances aún
+                No hay avances a├║n
               </h3>
               <p className="text-gray-400 text-center px-6">
-                Crea tu primer avance usando el botón +
+                Crea tu primer avance usando el bot├│n +
               </p>
             </div>
           ) : (
@@ -277,7 +280,7 @@ const AvancesScreen = () => {
               {/* Notification card */}
               <NotificationCard
                 message="Se ha terminado"
-                highlight="Instalación del aire"
+                highlight="Instalaci├│n del aire"
               />
 
               {/* Remaining cards */}
@@ -307,7 +310,7 @@ const AvancesScreen = () => {
                 );
               })}
 
-              {/* Loading indicator cuando se están cargando más updates */}
+              {/* Loading indicator cuando se est├ín cargando m├ís updates */}
               {loading && updates.length > 0 && (
                 <div className="flex justify-center py-4">
                   <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
@@ -340,24 +343,24 @@ const AvancesScreen = () => {
           </DialogHeader>
           
           <div className="space-y-4 py-4">
-            {/* Título */}
+            {/* T├¡tulo */}
             <div className="space-y-2">
-              <Label htmlFor="title">Título <span className="text-red-500">*</span></Label>
+              <Label htmlFor="title">T├¡tulo <span className="text-red-500">*</span></Label>
               <Input
                 id="title"
-                placeholder="Título del avance"
+                placeholder="T├¡tulo del avance"
                 value={newUpdate.title}
                 onChange={(e) => setNewUpdate({ ...newUpdate, title: e.target.value })}
                 className="w-full"
               />
             </div>
             
-            {/* Descripción */}
+            {/* Descripci├│n */}
             <div className="space-y-2">
-              <Label htmlFor="description">Descripción</Label>
+              <Label htmlFor="description">Descripci├│n</Label>
               <Textarea
                 id="description"
-                placeholder="Describe el avance con más detalles..."
+                placeholder="Describe el avance con m├ís detalles..."
                 value={newUpdate.description}
                 onChange={(e) => setNewUpdate({ ...newUpdate, description: e.target.value })}
                 rows={4}
@@ -424,8 +427,8 @@ const AvancesScreen = () => {
                         </p>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
                           {newUpdate.media_type === "image" 
-                            ? "PNG, JPG o GIF (máx. 10MB)" 
-                            : "MP4, MOV o WebM (máx. 50MB)"}
+                            ? "PNG, JPG o GIF (m├íx. 10MB)" 
+                            : "MP4, MOV o WebM (m├íx. 50MB)"}
                         </p>
                       </div>
                     )}
@@ -481,7 +484,7 @@ const AvancesScreen = () => {
                 : ""}
             </div>
             <p className="text-gray-700 leading-6">
-              {detailData?.description || "Sin descripción"}
+              {detailData?.description || "Sin descripci├│n"}
             </p>
             {detailData?.image_url && (
               <div className="relative w-full overflow-hidden rounded-xl border border-gray-200">
@@ -501,5 +504,6 @@ const AvancesScreen = () => {
 };
 
 export default AvancesScreen;
+
 
 

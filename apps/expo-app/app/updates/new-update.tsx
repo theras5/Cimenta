@@ -14,10 +14,10 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import RequiredTextInput from "@/components/RequiredTextInput";
 import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system";
 import { useUpdates } from "@/hooks/useUpdates";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@/context/AuthContext";
-
 
 interface MediaFile {
   uri: string;
@@ -26,7 +26,7 @@ interface MediaFile {
 }
 
 const NewUpdate = () => {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
@@ -34,10 +34,10 @@ const NewUpdate = () => {
   const [showGalleryModal, setShowGalleryModal] = useState(false);
   const { createUpdate } = useUpdates();
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+  const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
-      // Solicitar permisos para galería y cámara
       const libraryStatus =
         await ImagePicker.requestMediaLibraryPermissionsAsync();
       const cameraStatus = await ImagePicker.requestCameraPermissionsAsync();
@@ -48,17 +48,24 @@ const NewUpdate = () => {
       ) {
         Alert.alert(
           "Permisos",
-          "Se necesitan permisos para acceder a la galería y cámara"
+          "Se necesitan permisos para acceder a la galeria y camara"
         );
       }
     })();
   }, []);
 
-  // Función para seleccionar imágenes de la galería
+  const convertToDataUrl = async (uri: string, mime?: string) => {
+    const base64 = await FileSystem.readAsStringAsync(uri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    const safeMime = mime || "image/jpeg";
+    return `data:${safeMime};base64,${base64}`;
+  };
+
   const pickImageFromGallery = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: [ImagePicker.MediaType.image],
         allowsEditing: true,
         aspect: undefined,
         quality: 1,
@@ -73,6 +80,17 @@ const NewUpdate = () => {
         };
 
         setMediaFiles([...mediaFiles, newFile]);
+
+        try {
+          const dataUrl = await convertToDataUrl(
+            asset.uri,
+            asset.mimeType || "image/jpeg"
+          );
+          setImageDataUrl(dataUrl);
+        } catch (err) {
+          console.error("No se pudo convertir la imagen a base64", err);
+          Alert.alert("Error", "No se pudo procesar la imagen seleccionada");
+        }
       }
     } catch (error) {
       Alert.alert("Error", "No se pudo seleccionar la imagen");
@@ -80,14 +98,13 @@ const NewUpdate = () => {
     setShowGalleryModal(false);
   };
 
-  // Función para seleccionar videos de la galería
   const pickVideoFromGallery = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+        mediaTypes: [ImagePicker.MediaType.video],
         allowsEditing: true,
         quality: 1,
-        videoMaxDuration: 30, // Máximo 30 segundos
+        videoMaxDuration: 30,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -99,6 +116,7 @@ const NewUpdate = () => {
         };
 
         setMediaFiles([...mediaFiles, newFile]);
+        setImageDataUrl(null); // la columna image_url solo guarda imagenes
       }
     } catch (error) {
       Alert.alert("Error", "No se pudo seleccionar el video");
@@ -106,11 +124,10 @@ const NewUpdate = () => {
     setShowGalleryModal(false);
   };
 
-  // Función para tomar foto con la cámara
   const takePhoto = async () => {
     try {
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: [ImagePicker.MediaType.image],
         allowsEditing: true,
         aspect: [4, 3],
         quality: 1,
@@ -125,6 +142,17 @@ const NewUpdate = () => {
         };
 
         setMediaFiles([...mediaFiles, newFile]);
+
+        try {
+          const dataUrl = await convertToDataUrl(
+            asset.uri,
+            asset.mimeType || "image/jpeg"
+          );
+          setImageDataUrl(dataUrl);
+        } catch (err) {
+          console.error("No se pudo convertir la foto a base64", err);
+          Alert.alert("Error", "No se pudo procesar la foto");
+        }
       }
     } catch (error) {
       Alert.alert("Error", "No se pudo tomar la foto");
@@ -132,14 +160,13 @@ const NewUpdate = () => {
     setShowCameraModal(false);
   };
 
-  // Función para grabar video con la cámara
   const recordVideo = async () => {
     try {
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+        mediaTypes: [ImagePicker.MediaType.video],
         allowsEditing: true,
         quality: 1,
-        videoMaxDuration: 30, // Máximo 30 segundos
+        videoMaxDuration: 30,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -151,6 +178,7 @@ const NewUpdate = () => {
         };
 
         setMediaFiles([...mediaFiles, newFile]);
+        setImageDataUrl(null);
       }
     } catch (error) {
       Alert.alert("Error", "No se pudo grabar el video");
@@ -158,27 +186,26 @@ const NewUpdate = () => {
     setShowCameraModal(false);
   };
 
-  // Función para eliminar un archivo multimedia
   const removeMediaFile = (index: number) => {
     const updatedFiles = [...mediaFiles];
     updatedFiles.splice(index, 1);
     setMediaFiles(updatedFiles);
+    if (updatedFiles.length === 0) {
+      setImageDataUrl(null);
+    }
   };
 
   const handleSave = async () => {
-    // Validación completa antes de enviar
     setHasAttemptedSubmit(true);
 
-    //Validar título
     const isTitleValid = title.trim() !== "";
 
     if (!user) {
-      alert("Debes estar loggeado para crear una tarea");
+      alert("Debes estar loggeado para crear un avance");
       router.push("/sign-in");
       return;
     }
 
-    // Si hay errores, no continuar
     if (!isTitleValid) {
       Alert.alert("Por favor completa todos los campos obligatorios");
       return;
@@ -195,19 +222,18 @@ const NewUpdate = () => {
       description,
       user_id: user.id,
       site_id,
+      image_url: imageDataUrl || undefined,
     };
 
-    // Muestra en consola lo que se envía
     console.log("Enviando al backend:", nuevoAvance);
 
-    createUpdate(nuevoAvance);
+    await createUpdate(nuevoAvance);
 
     router.back();
   };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#ffffff" }}>
-      {/* Header */}
       <View className="flex-row items-center justify-between px-4 py-2 mb-6">
         <View className="flex-row items-center">
           <TouchableOpacity onPress={() => router.back()} className="mr-4">
@@ -215,7 +241,6 @@ const NewUpdate = () => {
           </TouchableOpacity>
           <Text className="text-gray-800 font-bold text-2xl">Nuevo Avance</Text>
         </View>
-        {/* Save Button */}
         <TouchableOpacity
           onPress={handleSave}
           className="bg-blue-500 px-4 py-2 rounded-full"
@@ -232,10 +257,9 @@ const NewUpdate = () => {
       </View>
 
       <ScrollView className="px-4">
-        {/* Título */}
         <View>
           <RequiredTextInput
-            label="Título"
+            label="Titulo"
             value={title}
             onChangeText={setTitle}
             required
@@ -245,7 +269,7 @@ const NewUpdate = () => {
         </View>
 
         <View className="mb-4">
-          <Text className="text-gray-700 font-medium mb-2">Descripción</Text>
+          <Text className="text-gray-700 font-medium mb-2">Descripcion</Text>
           <TextInput
             value={description}
             onChangeText={setDescription}
@@ -260,28 +284,24 @@ const NewUpdate = () => {
         <View className="mb-6">
           <Text className="text-gray-700 font-medium mb-2">Multimedia</Text>
 
-          {/* Botones para agregar contenido */}
           <View className="flex-row gap-2 mb-3">
-            {/* Botón para cámara (foto/video) */}
             <TouchableOpacity
               onPress={() => setShowCameraModal(true)}
               className="bg-white flex-1 flex-row items-center justify-center p-3 rounded-xl border border-gray-200"
             >
               <Ionicons name="camera-outline" size={20} color="#3B82F6" />
-              <Text className="text-blue-500 font-medium ml-2">Cámara</Text>
+              <Text className="text-blue-500 font-medium ml-2">Camara</Text>
             </TouchableOpacity>
 
-            {/* Botón unificado para galería (imagen/video) */}
             <TouchableOpacity
               onPress={() => setShowGalleryModal(true)}
               className="bg-white flex-1 flex-row items-center justify-center p-3 rounded-xl border border-gray-200"
             >
               <Ionicons name="images-outline" size={20} color="#3B82F6" />
-              <Text className="text-blue-500 font-medium ml-2">Galería</Text>
+              <Text className="text-blue-500 font-medium ml-2">Galeria</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Previsualización de archivos */}
           {mediaFiles.length > 0 && (
             <View className="mt-3">
               <Text className="text-gray-700 font-medium mb-2">
@@ -309,7 +329,6 @@ const NewUpdate = () => {
                       </View>
                     )}
 
-                    {/* Indicador de tipo */}
                     <View className="absolute top-0 left-0 bg-black bg-opacity-50 rounded-tr-xl rounded-bl-xl px-2 py-1 mt-2">
                       <Ionicons
                         name={file.type === "image" ? "image" : "videocam"}
@@ -318,7 +337,6 @@ const NewUpdate = () => {
                       />
                     </View>
 
-                    {/* Botón eliminar */}
                     <TouchableOpacity
                       onPress={() => removeMediaFile(index)}
                       className="absolute -top-1 -right-1 bg-red-500 rounded-full p-1 mt-2"
@@ -333,7 +351,6 @@ const NewUpdate = () => {
         </View>
       </ScrollView>
 
-      {/* Modal para opciones de cámara */}
       <Modal
         visible={showCameraModal}
         animationType="slide"
@@ -357,17 +374,14 @@ const NewUpdate = () => {
               paddingHorizontal: 20,
             }}
           >
-            {/* Header del modal */}
             <View className="items-center mb-6">
               <View className="w-12 h-1 bg-gray-300 rounded-full mb-4" />
               <Text className="text-lg font-semibold text-gray-800">
-                Usar Cámara
+                Usar Camara
               </Text>
             </View>
 
-            {/* Opciones */}
             <View className="gap-3">
-              {/* Opción: Tomar foto */}
               <TouchableOpacity
                 onPress={takePhoto}
                 className="flex-row items-center p-4 bg-gray-50 rounded-xl"
@@ -387,13 +401,12 @@ const NewUpdate = () => {
                     Tomar Foto
                   </Text>
                   <Text className="text-gray-500 text-sm">
-                    Captura una imagen con la cámara
+                    Captura una imagen con la camara
                   </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
               </TouchableOpacity>
 
-              {/* Opción: Grabar video */}
               <TouchableOpacity
                 onPress={recordVideo}
                 className="flex-row items-center p-4 bg-gray-50 rounded-xl"
@@ -420,7 +433,6 @@ const NewUpdate = () => {
               </TouchableOpacity>
             </View>
 
-            {/* Botón cancelar */}
             <TouchableOpacity
               onPress={() => setShowCameraModal(false)}
               className="mt-6 p-4 bg-gray-100 rounded-xl items-center"
@@ -431,7 +443,6 @@ const NewUpdate = () => {
         </View>
       </Modal>
 
-      {/* Modal para opciones de galería */}
       <Modal
         visible={showGalleryModal}
         animationType="slide"
@@ -455,17 +466,14 @@ const NewUpdate = () => {
               paddingHorizontal: 20,
             }}
           >
-            {/* Header del modal */}
             <View className="items-center mb-6">
               <View className="w-12 h-1 bg-gray-300 rounded-full mb-4" />
               <Text className="text-lg font-semibold text-gray-800">
-                Seleccionar de Galería
+                Seleccionar de Galeria
               </Text>
             </View>
 
-            {/* Opciones */}
             <View className="gap-3">
-              {/* Opción: Seleccionar imagen */}
               <TouchableOpacity
                 onPress={pickImageFromGallery}
                 className="flex-row items-center p-4 bg-gray-50 rounded-xl"
@@ -485,13 +493,12 @@ const NewUpdate = () => {
                     Seleccionar Imagen
                   </Text>
                   <Text className="text-gray-500 text-sm">
-                    Elige una foto de tu galería
+                    Elige una foto de tu galeria
                   </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
               </TouchableOpacity>
 
-              {/* Opción: Seleccionar video */}
               <TouchableOpacity
                 onPress={pickVideoFromGallery}
                 className="flex-row items-center p-4 bg-gray-50 rounded-xl"
@@ -518,7 +525,6 @@ const NewUpdate = () => {
               </TouchableOpacity>
             </View>
 
-            {/* Botón cancelar */}
             <TouchableOpacity
               onPress={() => setShowGalleryModal(false)}
               className="mt-6 p-4 bg-gray-100 rounded-xl items-center"

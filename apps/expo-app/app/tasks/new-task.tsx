@@ -1,7 +1,7 @@
-// @ts-nocheck
+﻿// @ts-nocheck
 import { Category } from "@/components/TaskCard";
 import { QuickDateSelector } from "@/components/QuickDateSelector";
-// import { MinimalDateSelector } from "@/components/MinimalDateSelector"; // Para un diseño aún más minimalista
+// import { MinimalDateSelector } from "@/components/MinimalDateSelector"; // Para un diseÃ±o aÃºn mÃ¡s minimalista
 import { useAuth } from "@/context/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -39,12 +39,12 @@ interface TeamMember {
 }
 
 const teamMembers: TeamMember[] = [
-  { id: "1", name: "Juan Pérez", role: "Electricista", avatar: "👨‍🔧" },
-  { id: "2", name: "María García", role: "Plomera", avatar: "👩‍🔧" },
-  { id: "3", name: "Carlos López", role: "Constructor", avatar: "👨‍🏭" },
-  { id: "4", name: "Ana Martínez", role: "Pintora", avatar: "👩‍🎨" },
-  { id: "5", name: "Luis Rodríguez", role: "Supervisor", avatar: "👨‍💼" },
-  { id: "6", name: "Sofia Hernández", role: "Arquitecta", avatar: "👩‍💼" },
+  { id: "1", name: "Juan PÃ©rez", role: "Electricista", avatar: "ðŸ‘¨â€ðŸ”§" },
+  { id: "2", name: "MarÃ­a GarcÃ­a", role: "Plomera", avatar: "ðŸ‘©â€ðŸ”§" },
+  { id: "3", name: "Carlos LÃ³pez", role: "Constructor", avatar: "ðŸ‘¨â€ðŸ­" },
+  { id: "4", name: "Ana MartÃ­nez", role: "Pintora", avatar: "ðŸ‘©â€ðŸŽ¨" },
+  { id: "5", name: "Luis RodrÃ­guez", role: "Supervisor", avatar: "ðŸ‘¨â€ðŸ’¼" },
+  { id: "6", name: "Sofia HernÃ¡ndez", role: "Arquitecta", avatar: "ðŸ‘©â€ðŸ’¼" },
 ];
 
 // Interfaz para manejar los archivos multimedia
@@ -72,7 +72,7 @@ export default function NewTask() {
   const [startDate, setStartDate] = useState(new Date());
   const [endDate, setEndDate] = useState(
     new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-  ); // 1 semana después
+  ); // 1 semana despuÃ©s
   
   // Estados para controlar los pickers - ya no necesarios con QuickDateSelector
 
@@ -82,15 +82,15 @@ export default function NewTask() {
       const { status } =
         await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
-        alert("Se necesitan permisos para acceder a la galería");
+        alert("Se necesitan permisos para acceder a la galerÃ­a");
       }
     })();
   }, []);
 
-  // Función para seleccionar imágenes o videos
+  // FunciÃ³n para seleccionar imÃ¡genes o videos
   const pickMedia = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: [ImagePicker.MediaType.image],
       allowsEditing: true,
       aspect: undefined,
       quality: 1,
@@ -108,14 +108,14 @@ export default function NewTask() {
     }
   };
 
-  // Función para eliminar un archivo multimedia
+  // FunciÃ³n para eliminar un archivo multimedia
   const removeMediaFile = (index: number) => {
     const updatedFiles = [...mediaFiles];
     updatedFiles.splice(index, 1);
     setMediaFiles(updatedFiles);
   };
 
-  // Función para seleccionar/deseleccionar miembros
+  // FunciÃ³n para seleccionar/deseleccionar miembros
   const toggleMemberSelection = (member: TeamMember) => {
     const isSelected = selectedMembers.some((m) => m.id === member.id);
 
@@ -126,7 +126,7 @@ export default function NewTask() {
     }
   };
 
-  // Función para remover un miembro seleccionado
+  // FunciÃ³n para remover un miembro seleccionado
   const removeMember = (memberId: string) => {
     setSelectedMembers(selectedMembers.filter((m) => m.id !== memberId));
   };
@@ -140,19 +140,19 @@ export default function NewTask() {
 
 
   const handleSave = async () => {
-    // Validación completa antes de enviar
+    // ValidaciÃ³n completa antes de enviar
     setHasAttemptedSubmit(true);
 
-    //Validar título
+    //Validar tÃ­tulo
     const isTitleValid = title.trim() !== "";
     if (!isTitleValid) {
-      setTitleError("El título es obligatorio");
+      setTitleError("El tÃ­tulo es obligatorio");
     }
 
-    // Validar categoría
+    // Validar categorÃ­a
     const isCategoryValid = category && category.trim() !== "";
     if (!isCategoryValid) {
-      setCategoryError("Selecciona una categoría");
+      setCategoryError("Selecciona una categorÃ­a");
     }
 
     // Si hay errores, no continuar
@@ -247,22 +247,22 @@ export default function NewTask() {
       </View>
 
       <ScrollView className="flex-1 px-4">
-        {/* Título */}
+        {/* TÃ­tulo */}
         <View className="mb-4">
           <Text className="text-gray-700 font-medium mb-2">
-            Título <Text className="text-red-500">*</Text>
+            TÃ­tulo <Text className="text-red-500">*</Text>
           </Text>
           <TextInput
             value={title}
             onChangeText={(text) => {
               setTitle(text);
               if (hasAttemptedSubmit && titleError) {
-                setTitleError(text.trim() ? null : "El título es obligatorio");
+                setTitleError(text.trim() ? null : "El tÃ­tulo es obligatorio");
               }
             }}
             onBlur={() => {
               if (hasAttemptedSubmit) {
-                setTitleError(title.trim() ? null : "El título es obligatorio");
+                setTitleError(title.trim() ? null : "El tÃ­tulo es obligatorio");
               }
             }}
             placeholder="Ej: Instalar cableado"
@@ -275,9 +275,9 @@ export default function NewTask() {
           )}
         </View>
 
-        {/* Descripción */}
+        {/* DescripciÃ³n */}
         <View className="mb-4">
-          <Text className="text-gray-700 font-medium mb-2">Descripción</Text>
+          <Text className="text-gray-700 font-medium mb-2">DescripciÃ³n</Text>
           <TextInput
             value={description}
             onChangeText={setDescription}
@@ -289,10 +289,10 @@ export default function NewTask() {
           />
         </View>
 
-        {/* Categoría */}
+        {/* CategorÃ­a */}
         <View className="mb-4">
           <Text className="text-gray-700 font-medium mb-2">
-            Categoría <Text className="text-red-500">*</Text>
+            CategorÃ­a <Text className="text-red-500">*</Text>
           </Text>
           <View className="flex-row flex-wrap gap-2">
             {categories.map((cat) => {
@@ -345,9 +345,9 @@ export default function NewTask() {
         <QuickDateSelector
           date={endDate}
           onDateChange={setEndDate}
-          label="Fecha de finalización"
+          label="Fecha de finalizaciÃ³n"
           minimumDate={startDate}
-          placeholder="Seleccionar fecha de finalización"
+          placeholder="Seleccionar fecha de finalizaciÃ³n"
         />
 
         {/* Miembros del Equipo */}
@@ -356,7 +356,7 @@ export default function NewTask() {
             Miembros del Equipo
           </Text>
 
-          {/* Botón para agregar miembros */}
+          {/* BotÃ³n para agregar miembros */}
           <TouchableOpacity
             onPress={() => setShowMemberModal(true)}
             className="bg-white flex-row items-center justify-center p-4 rounded-xl border border-gray-200 mb-3"
@@ -405,9 +405,9 @@ export default function NewTask() {
 
         {/* Contenido Audiovisual */}
         <View className="mb-6">
-          <Text className="text-gray-700 font-medium mb-2">Imágenes</Text>
+          <Text className="text-gray-700 font-medium mb-2">ImÃ¡genes</Text>
 
-          {/* Botón para agregar contenido */}
+          {/* BotÃ³n para agregar contenido */}
           <TouchableOpacity
             onPress={pickMedia}
             className="bg-white flex-row items-center justify-center p-4 rounded-xl border border-gray-200 mb-3"
@@ -421,7 +421,7 @@ export default function NewTask() {
             <Text className="text-blue-500 font-medium ml-2">Agregar foto</Text>
           </TouchableOpacity>
 
-          {/* Previsualización de archivos */}
+          {/* PrevisualizaciÃ³n de archivos */}
           {mediaFiles.length > 0 && (
             <View className="mt-3">
               <Text className="text-gray-700 font-medium mb-2">
@@ -520,3 +520,4 @@ export default function NewTask() {
     </SafeAreaView>
   );
 }
+

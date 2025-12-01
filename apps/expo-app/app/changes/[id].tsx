@@ -1,4 +1,4 @@
-import { Category } from "@/components/TaskCard";
+﻿import { Category } from "@/components/TaskCard";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState, useEffect } from "react";
@@ -87,7 +87,7 @@ export default function ChangeDetail() {
         status: task.status as any,
         images: task.mediaFiles || [],
         createdAt: task.start_date ? new Date(task.start_date) : new Date(),
-        taskId: task.id || undefined  // Usamos el ID de la tarea actual como relación
+        taskId: task.id || undefined  // Usamos el ID de la tarea actual como relaciÃ³n
       };
       
       setChangeRequest(change);
@@ -115,7 +115,7 @@ export default function ChangeDetail() {
     } */
   }, [id, task, taskLoading, taskError]);
 
-  // Helper para obtener el color de la categoría
+  // Helper para obtener el color de la categorÃ­a
   const getCategoryColor = (categoryName: string) => {
     const normalizedCategory = categoryName?.toUpperCase();
     const category = categories.find((cat) => cat.name.toUpperCase() === normalizedCategory);
@@ -125,7 +125,7 @@ export default function ChangeDetail() {
   const handleImagePicker = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: [ImagePicker.MediaType.image],
         allowsEditing: true,
         aspect: [4, 3],
         quality: 1,
@@ -164,7 +164,7 @@ export default function ChangeDetail() {
         description: description.trim(),
         category,
         // mediaFiles: images,  // Usando mediaFiles para compatibilidad con la API de tareas
-        // Mantener otros campos que podrían ser requeridos por la API
+        // Mantener otros campos que podrÃ­an ser requeridos por la API
         // status: taskStatus,
         // startDate: task?.startDate || new Date().toISOString(),
         // endDate: task?.endDate || new Date().toISOString(),
@@ -172,11 +172,11 @@ export default function ChangeDetail() {
 
 
 
-      // Si tenemos acceso a la API y el hook updateTask, úsalo
+      // Si tenemos acceso a la API y el hook updateTask, Ãºsalo
       if (id && updateTask) {
 
-        // En useTasks.ts el método updateTask ya recibe el ID como argumento cuando se crea el hook
-        // Por eso aquí solo pasamos los datos a actualizar
+        // En useTasks.ts el mÃ©todo updateTask ya recibe el ID como argumento cuando se crea el hook
+        // Por eso aquÃ­ solo pasamos los datos a actualizar
         const result = await updateTask(changeData);
         
         if (result) {
@@ -191,13 +191,13 @@ export default function ChangeDetail() {
             images
           });
           
-          // Actualizar los datos obteniendo la versión más reciente de la API
+          // Actualizar los datos obteniendo la versiÃ³n mÃ¡s reciente de la API
 
           await fetchTask();
 
           
           setIsEditing(false);
-          Alert.alert("Éxito", "Solicitud de cambio guardada correctamente");
+          Alert.alert("Ã‰xito", "Solicitud de cambio guardada correctamente");
         } else {
           throw new Error("No se pudo actualizar el cambio");
         }
@@ -213,7 +213,7 @@ export default function ChangeDetail() {
             images
           });
           setIsEditing(false);
-          Alert.alert("Éxito", "Solicitud de cambio guardada correctamente (modo demo)");
+          Alert.alert("Ã‰xito", "Solicitud de cambio guardada correctamente (modo demo)");
         }, 1000);
       }
     } catch (error) {
@@ -232,7 +232,7 @@ export default function ChangeDetail() {
 
     Alert.alert(
       "Aprobar cambio",
-      "¿Estás seguro de que quieres aprobar esta solicitud de cambio? Se convertirá en una tarea pendiente.",
+      "Â¿EstÃ¡s seguro de que quieres aprobar esta solicitud de cambio? Se convertirÃ¡ en una tarea pendiente.",
       [
         {
           text: "Cancelar",
@@ -254,7 +254,7 @@ export default function ChangeDetail() {
                 
                 if (result) {
 
-                  Alert.alert("Éxito", "Solicitud de cambio aprobada y convertida a tarea pendiente");
+                  Alert.alert("Ã‰xito", "Solicitud de cambio aprobada y convertida a tarea pendiente");
                   router.back();
                 } else {
                   throw new Error("No se pudo convertir el cambio a tarea pendiente");
@@ -263,7 +263,7 @@ export default function ChangeDetail() {
                 // Modo demo si no hay API
 
                 setTimeout(() => {
-                  Alert.alert("Éxito", "Solicitud de cambio aprobada y convertida a tarea pendiente (modo demo)");
+                  Alert.alert("Ã‰xito", "Solicitud de cambio aprobada y convertida a tarea pendiente (modo demo)");
                   router.back();
                 }, 1000);
               }
@@ -287,7 +287,7 @@ export default function ChangeDetail() {
 
     Alert.alert(
       "Rechazar cambio",
-      "¿Estás seguro de que quieres rechazar esta solicitud de cambio? Se moverá a la sección de cambios rechazados.",
+      "Â¿EstÃ¡s seguro de que quieres rechazar esta solicitud de cambio? Se moverÃ¡ a la secciÃ³n de cambios rechazados.",
       [
         {
           text: "Cancelar",
@@ -313,7 +313,7 @@ export default function ChangeDetail() {
                   // Actualizar los datos para reflejar el cambio
                   await fetchTask();
                   
-                  Alert.alert("Éxito", "Solicitud de cambio rechazada y movida a cambios rechazados");
+                  Alert.alert("Ã‰xito", "Solicitud de cambio rechazada y movida a cambios rechazados");
                   router.back();
                 } else {
                   throw new Error("No se pudo rechazar el cambio");
@@ -322,7 +322,7 @@ export default function ChangeDetail() {
                 // Modo demo si no hay API
 
                 setTimeout(() => {
-                  Alert.alert("Éxito", "Solicitud de cambio rechazada y movida a cambios rechazados (modo demo)");
+                  Alert.alert("Ã‰xito", "Solicitud de cambio rechazada y movida a cambios rechazados (modo demo)");
                   router.back();
                 }, 1000);
               }
@@ -338,13 +338,13 @@ export default function ChangeDetail() {
     );
   };
 
-  // Función para alternar entre modos de edición y vista
+  // FunciÃ³n para alternar entre modos de ediciÃ³n y vista
   const toggleEditMode = () => {
     if (isAdmin && isChange) {
       Alert.alert("Solo aceptar/rechazar", "Como admin solo puedes aprobar o rechazar este cambio.");
       return;
     }
-    // Si estamos saliendo del modo de edición, restaurar valores originales
+    // Si estamos saliendo del modo de ediciÃ³n, restaurar valores originales
     if (isEditing && changeRequest) {
       setTitle(changeRequest.title);
       setDescription(changeRequest.description);
@@ -354,7 +354,7 @@ export default function ChangeDetail() {
     setIsEditing(!isEditing);
   };
   
-  // Esta es la función que renderiza todo el componente
+  // Esta es la funciÃ³n que renderiza todo el componente
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
       <StatusBar barStyle="dark-content" />
@@ -383,7 +383,7 @@ export default function ChangeDetail() {
         )}
       </View>
       
-      {/* Contenido principal - Renderizar según el estado */}
+      {/* Contenido principal - Renderizar segÃºn el estado */}
       {taskLoading ? (
         // Estado de carga
         <View className="flex-1 justify-center items-center">
@@ -427,9 +427,9 @@ export default function ChangeDetail() {
           </View>
         </View>
 
-        {/* Título */}
+        {/* TÃ­tulo */}
         <View className="mb-4">
-          <Text className="text-gray-700 font-medium mb-2">Título</Text>
+          <Text className="text-gray-700 font-medium mb-2">TÃ­tulo</Text>
           {isEditing ? (
             <TextInput
               value={title}
@@ -444,9 +444,9 @@ export default function ChangeDetail() {
           )}
         </View>
 
-        {/* Descripción */}
+        {/* DescripciÃ³n */}
         <View className="mb-4">
-          <Text className="text-gray-700 font-medium mb-2">Descripción</Text>
+          <Text className="text-gray-700 font-medium mb-2">DescripciÃ³n</Text>
           {isEditing ? (
             <TextInput
               value={description}
@@ -460,15 +460,15 @@ export default function ChangeDetail() {
           ) : (
             <View className="bg-white p-4 rounded-xl border border-gray-200 min-h-[96px]">
               <Text className="text-gray-800">
-                {description || "Sin descripción"}
+                {description || "Sin descripciÃ³n"}
               </Text>
             </View>
           )}
         </View>
 
-        {/* Categoría */}
+        {/* CategorÃ­a */}
         <View className="mb-4">
-          <Text className="text-gray-700 font-medium mb-2">Categoría</Text>
+          <Text className="text-gray-700 font-medium mb-2">CategorÃ­a</Text>
           {isEditing ? (
             <View className="flex-row flex-wrap gap-2">
               {categories.map((cat) => (
@@ -506,9 +506,9 @@ export default function ChangeDetail() {
           )}
         </View>
 
-        {/* Imágenes */}
+        {/* ImÃ¡genes */}
         <View className="mb-6">
-          <Text className="text-gray-700 font-medium mb-2">Imágenes</Text>
+          <Text className="text-gray-700 font-medium mb-2">ImÃ¡genes</Text>
           
           {isEditing ? (
             <View>
@@ -558,7 +558,7 @@ export default function ChangeDetail() {
               ) : (
                 <>
                   <Ionicons name="image-outline" size={48} color="#9CA3AF" />
-                  <Text className="text-gray-400 mt-2">Sin imágenes</Text>
+                  <Text className="text-gray-400 mt-2">Sin imÃ¡genes</Text>
                 </>
               )}
             </View>
@@ -602,3 +602,4 @@ export default function ChangeDetail() {
     </SafeAreaView>
   );
 }
+

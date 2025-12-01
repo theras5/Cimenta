@@ -1,4 +1,4 @@
-import { Category } from "@/components/TaskCard";
+﻿import { Category } from "@/components/TaskCard";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useState, useEffect } from "react";
@@ -48,15 +48,15 @@ export default function NewRequest() {
       const { status } =
         await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
-        alert("Se necesitan permisos para acceder a la galería");
+        alert("Se necesitan permisos para acceder a la galerÃ­a");
       }
     })();
   }, []);
 
-  // Función para seleccionar imágenes
+  // FunciÃ³n para seleccionar imÃ¡genes
   const pickMedia = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: [ImagePicker.MediaType.image],
       allowsEditing: true,
       aspect: undefined,
       quality: 1,
@@ -74,7 +74,7 @@ export default function NewRequest() {
     }
   };
 
-  // Función para eliminar un archivo multimedia
+  // FunciÃ³n para eliminar un archivo multimedia
   const removeMediaFile = (index: number) => {
     const updatedFiles = [...mediaFiles];
     updatedFiles.splice(index, 1);
@@ -82,19 +82,19 @@ export default function NewRequest() {
   };
 
   const handleSave = async () => {
-    // Validación completa antes de enviar
+    // ValidaciÃ³n completa antes de enviar
     setHasAttemptedSubmit(true);
 
-    //Validar título
+    //Validar tÃ­tulo
     const isTitleValid = title.trim() !== "";
     if (!isTitleValid) {
-      setTitleError("El título es obligatorio");
+      setTitleError("El tÃ­tulo es obligatorio");
     }
 
-    // Validar categoría
+    // Validar categorÃ­a
     const isCategoryValid = category && category.trim() !== "";
     if (!isCategoryValid) {
-      setCategoryError("Selecciona una categoría");
+      setCategoryError("Selecciona una categorÃ­a");
     }
 
     // Si hay errores, no continuar
@@ -119,7 +119,7 @@ export default function NewRequest() {
       site_id,
     };
 
-    // Muestra en consola lo que se envía
+    // Muestra en consola lo que se envÃ­a
     console.log("Enviando solicitud al backend:", nuevaSolicitud);
 
     try {
@@ -172,22 +172,22 @@ export default function NewRequest() {
       </View>
 
       <ScrollView className="flex-1 px-4">
-        {/* Título */}
+        {/* TÃ­tulo */}
         <View className="mb-4">
           <Text className="text-gray-700 font-medium mb-2">
-            Título <Text className="text-red-500">*</Text>
+            TÃ­tulo <Text className="text-red-500">*</Text>
           </Text>
           <TextInput
             value={title}
             onChangeText={(text) => {
               setTitle(text);
               if (hasAttemptedSubmit && titleError) {
-                setTitleError(text.trim() ? null : "El título es obligatorio");
+                setTitleError(text.trim() ? null : "El tÃ­tulo es obligatorio");
               }
             }}
             onBlur={() => {
               if (hasAttemptedSubmit) {
-                setTitleError(title.trim() ? null : "El título es obligatorio");
+                setTitleError(title.trim() ? null : "El tÃ­tulo es obligatorio");
               }
             }}
             placeholder="Ej: Cambio de materiales"
@@ -200,9 +200,9 @@ export default function NewRequest() {
           )}
         </View>
 
-        {/* Descripción */}
+        {/* DescripciÃ³n */}
         <View className="mb-4">
-          <Text className="text-gray-700 font-medium mb-2">Descripción</Text>
+          <Text className="text-gray-700 font-medium mb-2">DescripciÃ³n</Text>
           <TextInput
             value={description}
             onChangeText={setDescription}
@@ -214,10 +214,10 @@ export default function NewRequest() {
           />
         </View>
 
-        {/* Categoría */}
+        {/* CategorÃ­a */}
         <View className="mb-6">
           <Text className="text-gray-700 font-medium mb-2">
-            Categoría <Text className="text-red-500">*</Text>
+            CategorÃ­a <Text className="text-red-500">*</Text>
           </Text>
           <View className="flex-row flex-wrap gap-2">
             {categories.map((cat) => {
@@ -240,7 +240,7 @@ export default function NewRequest() {
                       isSelected ? "text-white" : "text-gray-800"
                     }`}
                   >
-                    {cat.name === "construccion" ? "construcción" : cat.name === "plomeria" ? "plomería" : cat.name}
+                    {cat.name === "construccion" ? "construcciÃ³n" : cat.name === "plomeria" ? "plomerÃ­a" : cat.name}
                   </Text>
                 </TouchableOpacity>
               );
@@ -251,11 +251,11 @@ export default function NewRequest() {
           )}
         </View>
 
-        {/* Imágenes */}
+        {/* ImÃ¡genes */}
         <View className="mb-8">
-          <Text className="text-gray-700 font-medium mb-3">Imágenes</Text>
+          <Text className="text-gray-700 font-medium mb-3">ImÃ¡genes</Text>
 
-          {/* Área para agregar foto */}
+          {/* Ãrea para agregar foto */}
           <TouchableOpacity
             onPress={pickMedia}
             className="bg-white border-2 border-dashed border-gray-300 rounded-xl p-8 items-center justify-center min-h-[160px]"
@@ -274,7 +274,7 @@ export default function NewRequest() {
             </Text>
           </TouchableOpacity>
 
-          {/* Previsualización de archivos */}
+          {/* PrevisualizaciÃ³n de archivos */}
           {mediaFiles.length > 0 && (
             <View className="mt-4">
               <Text className="text-gray-700 font-medium mb-3">
