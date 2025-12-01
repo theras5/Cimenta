@@ -407,10 +407,10 @@ const AvancesScreen = () => {
           <div className="space-y-4 py-4">
             {/* T├¡tulo */}
             <div className="space-y-2">
-              <Label htmlFor="title">T├¡tulo <span className="text-red-500">*</span></Label>
+              <Label htmlFor="title">Título <span className="text-red-500">*</span></Label>
               <Input
                 id="title"
-                placeholder="T├¡tulo del avance"
+                placeholder="Título del avance"
                 value={newUpdate.title}
                 onChange={(e) => setNewUpdate({ ...newUpdate, title: e.target.value })}
                 className="w-full"
@@ -419,10 +419,10 @@ const AvancesScreen = () => {
             
             {/* Descripci├│n */}
             <div className="space-y-2">
-              <Label htmlFor="description">Descripci├│n</Label>
+              <Label htmlFor="description">Descripción</Label>
               <Textarea
                 id="description"
-                placeholder="Describe el avance con m├ís detalles..."
+                placeholder="Describe el avance con más detalles..."
                 value={newUpdate.description}
                 onChange={(e) => setNewUpdate({ ...newUpdate, description: e.target.value })}
                 rows={4}
@@ -546,7 +546,7 @@ const AvancesScreen = () => {
                 : ""}
             </div>
             <p className="text-gray-700 leading-6">
-              {detailData ? normalizeText(detailData.description) : "Sin descripción"}
+              {detailData ? normalizeText(detailData.description) : "Sin Descripci\u00f3n"}
             </p>
             {detailData?.image_url && (
               <div className="relative w-full overflow-hidden rounded-xl border border-gray-200">
@@ -566,6 +566,9 @@ const AvancesScreen = () => {
 };
 
 export default AvancesScreen;
+
+
+
 
 
 
