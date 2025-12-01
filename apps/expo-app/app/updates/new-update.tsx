@@ -1,4 +1,4 @@
-import {
+﻿import {
   Image,
   View,
   Text,
@@ -14,7 +14,8 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import RequiredTextInput from "@/components/RequiredTextInput";
 import * as ImagePicker from "expo-image-picker";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
+import * as ImageManipulator from "expo-image-manipulator";
 import { useUpdates } from "@/hooks/useUpdates";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@/context/AuthContext";
@@ -55,23 +56,39 @@ const NewUpdate = () => {
   }, []);
 
   const convertToDataUrl = async (uri: string, mime?: string) => {
-    const base64 = await FileSystem.readAsStringAsync(uri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-    const safeMime = mime || "image/jpeg";
-    return `data:${safeMime};base64,${base64}`;
+    try {
+      // Reducimos tamaño/compress siempre para evitar archivos grandes y depender del FS nuevo
+      const manipulated = await ImageManipulator.manipulateAsync(
+        uri,
+        [{ resize: { width: 1600 } }],
+        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+      );
+
+      const base64 = manipulated.base64;
+      const safeMime = mime || "image/jpeg";
+      if (!base64) throw new Error("No se pudo obtener base64");
+      return `data:${safeMime};base64,${base64}`;
+    } catch (err) {
+      console.error("convertToDataUrl error", err);
+      throw err;
+    }
   };
 
   const pickImageFromGallery = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: [ImagePicker.MediaType.image],
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: undefined,
-        quality: 1,
+        quality: 0.8,
       });
 
-      if (!result.canceled && result.assets && result.assets.length > 0) {
+      if (result.canceled) {
+        setShowGalleryModal(false);
+        return;
+      }
+
+      if (result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
         const newFile: MediaFile = {
           uri: asset.uri,
@@ -93,6 +110,7 @@ const NewUpdate = () => {
         }
       }
     } catch (error) {
+      console.error("pickImageFromGallery error", error);
       Alert.alert("Error", "No se pudo seleccionar la imagen");
     }
     setShowGalleryModal(false);
@@ -101,7 +119,7 @@ const NewUpdate = () => {
   const pickVideoFromGallery = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: [ImagePicker.MediaType.video],
+        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
         allowsEditing: true,
         quality: 1,
         videoMaxDuration: 30,
@@ -127,13 +145,18 @@ const NewUpdate = () => {
   const takePhoto = async () => {
     try {
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: [ImagePicker.MediaType.image],
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [4, 3],
-        quality: 1,
+        quality: 0.85,
       });
 
-      if (!result.canceled && result.assets && result.assets.length > 0) {
+      if (result.canceled) {
+        setShowCameraModal(false);
+        return;
+      }
+
+      if (result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
         const newFile: MediaFile = {
           uri: asset.uri,
@@ -155,6 +178,7 @@ const NewUpdate = () => {
         }
       }
     } catch (error) {
+      console.error("takePhoto error", error);
       Alert.alert("Error", "No se pudo tomar la foto");
     }
     setShowCameraModal(false);
@@ -163,7 +187,7 @@ const NewUpdate = () => {
   const recordVideo = async () => {
     try {
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: [ImagePicker.MediaType.video],
+        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
         allowsEditing: true,
         quality: 1,
         videoMaxDuration: 30,
@@ -539,3 +563,4 @@ const NewUpdate = () => {
 };
 
 export default NewUpdate;
+

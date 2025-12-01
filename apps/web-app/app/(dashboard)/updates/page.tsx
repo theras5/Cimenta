@@ -63,6 +63,43 @@ const AvancesScreen = () => {
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailData, setDetailData] = useState<ApiUpdate | null>(null);
 
+  const normalizeText = (text?: string | null) => {
+    if (!text) return text || "";
+    try {
+      // Si llega doblemente codificado (Instalación) lo corregimos
+      return decodeURIComponent(escape(text));
+    } catch {
+      return text;
+    }
+  };
+
+  const compressImageFile = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const MAX_WIDTH = 1000;
+        const scale = Math.min(1, MAX_WIDTH / img.width);
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("No se pudo crear el canvas"));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL(file.type || "image/jpeg", 0.6);
+        URL.revokeObjectURL(url);
+        resolve(dataUrl);
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("No se pudo cargar la imagen"));
+      };
+      img.src = url;
+    });
+
   // Cargar updates al montar el componente
   useEffect(() => {
     const siteId = localStorage.getItem("selectedSiteId");
@@ -178,17 +215,38 @@ const AvancesScreen = () => {
     setFileName(file.name);
     setFileSelected(true);
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const dataUrl = typeof reader.result === "string" ? reader.result : "";
-      setNewUpdate((prev) => ({
-        ...prev,
-        media_type: fileType as "image" | "video" | null,
-        image_url: dataUrl,
-      }));
-    };
-
-    reader.readAsDataURL(file);
+    if (fileType === "image") {
+      compressImageFile(file)
+        .then((dataUrl) => {
+          setNewUpdate((prev) => ({
+            ...prev,
+            media_type: "image",
+            image_url: dataUrl,
+          }));
+        })
+        .catch(() => {
+          setNewUpdate((prev) => ({
+            ...prev,
+            media_type: "image",
+          }));
+          toast({
+            title: "Error",
+            description: "No se pudo procesar la imagen seleccionada.",
+            variant: "destructive",
+          });
+        });
+    } else {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const dataUrl = typeof reader.result === "string" ? reader.result : "";
+        setNewUpdate((prev) => ({
+          ...prev,
+          media_type: fileType as "image" | "video" | null,
+          image_url: dataUrl,
+        }));
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleNoMediaPress = (id: string) => {
@@ -279,8 +337,8 @@ const AvancesScreen = () => {
             <>
               {/* Notification card */}
               <NotificationCard
-                message="Se ha terminado"
-                highlight="Instalaci├│n del aire"
+                message={normalizeText("Se ha terminado")}
+                highlight={normalizeText("Instalación del aire")}
               />
 
               {/* Remaining cards */}
@@ -290,20 +348,24 @@ const AvancesScreen = () => {
                   ? (user?.name || "Usuario")
                   : (update.user_name || "Usuario");
                 
+                const safeTitle = normalizeText(update.title);
+                const safeDescription = normalizeText(update.description);
+                const safeAuthor = normalizeText(authorName);
                 return update.image_url ? (
                   <VideoCard
                     key={update.id}
-                    title={update.title}
-                    author={authorName}
+                    title={safeTitle}
+                    author={safeAuthor}
                     timeAgo={formatTimeAgo(update.created_at)}
+                    imageUrl={update.image_url}
                     onPress={() => handleNoMediaPress(update.id)}
                   />
                 ) : (
                   <NoMediaCard
                     key={update.id}
-                    title={update.title}
-                    description={update.description}
-                    author={authorName}
+                    title={safeTitle}
+                    description={safeDescription}
+                    author={safeAuthor}
                     timeAgo={formatTimeAgo(update.created_at)}
                     onPress={() => handleNoMediaPress(update.id)}
                   />
@@ -474,7 +536,7 @@ const AvancesScreen = () => {
         <DetailContent className="sm:max-w-lg">
           <DetailHeader>
             <DetailTitle className="text-xl font-semibold">
-              {detailData?.title || "Detalle de avance"}
+              {detailData ? normalizeText(detailData.title) : "Detalle de avance"}
             </DetailTitle>
           </DetailHeader>
           <div className="space-y-4">
@@ -484,7 +546,7 @@ const AvancesScreen = () => {
                 : ""}
             </div>
             <p className="text-gray-700 leading-6">
-              {detailData?.description || "Sin descripci├│n"}
+              {detailData ? normalizeText(detailData.description) : "Sin descripción"}
             </p>
             {detailData?.image_url && (
               <div className="relative w-full overflow-hidden rounded-xl border border-gray-200">
@@ -504,6 +566,24 @@ const AvancesScreen = () => {
 };
 
 export default AvancesScreen;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

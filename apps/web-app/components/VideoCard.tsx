@@ -10,17 +10,33 @@ interface VideoCardProps {
   author: string
   timeAgo: string
   hasPlayButton?: boolean
+  imageUrl?: string
   onPress?: () => void
 }
 
-const VideoCard: React.FC<VideoCardProps> = ({ title, author, timeAgo, hasPlayButton = false, onPress }) => {
+const VideoCard: React.FC<VideoCardProps> = ({
+  title,
+  author,
+  timeAgo,
+  hasPlayButton = false,
+  imageUrl,
+  onPress
+}) => {
   return (
     <div
       className="bg-white rounded-2xl shadow-lg overflow-hidden cursor-pointer hover:shadow-xl transition-shadow"
       onClick={onPress}
     >
-      {/* Blue gradient background with flowing pattern */}
+      {/* Media background */}
       <div className="relative h-40 bg-gradient-to-br from-blue-800 via-blue-600 to-cyan-500 overflow-hidden">
+        {imageUrl && (
+          <img
+            src={imageUrl}
+            alt={title}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        )}
+
         {/* Flowing wave pattern */}
         <div className="absolute inset-0 opacity-20">
           <svg className="w-full h-full" viewBox="0 0 400 200" preserveAspectRatio="none">
