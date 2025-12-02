@@ -505,7 +505,7 @@ export default function HomeScreen() {
             <Text style={styles.shortcutLabel}>Diagrama de Gantt</Text>
           </TouchableOpacity>
 
-          {!roleLoading && normalizedRole === 'client' && selectedSiteId && (
+          {selectedSiteId && (
             <TouchableOpacity onPress={navigateToSummary} style={styles.shortcutItem}>
               <View style={styles.shortcutIcon}>
                 <Ionicons name="stats-chart" size={24} color="#6B7280" />
