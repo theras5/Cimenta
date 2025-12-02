@@ -105,17 +105,22 @@ const Obras = () => {
     }
   };
 
-  const handleSelectSite = async (siteId: string) => {
+  const handleSelectSite = async (site: Site) => {
     // Guardar el sitio seleccionado
-    await AsyncStorage.setItem('selectedSiteId', siteId);
+    await AsyncStorage.setItem('selectedSiteId', site.id);
+    await AsyncStorage.setItem('selectedSiteAddress', site.address);
 
     Alert.alert(
       'Obra seleccionada',
-      '¿Deseas ir al dashboard con esta obra?',
+      `${site.address}\n\n¿Qué deseas hacer?`,
       [
         {
           text: 'Cancelar',
           style: 'cancel',
+        },
+        {
+          text: 'Ver Resumen',
+          onPress: () => router.push('/site-summary'),
         },
         {
           text: 'Ir al Dashboard',
@@ -173,7 +178,7 @@ const Obras = () => {
                 <TouchableOpacity
                   key={site.id}
                   style={styles.siteCard}
-                  onPress={() => handleSelectSite(site.id)}
+                  onPress={() => handleSelectSite(site)}
                 >
                   <View style={styles.siteIconContainer}>
                     <Ionicons name="business" size={24} color="#2563EB" />

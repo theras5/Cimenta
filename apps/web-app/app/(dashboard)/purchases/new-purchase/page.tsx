@@ -67,7 +67,7 @@ export default function NewPurchasePage() {
     description: "",
     quantity: 1,
     unity: "u",
-    price: 0,
+    price: "" as string | number,
     supplier: "",
     category: "",
     priority: "normal",
@@ -89,7 +89,7 @@ export default function NewPurchasePage() {
       description: "",
       quantity: 1,
       unity: "u",
-      price: 0,
+      price: "",
       supplier: "",
       category: "",
       priority: "normal",
@@ -123,6 +123,7 @@ export default function NewPurchasePage() {
 
       await createPurchase({
         ...newPurchase,
+        price: newPurchase.price ? parseFloat(newPurchase.price.toString()) : undefined,
         site_id: siteId,
         user_id: user.id,
         status: "pending",
@@ -271,11 +272,10 @@ export default function NewPurchasePage() {
                       </Select>
                     </div>
                   </div>
-
                   {/* Precio */}
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">
-                      Precio estimado
+                      Precio estimado (opcional)
                     </label>
                     <Input
                       type="number"
@@ -286,11 +286,13 @@ export default function NewPurchasePage() {
                       onChange={(e) =>
                         setNewPurchase({
                           ...newPurchase,
-                          price: parseFloat(e.target.value) || 0,
+                          price: e.target.value,
                         })
                       }
                       disabled={loading}
                     />
+                    <p className="text-xs text-gray-500">Monto en pesos argentinos</p>
+                  </div>
                   </div>
 
                   {/* Proveedor */}

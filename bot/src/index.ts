@@ -8,6 +8,9 @@ import pino from 'pino';
 import qrcode from 'qrcode-terminal';
 import { Task } from '@cimenta/dtos';
 import { api } from './config';
+import axios from 'axios';
+import * as fs from 'fs';
+import * as path from 'path';
 
 
 export function parseTaskMessage(text: string, userUID: string): Omit<Task, 'id' | 'created_at'> {
@@ -109,8 +112,10 @@ export default async function connectToWhatsApp() {
         const lowerMessage = messageText.toLowerCase();
         if (lowerMessage.startsWith('crear tarea:')) {
             handleTaskCreation(messageText, senderNumber, sock);
+        } else if (lowerMessage.includes('resumen')) {
+            handleSummaryRequest(messageText, senderNumber, sock);
         } else if (lowerMessage.includes('ayud')) {
-            await sock.sendMessage(senderNumber, { text: '- *Para crear una tarea, usa el siguiente formato:*\n\ncrear tarea: [ título ]\ndescripcion: [ descripción ]\ncategoria: [ electricidad, plomeria, construccion, pintura ]\nurgente: [ si, no ]\nestado: [ changes, pending, in_progress, completed, blocked ]\n\n*Ejemplo*:\ncrear tarea: Reparar fuga de agua\ndescripcion: Hay una fuga en la cocina\ncategoria: plomeria\nurgente: si\nestado: pending\n\n- *Para editar el estado de una tarea usa el siguiente formato:*\n\ncambiar estado: [ID] : [nuevo_estado] ' });
+            await sock.sendMessage(senderNumber, { text: '- *Para crear una tarea, usa el siguiente formato:*\n\ncrear tarea: [ título ]\ndescripcion: [ descripción ]\ncategoria: [ electricidad, plomeria, construccion, pintura ]\nurgente: [ si, no ]\nestado: [ changes, pending, in_progress, completed, blocked ]\n\n*Ejemplo*:\ncrear tarea: Reparar fuga de agua\ndescripcion: Hay una fuga en la cocina\ncategoria: plomeria\nurgente: si\nestado: pending\n\n- *Para editar el estado de una tarea usa el siguiente formato:*\n\ncambiar estado: [ID] : [nuevo_estado]\n\n- *Para obtener el resumen de una obra:*\n\nresumen: [ID de la obra]\n\n- *Para obtener el resumen de todas las obras:*\n\nresumen' });
         } else if (lowerMessage.startsWith('hola')) {
             await sock.sendMessage(senderNumber, { text: '¡Hola! ¿En qué puedo ayudarte hoy?' });
         } else if (lowerMessage.includes('cambiar estado:')) {
@@ -157,6 +162,78 @@ async function handleTaskStateUpdate(taskId: string, newState: string, senderNum
     } catch (error: any) {
         console.error('Error al actualizar el estado de la tarea:', error.message);
         await sock.sendMessage(senderNumber, { text: `❌ Error al actualizar la tarea: ${error.message}` });
+    }
+}
+
+async function handleSummaryRequest(messageText: string, senderNumber: string, sock: WASocket) {
+    try {
+        // Extraer el ID de la obra del mensaje si existe
+        const parts = messageText.split(':');
+        const hasSiteId = parts.length >= 2 && parts[1].trim() !== '';
+        
+        let pdfUrl: string;
+        let fileName: string;
+        let caption: string;
+
+        if (hasSiteId) {
+            // Caso: resumen de una obra específica
+            const siteId = parts[1].trim();
+            
+            await sock.sendMessage(senderNumber, { 
+                text: '⏳ Generando resumen de la obra...'
+            });
+
+            const apiUrl = process.env.API_URL || 'http://localhost:3000';
+            pdfUrl = `${apiUrl}/summary/${siteId}/pdf`;
+            fileName = `resumen-obra-${siteId}.pdf`;
+            caption = '📊 Aquí está el resumen de la obra';
+        } else {
+            // Caso: resumen de todas las obras
+            await sock.sendMessage(senderNumber, { 
+                text: '⏳ Generando resumen de todas las obras...'
+            });
+
+            const apiUrl = process.env.API_URL || 'http://localhost:3000';
+            pdfUrl = `${apiUrl}/summary/all/pdf`;
+            fileName = `resumen-todas-obras.pdf`;
+            caption = '📊 Aquí está el resumen de todas las obras';
+        }
+
+        // Descargar el PDF
+        const response = await axios.get(pdfUrl, { responseType: 'arraybuffer' });
+        const pdfBuffer = Buffer.from(response.data);
+
+        // Guardar temporalmente el PDF
+        const tempDir = path.join(__dirname, '..', 'temp');
+        if (!fs.existsSync(tempDir)) {
+            fs.mkdirSync(tempDir, { recursive: true });
+        }
+        const tempFilePath = path.join(tempDir, `${Date.now()}-${fileName}`);
+        fs.writeFileSync(tempFilePath, pdfBuffer);
+
+        // Enviar el PDF por WhatsApp
+        await sock.sendMessage(senderNumber, {
+            document: { url: tempFilePath },
+            mimetype: 'application/pdf',
+            fileName: fileName,
+            caption: caption
+        });
+
+        // Eliminar el archivo temporal
+        fs.unlinkSync(tempFilePath);
+
+        console.log(`✅ Resumen enviado${hasSiteId ? ` para la obra ${parts[1].trim()}` : ' de todas las obras'}`);
+    } catch (error: any) {
+        console.error('Error al generar/enviar resumen:', error.message);
+        
+        let errorMessage = '❌ Error al generar el resumen.';
+        if (error.response?.status === 404) {
+            errorMessage = '❌ No se encontró la obra con ese ID o no hay obras registradas.';
+        } else if (error.response?.status === 500) {
+            errorMessage = '❌ Error en el servidor al generar el resumen.';
+        }
+        
+        await sock.sendMessage(senderNumber, { text: errorMessage });
     }
 }
 

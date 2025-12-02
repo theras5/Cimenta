@@ -75,6 +75,7 @@ export default function NewPurchase() {
   const [description, setDescription] = useState("");
   const [supplier, setSupplier] = useState("");
   const [priority, setPriority] = useState("normal");
+  const [price, setPrice] = useState("");
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   
@@ -245,6 +246,7 @@ export default function NewPurchase() {
         description: description || undefined,
         quantity: parseInt(quantity),
         unity: selectedUnit,
+        price: price ? parseFloat(price) : undefined,
         supplier: supplier || undefined,
         category: category, // Ya es el valor correcto del enum
         priority: priority,
@@ -419,6 +421,19 @@ export default function NewPurchase() {
             placeholder="Nombre del proveedor"
             className="bg-white p-4 rounded-xl border border-gray-200"
           />
+        </View>
+
+        {/* Precio estimado */}
+        <View className="mb-4">
+          <Text className="text-gray-700 font-medium mb-2">Precio estimado (opcional)</Text>
+          <TextInput
+            value={price}
+            onChangeText={setPrice}
+            placeholder="Ej: 15000"
+            keyboardType="numeric"
+            className="bg-white p-4 rounded-xl border border-gray-200"
+          />
+          <Text className="text-gray-500 text-xs mt-1">Monto en pesos argentinos</Text>
         </View>
 
         {/* Prioridad */}

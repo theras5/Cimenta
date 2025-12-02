@@ -8,6 +8,7 @@ import purchases from "./routes/purchases";
 import employees from "./routes/employees";
 import clients from "./routes/clients";
 import userRole from "./routes/userRole";
+import summary from "./routes/summary";
 
 // server/src/app.ts
 import cors from "cors";
@@ -42,6 +43,8 @@ app.use("/employees", employees);
 app.use("/clients", clients);
 
 app.use("/user-role", userRole);
+
+app.use("/summary", summary);
 
 // Middleware de manejo de errores (DEBE IR AL FINAL)
 app.use(errorMiddleware);

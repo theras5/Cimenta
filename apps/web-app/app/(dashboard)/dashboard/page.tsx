@@ -7,6 +7,7 @@ import {
   CheckSquareIcon,
   RefreshCcwIcon,
   ShoppingCartIcon,
+  BarChart3,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -222,6 +223,24 @@ export default function CimentaDashboard() {
                   Solicitar materiales o equipos
                 </p>
               </button>
+
+              {/* Ver resumen de obra (solo client) */}
+              {!roleLoading && normalizedRole === "client" && selectedSiteId && (
+                <button
+                  onClick={() => router.push("/summary")}
+                  className="group flex flex-col items-center p-6 bg-white rounded-xl border border-gray-200 hover:border-green-300 hover:bg-green-50 transition-all duration-200 hover:shadow-md"
+                >
+                  <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center mb-3 group-hover:bg-green-200 transition-colors">
+                    <BarChart3 className="w-6 h-6 text-green-600" />
+                  </div>
+                  <h3 className="text-md font-semibold text-gray-900 text-center mb-1">
+                    Resumen de obra
+                  </h3>
+                  <p className="text-xs text-gray-500 text-center">
+                    Ver estadísticas y progreso
+                  </p>
+                </button>
+              )}
             </div>
           </div>
         </div>

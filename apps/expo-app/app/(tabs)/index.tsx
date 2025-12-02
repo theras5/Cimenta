@@ -5,6 +5,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTasks } from '../../hooks/useTasks';
 import { useUserRole } from '@/hooks/useUserRole';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
 
@@ -103,6 +105,16 @@ export default function HomeScreen() {
   const normalizedRole = role?.toLowerCase();
   const [todayEvents, setTodayEvents] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
+
+  // Verificar si hay sitio seleccionado
+  useEffect(() => {
+    const checkSite = async () => {
+      const siteId = await AsyncStorage.getItem('selectedSiteId');
+      setSelectedSiteId(siteId);
+    };
+    checkSite();
+  }, []);
 
   // Colores por categoría
   const categoryColors: { [key: string]: string } = {
@@ -204,6 +216,7 @@ export default function HomeScreen() {
   const navigateToNewChange = () => router.push("/tasks/new-change");
   const navigateToNewPurchase = () => router.push("/purchases/new-purchase");
   const navigateToNewUpdate = () => router.push("/updates/new-update");
+  const navigateToSummary = () => router.push("/site-summary");
 
   return (
     <SafeAreaView style={styles.container}>
@@ -491,8 +504,27 @@ export default function HomeScreen() {
             </View>
             <Text style={styles.shortcutLabel}>Diagrama de Gantt</Text>
           </TouchableOpacity>
+
+          {!roleLoading && normalizedRole === 'client' && selectedSiteId && (
+            <TouchableOpacity onPress={navigateToSummary} style={styles.shortcutItem}>
+              <View style={styles.shortcutIcon}>
+                <Ionicons name="stats-chart" size={24} color="#6B7280" />
+              </View>
+              <Text style={styles.shortcutLabel}>Resumen de Obra</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
+
+      {/* Botón flotante para ver resumen - solo para clientes */}
+      {!roleLoading && normalizedRole === 'client' && selectedSiteId && (
+        <TouchableOpacity 
+          style={styles.fabButton}
+          onPress={() => router.push('/site-summary')}
+        >
+          <Ionicons name="stats-chart" size={28} color="#FFFFFF" />
+        </TouchableOpacity>
+      )}
     </SafeAreaView>
   );
 }
@@ -708,5 +740,24 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     textAlign: 'center',
     lineHeight: SCALED_VALUES.eventTimeFontSize * 1.4,
+  },
+  fabButton: {
+    position: 'absolute',
+    right: 20,
+    bottom: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#3B82F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    elevation: 8,
   },
 });

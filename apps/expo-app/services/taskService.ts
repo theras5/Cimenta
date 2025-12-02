@@ -11,6 +11,7 @@ export interface Task {
   category: string;
   categoryColor?: string;
   status: 'changes' | 'pending' | 'in_progress' | 'completed' | 'blocked' | 'rejected';
+  completed?: boolean;
   start_date?: ISODateString;
   end_date?: ISODateString;
   assignedMembers?: string[];
