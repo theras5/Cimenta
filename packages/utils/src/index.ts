@@ -1,6 +1,7 @@
 import { createChangeService } from "./services/changeService";
 import { createPurchaseService } from "./services/purchaseService";
 import { createSiteService } from "./services/siteService";
+import { createSupplierService } from "./services/supplierService";
 import { createTaskService } from "./services/taskService";
 import { createUpdateService } from "./services/updateService";
 
@@ -19,6 +20,7 @@ export const createApiClient = (apiUrl: string, options?: ApiClientOptions) => {
         TaskService: createTaskService(apiUrl, baseHeaders),
         ChangeService: createChangeService(apiUrl, baseHeaders),
         UpdateService: createUpdateService(apiUrl, baseHeaders),
-        PurchaseService: createPurchaseService(apiUrl, baseHeaders)
+        PurchaseService: createPurchaseService(apiUrl, baseHeaders),
+        SupplierService: createSupplierService(apiUrl, baseHeaders)
     }
 };
