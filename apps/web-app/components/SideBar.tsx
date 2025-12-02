@@ -64,6 +64,12 @@ export default function Sidebar() {
 
   // Manejar cambio de sitio
   const handleChangeSite = (siteId: string) => {
+    if (siteId === "change") {
+      // Redirigir a la pantalla de selección de obras
+      router.push("/select-site")
+      return
+    }
+    
     localStorage.setItem("selectedSiteId", siteId)
     setSelectedSiteId(siteId)
     
