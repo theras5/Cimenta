@@ -25,7 +25,11 @@ const Obras = () => {
   const [loading, setLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [isSiteOptionsModalOpen, setIsSiteOptionsModalOpen] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
   const [selectedSiteForInvite, setSelectedSiteForInvite] = useState<Site | null>(null);
+  const [selectedSiteForOptions, setSelectedSiteForOptions] = useState<Site | null>(null);
   const [inviteFormData, setInviteFormData] = useState({
     email: '',
     role: 'client' as 'admin' | 'client',
@@ -123,31 +127,9 @@ const Obras = () => {
     await AsyncStorage.setItem('selectedSiteId', site.id);
     await AsyncStorage.setItem('selectedSiteAddress', site.address);
 
-    Alert.alert(
-      'Obra seleccionada',
-      `${site.address}\n\n¿Qué deseas hacer?`,
-      [
-        {
-          text: 'Cancelar',
-          style: 'cancel',
-        },
-        {
-          text: 'Ver Resumen',
-          onPress: () => router.push('/site-summary'),
-        },
-        {
-          text: 'Ir al Dashboard',
-          onPress: () => router.push('/(tabs)'),
-        },
-        {
-          text: 'Invitar a otro usuario',
-          onPress: () => {
-            setSelectedSiteForInvite(site);
-            setIsInviteModalOpen(true);
-          },
-        },
-      ]
-    );
+    // Abrir modal de opciones
+    setSelectedSiteForOptions(site);
+    setIsSiteOptionsModalOpen(true);
   };
 
   const validateInviteForm = () => {
@@ -188,11 +170,9 @@ const Obras = () => {
         throw new Error(data.error || 'Error al enviar la invitación');
       }
 
-      Alert.alert(
-        '¡Invitación enviada!',
-        `Se ha enviado una invitación a ${inviteFormData.email}`,
-        [{ text: 'OK' }]
-      );
+      // Mostrar modal de éxito personalizado
+      setSuccessMessage(`Se ha enviado una invitación a ${inviteFormData.email}`);
+      setShowSuccessModal(true);
 
       // Limpiar y cerrar
       setInviteFormData({ email: '', role: 'client' });
@@ -475,6 +455,92 @@ const Obras = () => {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Modal de opciones de obra */}
+      <Modal
+        visible={isSiteOptionsModalOpen}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setIsSiteOptionsModalOpen(false)}
+      >
+        <TouchableOpacity 
+          style={styles.optionsModalContainer}
+          activeOpacity={1}
+          onPress={() => setIsSiteOptionsModalOpen(false)}
+        >
+          <View style={styles.optionsModalContent}>
+            <Text style={styles.optionsModalTitle}>Obra seleccionada</Text>
+            {selectedSiteForOptions && (
+              <Text style={styles.optionsModalSubtitle}>{selectedSiteForOptions.address}</Text>
+            )}
+
+            <TouchableOpacity
+              style={styles.optionButton}
+              onPress={() => {
+                setIsSiteOptionsModalOpen(false);
+                router.push('/(tabs)');
+              }}
+            >
+              <Ionicons name="home-outline" size={24} color="#2563EB" />
+              <Text style={styles.optionButtonText}>Ir al Dashboard</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.optionButton}
+              onPress={() => {
+                setIsSiteOptionsModalOpen(false);
+                router.push('/site-summary');
+              }}
+            >
+              <Ionicons name="stats-chart-outline" size={24} color="#2563EB" />
+              <Text style={styles.optionButtonText}>Ver Resumen</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.optionButton}
+              onPress={() => {
+                setIsSiteOptionsModalOpen(false);
+                setSelectedSiteForInvite(selectedSiteForOptions);
+                setIsInviteModalOpen(true);
+              }}
+            >
+              <Ionicons name="person-add-outline" size={24} color="#2563EB" />
+              <Text style={styles.optionButtonText}>Invitar a otro usuario</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.optionButton, styles.optionButtonCancel]}
+              onPress={() => setIsSiteOptionsModalOpen(false)}
+            >
+              <Text style={styles.optionButtonCancelText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Modal de éxito */}
+      <Modal
+        visible={showSuccessModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowSuccessModal(false)}
+      >
+        <View style={styles.successModalContainer}>
+          <View style={styles.successModalContent}>
+            <View style={styles.successIconContainer}>
+              <Ionicons name="checkmark-circle" size={64} color="#10B981" />
+            </View>
+            <Text style={styles.successModalTitle}>¡Invitación enviada!</Text>
+            <Text style={styles.successModalMessage}>{successMessage}</Text>
+            <TouchableOpacity 
+              style={styles.successModalButton}
+              onPress={() => setShowSuccessModal(false)}
+            >
+              <Text style={styles.successModalButtonText}>Aceptar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -709,6 +775,102 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 8,
     fontStyle: 'italic',
+  },
+  optionsModalContainer: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  optionsModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 30,
+  },
+  optionsModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  optionsModalSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 20,
+  },
+  optionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  optionButtonText: {
+    fontSize: 16,
+    color: '#111827',
+    marginLeft: 12,
+    fontWeight: '500',
+  },
+  optionButtonCancel: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginTop: 8,
+    justifyContent: 'center',
+  },
+  optionButtonCancelText: {
+    fontSize: 16,
+    color: '#6B7280',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  successModalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  successModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 32,
+    width: '85%',
+    maxWidth: 400,
+    alignItems: 'center',
+  },
+  successIconContainer: {
+    marginBottom: 20,
+  },
+  successModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#111827',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  successModalMessage: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  successModalButton: {
+    backgroundColor: '#10B981',
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    width: '100%',
+  },
+  successModalButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    textAlign: 'center',
   },
 });
 

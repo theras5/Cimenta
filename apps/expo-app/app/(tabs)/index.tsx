@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Dimensions, Image, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Dimensions, Image, RefreshControl, Modal, TextInput, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -106,6 +106,14 @@ export default function HomeScreen() {
   const [todayEvents, setTodayEvents] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [inviteFormData, setInviteFormData] = useState({
+    email: '',
+    role: 'client' as 'admin' | 'client',
+  });
+  const [loading, setLoading] = useState(false);
 
   // Verificar si hay sitio seleccionado
   useEffect(() => {
@@ -217,6 +225,67 @@ export default function HomeScreen() {
   const navigateToNewPurchase = () => router.push("/purchases/new-purchase");
   const navigateToNewUpdate = () => router.push("/updates/new-update");
   const navigateToSummary = () => router.push("/site-summary");
+
+  // Funciones para modal de invitación
+  const openInviteModal = () => {
+    if (!selectedSiteId) {
+      Alert.alert('Error', 'No hay una obra seleccionada');
+      return;
+    }
+    setIsInviteModalOpen(true);
+  };
+
+  const validateInviteForm = () => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!inviteFormData.email.trim()) {
+      Alert.alert('Error', 'El email es requerido');
+      return false;
+    }
+    if (!emailRegex.test(inviteFormData.email)) {
+      Alert.alert('Error', 'El email no es válido');
+      return false;
+    }
+    return true;
+  };
+
+  const handleSendInvitation = async () => {
+    if (!validateInviteForm() || !selectedSiteId) return;
+
+    setLoading(true);
+    try {
+      const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
+      
+      const response = await fetch(`${API_URL}/invitations`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: inviteFormData.email.toLowerCase().trim(),
+          site_id: selectedSiteId,
+          role: inviteFormData.role,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Error al enviar la invitación');
+      }
+
+      // Mostrar modal de éxito personalizado
+      setSuccessMessage(`Se ha enviado una invitación a ${inviteFormData.email}`);
+      setShowSuccessModal(true);
+
+      // Limpiar y cerrar
+      setInviteFormData({ email: '', role: 'client' });
+      setIsInviteModalOpen(false);
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'No se pudo enviar la invitación');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -513,8 +582,142 @@ export default function HomeScreen() {
               <Text style={styles.shortcutLabel}>Resumen de Obra</Text>
             </TouchableOpacity>
           )}
+
+          {selectedSiteId && (
+            <TouchableOpacity onPress={openInviteModal} style={styles.shortcutItem}>
+              <View style={styles.shortcutIcon}>
+                <Ionicons name="person-add" size={24} color="#6B7280" />
+              </View>
+              <Text style={styles.shortcutLabel}>Invitar Usuario</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
+
+      {/* Modal de invitación */}
+      <Modal
+        visible={isInviteModalOpen}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setIsInviteModalOpen(false)}
+      >
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalContainer}
+        >
+          <TouchableOpacity 
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setIsInviteModalOpen(false)}
+          >
+            <View style={styles.modalContent} onStartShouldSetResponder={() => true}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalHeaderTitle}>Invitar usuario a la obra</Text>
+                <TouchableOpacity onPress={() => setIsInviteModalOpen(false)}>
+                  <Ionicons name="close" size={24} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.modalBody}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Email del usuario <Text style={styles.required}>*</Text></Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="usuario@ejemplo.com"
+                    value={inviteFormData.email}
+                    onChangeText={(text) => setInviteFormData({ ...inviteFormData, email: text })}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Rol en la obra <Text style={styles.required}>*</Text></Text>
+                  <View style={styles.roleButtons}>
+                    <TouchableOpacity
+                      style={[
+                        styles.roleButton,
+                        inviteFormData.role === 'client' && styles.roleButtonActive
+                      ]}
+                      onPress={() => setInviteFormData({ ...inviteFormData, role: 'client' })}
+                    >
+                      <Text style={[
+                        styles.roleButtonText,
+                        inviteFormData.role === 'client' && styles.roleButtonTextActive
+                      ]}>Cliente</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.roleButton,
+                        inviteFormData.role === 'admin' && styles.roleButtonActive
+                      ]}
+                      onPress={() => setInviteFormData({ ...inviteFormData, role: 'admin' })}
+                    >
+                      <Text style={[
+                        styles.roleButtonText,
+                        inviteFormData.role === 'admin' && styles.roleButtonTextActive
+                      ]}>Administrador</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={styles.roleDescription}>
+                    {inviteFormData.role === 'admin'
+                      ? 'Podrá crear y gestionar tareas'
+                      : 'Podrá ver el progreso y crear solicitudes de cambio'}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.modalFooter}>
+                <TouchableOpacity 
+                  style={styles.modalCancelButton}
+                  onPress={() => setIsInviteModalOpen(false)}
+                >
+                  <Text style={styles.modalCancelButtonText}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.modalSubmitButton}
+                  onPress={handleSendInvitation}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Ionicons name="mail-outline" size={16} color="#FFFFFF" style={{ marginRight: 8 }} />
+                      <Text style={styles.modalSubmitButtonText}>Enviar Invitación</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Modal de éxito */}
+      <Modal
+        visible={showSuccessModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowSuccessModal(false)}
+      >
+        <View style={styles.successModalContainer}>
+          <View style={styles.successModalContent}>
+            <View style={styles.successIconContainer}>
+              <Ionicons name="checkmark-circle" size={64} color="#10B981" />
+            </View>
+            <Text style={styles.successModalTitle}>¡Invitación enviada!</Text>
+            <Text style={styles.successModalMessage}>{successMessage}</Text>
+            <TouchableOpacity 
+              style={styles.successModalButton}
+              onPress={() => setShowSuccessModal(false)}
+            >
+              <Text style={styles.successModalButtonText}>Aceptar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Botón flotante para ver resumen - solo para clientes */}
       {!roleLoading && normalizedRole === 'client' && selectedSiteId && (
@@ -688,37 +891,38 @@ const styles = StyleSheet.create({
   shortcutsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     marginBottom: 32,
+    gap: 16,
   },
   shortcutItem: {
     alignItems: 'center',
-    width: (SCREEN_WIDTH - 60) / 4,
-    marginBottom: 20,
+    width: (SCREEN_WIDTH - 40 - 32) / 3, // 3 columnas con gaps
+    marginBottom: 8,
   },
   shortcutIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
   },
   shortcutIconText: {
-    fontSize: 20,
+    fontSize: 24,
   },
   shortcutIconImage: {
-    width: 24,
-    height: 24,
+    width: 28,
+    height: 28,
     tintColor: '#6B7280',
   },
   shortcutLabel: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#6B7280',
     textAlign: 'center',
     fontWeight: '500',
-    lineHeight: 12,
+    lineHeight: 14,
   },
   noEventsContainer: {
     flex: 1,
@@ -759,5 +963,173 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4.65,
     elevation: 8,
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    width: '90%',
+    maxWidth: 500,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  modalHeaderTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#111827',
+  },
+  modalBody: {
+    padding: 20,
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: '#111827',
+    backgroundColor: '#F9FAFB',
+  },
+  roleButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  roleButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    backgroundColor: '#F9FAFB',
+    alignItems: 'center',
+  },
+  roleButtonActive: {
+    backgroundColor: '#2563EB',
+    borderColor: '#2563EB',
+  },
+  roleButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6B7280',
+  },
+  roleButtonTextActive: {
+    color: '#FFFFFF',
+  },
+  roleDescription: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+  required: {
+    color: '#DC2626',
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    gap: 12,
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  modalCancelButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+  },
+  modalCancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  modalSubmitButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 8,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  modalSubmitButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  successModalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  successModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 32,
+    width: '85%',
+    maxWidth: 400,
+    alignItems: 'center',
+  },
+  successIconContainer: {
+    marginBottom: 20,
+  },
+  successModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#111827',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  successModalMessage: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  successModalButton: {
+    backgroundColor: '#10B981',
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    width: '100%',
+  },
+  successModalButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    textAlign: 'center',
   },
 });
