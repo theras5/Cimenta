@@ -27,7 +27,8 @@ export const createInvitation = async (req: Request, res: Response, next: NextFu
     });
 
     // Enviar email
-    const invitationLink = `${process.env.APP_URL}/accept-invitation?token=${invitation.token}`;
+    const appUrl = process.env.APP_URL || 'http://localhost:5173';
+    const invitationLink = `${appUrl}/accept-invitation?token=${invitation.token}`;
     await sendInvitationEmail(email, invitationLink, site_id);
 
     res.status(201).json({

@@ -17,7 +17,7 @@ export interface UpdateSiteRequest {
 export const getAllSitesService = async () => {
     
     const { data, error } = await supabase
-        .from('site')
+        .from('sites')
         .select('*')
         .order('created_at', { ascending: false });
     
@@ -32,7 +32,7 @@ export const getAllSitesService = async () => {
 
 export const getSiteByIdService = async (id: string) => {
     const { data, error } = await supabase
-        .from('site')
+        .from('sites')
         .select('*')
         .eq('id', id)
         .single();
@@ -43,7 +43,7 @@ export const getSiteByIdService = async (id: string) => {
 
 export const createSiteService = async (site: CreateSiteRequest) => {
     const { data, error } = await supabase
-        .from('site')
+        .from('sites')
         .insert([{
             address: site.address
         }])
@@ -56,7 +56,7 @@ export const createSiteService = async (site: CreateSiteRequest) => {
 
 export const updateSiteByIdService = async (id: string, site: UpdateSiteRequest) => {
     const { data, error } = await supabase
-        .from('site')
+        .from('sites')
         .update({
             address: site.address
         })
@@ -70,7 +70,7 @@ export const updateSiteByIdService = async (id: string, site: UpdateSiteRequest)
 
 export const deleteSiteByIdService = async (id: string) => {
     const { error } = await supabase
-        .from('site')
+        .from('sites')
         .delete()
         .eq('id', id);
     
@@ -110,7 +110,7 @@ export const getSitesByUserService = async (userId: string) => {
     
     // 3. Obtener los sites completos
     const { data: sites, error: sitesError } = await supabase
-        .from('site')
+        .from('sites')
         .select('*')
         .in('id', siteIds)
         .order('created_at', { ascending: false });
