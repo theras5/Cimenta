@@ -10,7 +10,8 @@ export interface Category{
 
 interface TaskCardProps {
   task: Task;
-  changes?: boolean
+  changes?: boolean;
+  routePrefix?: 'tasks' | 'changes' | 'purchases';
 }
 
 const getStatusBgColor = (status: Task["status"]) => {
@@ -48,11 +49,17 @@ const getCategoryColor = (category: string) => {
   }
 };
 
-const TaskCard: React.FC<TaskCardProps> = ({ task, changes }) => {
+const TaskCard: React.FC<TaskCardProps> = ({ task, changes, routePrefix }) => {
   return (
     <TouchableOpacity
       className={`${getStatusBgColor(task.status)} rounded-2xl p-5 mb-3 mr-3 w-72 h-40`}
       onPress={() => {
+        // Si se especifica un routePrefix, usarlo
+        if (routePrefix) {
+          router.push(`/${routePrefix}/${task.id}`);
+          return;
+        }
+
         // Si la tarea está REJECTED, forzamos la navegación a /tasks/:id para mostrar el detalle de task
         if (task.status === 'rejected') {
           router.push(`/tasks/${task.id}`);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Plus,
   Clipboard,
@@ -120,6 +121,7 @@ const ScrollableTaskSection = ({
 
 const TasksScreen = () => {
   const [selectedSiteId, setSelectedSiteId] = useState<string>("");
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const { role, loading: roleLoading } = useUserRole();
   const normalizedRole = role?.toLowerCase() ?? null;
@@ -148,6 +150,15 @@ const TasksScreen = () => {
     description: "",
     category: "",
     status: "pending" as Task["status"],
+  });
+
+  // Auto-refresh cuando cambia el parámetro refresh
+  useEffect(() => {
+    const refreshParam = searchParams.get("refresh");
+    if (refreshParam) {
+      fetchTasks();
+    }
+  }, [searchParams, fetchTasks]);
     start_date: undefined as string | undefined,
     end_date: undefined as string | undefined,
   });

@@ -43,4 +43,7 @@ app.use("/clients", clients);
 
 app.use("/user-role", userRole);
 
+// Middleware de manejo de errores (DEBE IR AL FINAL)
+app.use(errorMiddleware);
+
 export default app;

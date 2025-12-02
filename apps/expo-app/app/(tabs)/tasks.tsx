@@ -15,15 +15,23 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import TaskSection from "../../components/TaskSection";
 import { useTasks } from "@/hooks/useTasks";
 import { useUserRole } from "@/hooks/useUserRole";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 
 export default function Tasks() {
+  const params = useLocalSearchParams();
   const { tasks, isLoading, error, fetchTasks } = useTasks();
   const { role, loading: roleLoading } = useUserRole();
   const normalizedRole = role?.toLowerCase();
   const [refreshing, setRefreshing] = useState(false);
   const [showModal, setShowModal] = useState(false);
+
+  // Recargar cuando se reciba el parámetro refresh
+  useEffect(() => {
+    if (params.refresh) {
+      fetchTasks();
+    }
+  }, [params.refresh]);
 
   const onRefresh = async () => {
     setRefreshing(true);

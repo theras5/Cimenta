@@ -5,9 +5,11 @@ export interface Purchase {
     product: string;
     description?: string;
     quantity: number;
+    unity?: string;
     price?: number;
     supplier?: string;
     category: string;
+    priority?: string;
     status: 'pending' | 'purchased' | 'delivered'
     purchase_date?: string;
     delivery_date?: string;
@@ -17,9 +19,11 @@ export interface CreatePurchaseDTO {
     product: string;
     description?: string;
     quantity: number;
+    unity?: string;
     price?: number;
     supplier?: string;
     category: string;
+    priority?: string;
     status: 'pending' | 'purchased' | 'delivered'
     purchase_date?: string;
     delivery_date?: string;

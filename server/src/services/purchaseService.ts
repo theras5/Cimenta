@@ -39,25 +39,33 @@ export async function getPurchaseByIdService(purchaseId: string) {
 }
 
 export async function createPurchaseService(newPurchase: CreatePurchaseDTO & { user_id: string, site_id: string }) {
+    console.log('📦 createPurchaseService - Datos recibidos:', JSON.stringify(newPurchase, null, 2));
+    
     if (!newPurchase.product || !newPurchase.category || !newPurchase.quantity) {
         throw new AppError("Producto, categoría y cantidad son campos obligatorios.", 400);
     }
 
+    const purchaseData = {
+        product: newPurchase.product,
+        description: newPurchase.description,
+        quantity: newPurchase.quantity,
+        unity: newPurchase.unity,
+        price: newPurchase.price,
+        supplier: newPurchase.supplier,
+        category: newPurchase.category,
+        priority: newPurchase.priority,
+        status: newPurchase.status || 'pending',
+        purchase_date: newPurchase.purchase_date,
+        delivery_date: newPurchase.delivery_date,
+        site_id: newPurchase.site_id,
+        user_id: newPurchase.user_id
+    };
+
+    console.log('📦 Insertando en Supabase:', JSON.stringify(purchaseData, null, 2));
+
     const { data, error } = await supabase
         .from('purchases')
-        .insert([{
-            product: newPurchase.product,
-            description: newPurchase.description,
-            quantity: newPurchase.quantity,
-            price: newPurchase.price,
-            supplier: newPurchase.supplier,
-            category: newPurchase.category,
-            status: newPurchase.status || 'pending',
-            purchase_date: newPurchase.purchase_date,
-            delivery_date: newPurchase.delivery_date,
-            site_id: newPurchase.site_id,
-            user_id: newPurchase.user_id
-        }])
+        .insert([purchaseData])
         .select(`
             *,
             site:site_id (
@@ -68,9 +76,11 @@ export async function createPurchaseService(newPurchase: CreatePurchaseDTO & { u
         .single();
 
     if (error) {
+        console.error('❌ Error de Supabase:', error);
         throw new AppError(error.message, 500);
     }
 
+    console.log('✅ Compra creada exitosamente:', data);
     return data;
 }
 
@@ -83,9 +93,11 @@ export async function updatePurchaseByIdService(purchaseId: string, updatedPurch
         product: updatedPurchase.product,
         description: updatedPurchase.description,
         quantity: updatedPurchase.quantity,
+        unity: updatedPurchase.unity,
         price: updatedPurchase.price,
         supplier: updatedPurchase.supplier,
         category: updatedPurchase.category,
+        priority: updatedPurchase.priority,
         status: updatedPurchase.status,
         purchase_date: updatedPurchase.purchase_date,
         delivery_date: updatedPurchase.delivery_date,
@@ -222,4 +234,109 @@ export const updatePurchaseStatusService = async (purchaseId: string, status: Pu
     }
 
     return data;
+};
+
+export const uploadPurchaseImageService = async (
+    purchaseId: string, 
+    imageData: string
+) => {
+    try {
+        console.log(`📸 uploadPurchaseImageService - purchaseId: ${purchaseId}`);
+        
+        // Verificar que la compra existe
+        const { data: purchase, error: purchaseError } = await supabase
+            .from('purchases')
+            .select('id')
+            .eq('id', purchaseId)
+            .single();
+
+        if (purchaseError || !purchase) {
+            throw new AppError(`Compra con id ${purchaseId} no encontrada`, 404);
+        }
+
+        // Extraer el base64 del data URL
+        const base64Match = imageData.match(/^data:image\/(jpeg|jpg|png|gif);base64,(.+)$/);
+        if (!base64Match) {
+            throw new AppError('Formato de imagen inválido. Debe ser base64 con data URL', 400);
+        }
+
+        const imageFormat = base64Match[1];
+        const base64Data = base64Match[2];
+        
+        // Convertir base64 a Buffer
+        const imageBuffer = Buffer.from(base64Data, 'base64');
+        
+        // Generar nombre único para la imagen
+        const timestamp = Date.now();
+        const fileName = `purchase_${purchaseId}_${timestamp}.${imageFormat}`;
+        const filePath = `purchases/${purchaseId}/${fileName}`;
+
+        console.log(`📤 Subiendo imagen a Supabase Storage: ${filePath}`);
+
+        // Subir a Supabase Storage
+        const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('purchase_images')
+            .upload(filePath, imageBuffer, {
+                contentType: `image/${imageFormat}`,
+                upsert: false
+            });
+
+        if (uploadError) {
+            console.error('❌ Error al subir a Storage:', uploadError);
+            throw new AppError(`Error al subir imagen: ${uploadError.message}`, 500);
+        }
+
+        console.log(`✅ Imagen subida a Storage exitosamente`);
+
+        // Obtener URL pública
+        const { data: publicUrlData } = supabase.storage
+            .from('purchase_images')
+            .getPublicUrl(filePath);
+
+        const imageUrl = publicUrlData.publicUrl;
+
+        console.log(`🔗 URL pública generada: ${imageUrl}`);
+
+        // Guardar referencia en purchase_images (sin id, Supabase lo genera automáticamente)
+        const { data: imageRecord, error: dbError } = await supabase
+            .from('purchase_images')
+            .insert([{
+                purchase_id: purchaseId,
+                image_url: imageUrl
+            }])
+            .select()
+            .single();
+
+        if (dbError) {
+            console.error('❌ Error al guardar en purchase_images:', dbError);
+            // Intentar eliminar la imagen del storage si falla la BD
+            await supabase.storage.from('purchase_images').remove([filePath]);
+            throw new AppError(`Error al guardar referencia de imagen: ${dbError.message}`, 500);
+        }
+
+        console.log(`✅ Referencia guardada en purchase_images:`, imageRecord);
+        return imageRecord;
+
+    } catch (error) {
+        console.error('❌ Error en uploadPurchaseImageService:', error);
+        throw error;
+    }
+};
+
+export const getPurchaseImagesService = async (purchaseId: string) => {
+    try {
+        const { data, error } = await supabase
+            .from('purchase_images')
+            .select('*')
+            .eq('purchase_id', purchaseId);
+
+        if (error) {
+            throw new AppError(error.message, 500);
+        }
+
+        return data || [];
+    } catch (error) {
+        console.error('❌ Error en getPurchaseImagesService:', error);
+        throw error;
+    }
 };

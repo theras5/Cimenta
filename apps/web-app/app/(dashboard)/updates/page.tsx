@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Plus, RefreshCw, Clipboard, Loader2, Upload, X, Camera, Video, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import VideoCard from "@/components/VideoCard";
@@ -37,6 +38,7 @@ interface ApiUpdate {
 }
 
 const AvancesScreen = () => {
+  const searchParams = useSearchParams();
   const { updates, loading, error, fetchUpdates, createUpdate, clearError, selectedSiteId } = useUpdates();
   const { user } = useAuth();
   const { role, loading: roleLoading } = useUserRole();
@@ -47,6 +49,14 @@ const AvancesScreen = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [localSiteId, setLocalSiteId] = useState<string>("");
+
+  // Auto-refresh cuando cambia el parámetro refresh
+  useEffect(() => {
+    const refreshParam = searchParams.get("refresh");
+    if (refreshParam) {
+      fetchUpdates();
+    }
+  }, [searchParams, fetchUpdates]);
 
   // Estado para el formulario
   const [newUpdate, setNewUpdate] = useState({

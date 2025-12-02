@@ -136,6 +136,7 @@ export default function NewRequest() {
       }
 
       router.back();
+      router.setParams({ refresh: Date.now().toString() });
     } catch (error) {
       alert("No se pudo guardar la solicitud");
       console.error(error);

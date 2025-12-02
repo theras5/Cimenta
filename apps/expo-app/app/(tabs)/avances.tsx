@@ -8,14 +8,15 @@ import {
   RefreshControl,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useUpdates } from "@/hooks/useUpdates";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useUserRole } from "@/hooks/useUserRole";
 import UpdateCard from "@/components/UpdateCard";
 
 const Avances = () => {
+  const params = useLocalSearchParams();
   // Helper para mostrar "Hace X"
   const formatTime = (iso?: string) => {
     if (!iso) return "Hace poco";
@@ -35,6 +36,13 @@ const Avances = () => {
   const { role, loading: roleLoading } = useUserRole();
   const normalizedRole = role?.toLowerCase();
   const isAdmin = normalizedRole === "admin";
+
+  // Recargar cuando se reciba el parámetro refresh
+  useEffect(() => {
+    if (params.refresh) {
+      fetchUpdates();
+    }
+  }, [params.refresh]);
 
   const onRefresh = async () => {
     setRefreshing(true);

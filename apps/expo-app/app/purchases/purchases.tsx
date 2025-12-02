@@ -1,107 +1,116 @@
 import { Ionicons } from "@expo/vector-icons";
 import type React from "react";
+import { useEffect, useState } from "react";
 import {
   ScrollView,
   StatusBar,
   Text,
   TouchableOpacity,
   View,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import TaskSection from "../../components/TaskSection";
 import { type Task } from "../../components/TaskCard";
-import { router } from "expo-router";
-
-// Mock data para solicitudes de compras
-const requestedItems: Task[] = [
-  {
-    id: 1,
-    title: "Compra de hormigón",
-    description: "25 bolsas para fundaciones",
-    category: "MATERIALES",
-    categoryColor: "bg-amber-500",
-    bgColor: "bg-amber-100",
-    avatars: ["👷‍♂️", "👨‍💼"],
-  },
-  {
-    id: 2,
-    title: "Materiales eléctricos",
-    description: "Cables y cajas para instalación",
-    category: "ELECTRICIDAD",
-    categoryColor: "bg-blue-500",
-    bgColor: "bg-blue-100",
-    avatars: ["👨‍🔧", "👷‍♀️"],
-  },
-];
-
-const beingPurchasedItems: Task[] = [
-  {
-    id: 3,
-    title: "Ladrillos",
-    description: "5000 unidades para muros interiores",
-    category: "MATERIALES",
-    categoryColor: "bg-amber-500",
-    bgColor: "bg-amber-100",
-    avatars: ["👨‍💼", "👷‍♂️"],
-  },
-  {
-    id: 4,
-    title: "Herramientas",
-    description: "Juego de destornilladores y llaves",
-    category: "HERRAMIENTAS",
-    categoryColor: "bg-emerald-500",
-    bgColor: "bg-emerald-100",
-    avatars: ["👨‍🔧", "👷‍♀️"],
-  },
-];
-
-const purchasedItems: Task[] = [
-  {
-    id: 5,
-    title: "Hierro estructural",
-    description: "200 barras de 10mm y 12mm",
-    category: "MATERIALES",
-    categoryColor: "bg-amber-500",
-    bgColor: "bg-amber-100",
-    avatars: ["👨‍💼"],
-  },
-  {
-    id: 6,
-    title: "Membrana aislante",
-    description: "10 rollos para techos",
-    category: "AISLANTES",
-    categoryColor: "bg-cyan-500",
-    bgColor: "bg-cyan-100",
-    avatars: ["👨‍💼", "👷‍♀️"],
-  },
-];
-
-const arrivedItems: Task[] = [
-  {
-    id: 7,
-    title: "Arena fina",
-    description: "5m³ para revoques",
-    category: "MATERIALES",
-    categoryColor: "bg-amber-500",
-    bgColor: "bg-amber-100",
-    avatars: ["👨‍🔧", "👷‍♀️"],
-  },
-  {
-    id: 8,
-    title: "Tuberías PVC",
-    description: "Material para instalación sanitaria",
-    category: "PLOMERÍA",
-    categoryColor: "bg-orange-500",
-    bgColor: "bg-orange-100",
-    avatars: ["👷‍♂️", "👨‍💼"],
-  },
-];
+import { router, useLocalSearchParams } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getPurchasesBySite } from "../../services/purchaseService";
 
 const handleAddPurchase = () => {
   router.push("/purchases/new-purchase");
 };
 
+// Función para mapear compras de la API a Tasks para mostrar en TaskSection
+const mapPurchaseToTask = (purchase: any): Task => {
+  // Mapeo de categorías a colores (según purchase_category enum)
+  const categoryColors: { [key: string]: { bg: string; category: string } } = {
+    materiales: { bg: 'bg-amber-100', category: 'bg-amber-500' },
+    herramientas: { bg: 'bg-emerald-100', category: 'bg-emerald-500' },
+    equipamiento: { bg: 'bg-blue-100', category: 'bg-blue-500' },
+    seguridad: { bg: 'bg-red-100', category: 'bg-red-500' },
+    oficina: { bg: 'bg-purple-100', category: 'bg-purple-500' },
+    otros: { bg: 'bg-gray-100', category: 'bg-gray-500' },
+  };
+
+  const colors = categoryColors[purchase.category?.toLowerCase()] || categoryColors.materiales;
+
+  return {
+    id: purchase.id,
+    title: purchase.product,
+    description: purchase.description || `${purchase.quantity} unidades`,
+    category: purchase.category?.toUpperCase() || 'MATERIALES',
+    categoryColor: colors.category,
+    bgColor: colors.bg,
+    avatars: ['👷‍♂️'],
+  };
+};
+
 export default function Purchases() {
+  const params = useLocalSearchParams();
+  const [pendingItems, setPendingItems] = useState<Task[]>([]);
+  const [purchasedItems, setPurchasedItems] = useState<Task[]>([]);
+  const [deliveredItems, setDeliveredItems] = useState<Task[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    loadPurchases();
+  }, []);
+
+  // Recargar cuando se reciba el parámetro refresh
+  useEffect(() => {
+    if (params.refresh) {
+      loadPurchases();
+    }
+  }, [params.refresh]);
+
+  const loadPurchases = async () => {
+    try {
+      setIsLoading(true);
+      const siteId = await AsyncStorage.getItem("selectedSiteId");
+      
+      if (!siteId) {
+        Alert.alert('Error', 'No se ha seleccionado una obra');
+        return;
+      }
+
+      console.log('Cargando compras para el sitio:', siteId);
+      const purchases = await getPurchasesBySite(siteId);
+      console.log('Compras obtenidas:', purchases);
+
+      // Filtrar y mapear compras por estado
+      const pending = purchases
+        .filter(p => p.status === 'pending')
+        .map(mapPurchaseToTask);
+      
+      const purchased = purchases
+        .filter(p => p.status === 'purchased')
+        .map(mapPurchaseToTask);
+      
+      const delivered = purchases
+        .filter(p => p.status === 'delivered')
+        .map(mapPurchaseToTask);
+
+      setPendingItems(pending);
+      setPurchasedItems(purchased);
+      setDeliveredItems(delivered);
+    } catch (error) {
+      console.error('Error al cargar compras:', error);
+      Alert.alert('Error', 'No se pudieron cargar las solicitudes de compra');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView className="flex-1 bg-gray-50 items-center justify-center">
+        <ActivityIndicator size="large" color="#3B82F6" />
+        <Text className="text-gray-600 mt-4">Cargando solicitudes...</Text>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
       <StatusBar barStyle="dark-content" />
@@ -137,23 +146,43 @@ export default function Purchases() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 120 }}
       >
-        <TaskSection
-          title="Solicitado"
-          tasks={requestedItems}
-          onSeeAll={() => console.log("Ver todos los solicitados")}
-        />
+        {pendingItems.length === 0 && purchasedItems.length === 0 && deliveredItems.length === 0 ? (
+          <View className="flex-1 items-center justify-center px-4 mt-20">
+            <Ionicons name="cart-outline" size={64} color="#D1D5DB" />
+            <Text className="text-gray-500 text-lg font-medium mt-4">
+              No hay solicitudes de compra
+            </Text>
+            <Text className="text-gray-400 text-sm mt-2 text-center">
+              Agrega una nueva solicitud presionando el botón +
+            </Text>
+          </View>
+        ) : (
+          <>
+            {pendingItems.length > 0 && (
+              <TaskSection
+                title="Solicitado"
+                tasks={pendingItems}
+                routePrefix="purchases"
+              />
+            )}
 
-        <TaskSection
-          title="Comprado"
-          tasks={purchasedItems}
-          onSeeAll={() => console.log("Ver todos comprados")}
-        />
+            {purchasedItems.length > 0 && (
+              <TaskSection
+                title="Comprado"
+                tasks={purchasedItems}
+                routePrefix="purchases"
+              />
+            )}
 
-        <TaskSection
-          title="Llegó"
-          tasks={arrivedItems}
-          onSeeAll={() => console.log("Ver todos llegados")}
-        />
+            {deliveredItems.length > 0 && (
+              <TaskSection
+                title="Llegó"
+                tasks={deliveredItems}
+                routePrefix="purchases"
+              />
+            )}
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );

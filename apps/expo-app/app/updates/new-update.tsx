@@ -254,6 +254,7 @@ const NewUpdate = () => {
     await createUpdate(nuevoAvance);
 
     router.back();
+    router.setParams({ refresh: Date.now().toString() });
   };
 
   return (

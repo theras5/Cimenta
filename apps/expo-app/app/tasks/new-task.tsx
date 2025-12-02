@@ -211,7 +211,9 @@ export default function NewTask() {
         return;
       }
 
+      // Navegar atrás y forzar refresh
       router.back();
+      router.setParams({ refresh: Date.now().toString() });
     } catch (error) {
       alert("No se pudo guardar la tarea: " + (error?.message || error));
     }

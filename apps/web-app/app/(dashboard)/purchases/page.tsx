@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { Plus, Clipboard, RefreshCw, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -113,6 +114,7 @@ const PurchaseSection = ({
 
 export default function ComprasPage() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
   const {
     purchases,
     loading,
@@ -137,6 +139,14 @@ export default function ComprasPage() {
     site_id: "",
     user_id: "",
   });
+
+  // Auto-refresh cuando cambia el parámetro refresh
+  useEffect(() => {
+    const refreshParam = searchParams.get("refresh");
+    if (refreshParam && selectedSiteId) {
+      fetchPurchases(selectedSiteId);
+    }
+  }, [searchParams, selectedSiteId, fetchPurchases]);
 
   // Cargar site_id y user_id al iniciar
   useEffect(() => {
@@ -346,10 +356,12 @@ const handleStatusChange = async (
                   <SelectValue placeholder="Seleccionar categoría" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="electricidad">ELECTRICIDAD</SelectItem>
-                  <SelectItem value="pintura">PINTURA</SelectItem>
-                  <SelectItem value="plomeria">PLOMERÍA</SelectItem>
-                  <SelectItem value="construccion">CONSTRUCCIÓN</SelectItem>
+                  <SelectItem value="materiales">Materiales</SelectItem>
+                  <SelectItem value="herramientas">Herramientas</SelectItem>
+                  <SelectItem value="equipamiento">Equipamiento</SelectItem>
+                  <SelectItem value="seguridad">Seguridad</SelectItem>
+                  <SelectItem value="oficina">Oficina</SelectItem>
+                  <SelectItem value="otros">Otros</SelectItem>
                 </SelectContent>
               </Select>
               <Button onClick={handleAddPurchase} className="w-full">

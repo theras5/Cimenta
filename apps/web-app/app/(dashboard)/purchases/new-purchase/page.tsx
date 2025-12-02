@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -21,156 +21,99 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ArrowLeft, Loader2, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Loader2, CheckCircle } from "lucide-react";
 import Sidebar from "@/components/SideBar";
+import { usePurchases } from "@/hooks/usePurchases";
+import { useAuth } from "@/hooks/useAuth";
 
-interface PurchaseItem {
-  id: string;
-  name: string;
-  quantity: number;
-  unitPrice: number;
-  unit: string;
-  category: string;
-}
-
-interface Purchase {
-  id: number;
-  title: string;
-  description: string;
-  supplier: string;
-  priority: "low" | "medium" | "high" | "urgent";
-  status: "pending" | "approved" | "ordered" | "delivered";
-  items: PurchaseItem[];
-  totalAmount: number;
-  requestedBy: string;
-  deliveryDate: string;
-}
-
+// Categorías que coinciden con el enum purchase_category del backend
 const categories = [
-  "MATERIALES DE CONSTRUCCIÓN",
-  "HERRAMIENTAS",
-  "ELECTRICIDAD",
-  "PLOMERÍA",
-  "PINTURA",
-  "ACABADOS",
-  "SEGURIDAD",
-  "OTROS",
+  { value: "materiales", label: "Materiales" },
+  { value: "herramientas", label: "Herramientas" },
+  { value: "equipamiento", label: "Equipamiento" },
+  { value: "seguridad", label: "Seguridad" },
+  { value: "oficina", label: "Oficina" },
+  { value: "otros", label: "Otros" },
 ];
 
 const units = [
-  "unidad",
-  "metro",
-  "metro²",
-  "metro³",
-  "kilogramo",
-  "litro",
-  "bolsa",
-  "caja",
-  "rollo",
-  "galón",
-  "saco",
+  { value: "u", label: "Unidades" },
+  { value: "m", label: "Metros" },
+  { value: "kg", label: "Kg" },
+  { value: "l", label: "Litros" },
+  { value: "m2", label: "M²" },
+  { value: "m3", label: "M³" },
 ];
 
-const suppliers = [
-  "Proveedor Principal",
-  "Ferretería Central",
-  "Distribuidora Eléctrica",
-  "Materiales del Norte",
-  "Suministros Técnicos",
-  "Otro (especificar)",
+const priorities = [
+  { value: "baja", label: "Baja" },
+  { value: "normal", label: "Normal" },
+  { value: "alta", label: "Alta" },
+  { value: "urgente", label: "Urgente" },
 ];
 
 export default function NewPurchasePage() {
   const router = useRouter();
+  const { user } = useAuth();
+  const { createPurchase, loading: purchasesLoading } = usePurchases();
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
+  const [siteId, setSiteId] = useState<string>("");
 
-  const [purchaseData, setPurchaseData] = useState({
-    title: "",
+  const [newPurchase, setNewPurchase] = useState({
+    product: "",
     description: "",
+    quantity: 1,
+    unity: "u",
+    price: 0,
     supplier: "",
-    priority: "medium" as Purchase["priority"],
-    deliveryDate: "",
-    customSupplier: "",
+    category: "",
+    priority: "normal",
   });
 
-  const [items, setItems] = useState<PurchaseItem[]>([
-    {
-      id: "1",
-      name: "",
+  // Obtener siteId de localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const storedSiteId = localStorage.getItem("selectedSiteId");
+      if (storedSiteId) {
+        setSiteId(storedSiteId);
+      }
+    }
+  }, []);
+
+  const resetForm = () => {
+    setNewPurchase({
+      product: "",
+      description: "",
       quantity: 1,
-      unitPrice: 0,
-      unit: "unidad",
+      unity: "u",
+      price: 0,
+      supplier: "",
       category: "",
-    },
-  ]);
-
-  const addItem = () => {
-    const newItem: PurchaseItem = {
-      id: Date.now().toString(),
-      name: "",
-      quantity: 1,
-      unitPrice: 0,
-      unit: "unidad",
-      category: "",
-    };
-    setItems([...items, newItem]);
-  };
-
-  const removeItem = (id: string) => {
-    if (items.length > 1) {
-      setItems(items.filter((item) => item.id !== id));
-    }
-  };
-
-  const updateItem = (
-    id: string,
-    field: keyof PurchaseItem,
-    value: string | number
-  ) => {
-    setItems(
-      items.map((item) => (item.id === id ? { ...item, [field]: value } : item))
-    );
-  };
-
-  const calculateTotal = () => {
-    return items.reduce(
-      (total, item) => total + item.quantity * item.unitPrice,
-      0
-    );
-  };
-
-  const validateForm = () => {
-    if (!purchaseData.title || !purchaseData.description) {
-      return "Por favor completa el título y la descripción";
-    }
-
-    if (
-      !purchaseData.supplier ||
-      (purchaseData.supplier === "Otro (especificar)" &&
-        !purchaseData.customSupplier)
-    ) {
-      return "Por favor selecciona o especifica un proveedor";
-    }
-
-    const invalidItems = items.some(
-      (item) =>
-        !item.name || !item.category || item.quantity <= 0 || item.unitPrice < 0
-    );
-
-    if (invalidItems) {
-      return "Por favor completa todos los campos de los artículos";
-    }
-
-    return null;
+      priority: "normal",
+    });
+    setError("");
+    setSuccess(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const validationError = validateForm();
-    if (validationError) {
-      setError(validationError);
+    // Validación
+    if (!newPurchase.product || !newPurchase.category) {
+      setError("Por favor completa al menos el producto y la categoría");
+      return;
+    }
+
+    if (!siteId) {
+      setError("No hay sitio seleccionado");
+      return;
+    }
+
+    if (!user?.id) {
+      setError("Usuario no autenticado");
       return;
     }
 
@@ -178,50 +121,24 @@ export default function NewPurchasePage() {
       setLoading(true);
       setError("");
 
-      const finalSupplier =
-        purchaseData.supplier === "Otro (especificar)"
-          ? purchaseData.customSupplier
-          : purchaseData.supplier;
-
-      const purchase: Purchase = {
-        id: Math.floor(Math.random() * 10000),
-        title: purchaseData.title,
-        description: purchaseData.description,
-        supplier: finalSupplier,
-        priority: purchaseData.priority,
+      await createPurchase({
+        ...newPurchase,
+        site_id: siteId,
+        user_id: user.id,
         status: "pending",
-        items: items,
-        totalAmount: calculateTotal(),
-        requestedBy: "Usuario actual", // Aquí integrarás con auth
-        deliveryDate: purchaseData.deliveryDate,
-      };
+      });
 
-      // Simular llamada al backend
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      console.log("Nueva compra creada:", purchase);
-
-      // Redirigir a la página de compras
-      router.push("/purchases");
-    } catch (error: unknown) {
-      setError(error.message || "Error al crear la solicitud de compra");
+      setSuccess(true);
+      
+      // Esperar un momento antes de redirigir
+      setTimeout(() => {
+        // Trigger auto-refresh en la página de purchases
+        router.push(`/purchases?refresh=${Date.now()}`);
+      }, 1500);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al crear la solicitud de compra");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "low":
-        return "text-green-600 bg-green-50";
-      case "medium":
-        return "text-yellow-600 bg-yellow-50";
-      case "high":
-        return "text-orange-600 bg-orange-50";
-      case "urgent":
-        return "text-red-600 bg-red-50";
-      default:
-        return "text-gray-600 bg-gray-50";
     }
   };
 
@@ -239,20 +156,13 @@ export default function NewPurchasePage() {
                 Volver
               </Button>
             </Link>
-            <h1 className="text-2xl font-bold text-gray-800">Nueva Compra</h1>
-          </div>
-
-          {/* Total Amount */}
-          <div className="bg-blue-50 px-4 py-2 rounded-lg">
-            <span className="text-sm text-blue-600 font-medium">
-              Total: ${calculateTotal().toLocaleString()}
-            </span>
+            <h1 className="text-2xl font-bold text-gray-800">Nueva Solicitud de Compra</h1>
           </div>
         </div>
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-6 py-6">
-          <div className="max-w-4xl mx-auto">
+          <div className="max-w-2xl mx-auto">
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Error Alert */}
               {error && (
@@ -261,30 +171,39 @@ export default function NewPurchasePage() {
                 </Alert>
               )}
 
-              {/* Información General */}
+              {/* Success Alert */}
+              {success && (
+                <Alert className="bg-green-50 border-green-200">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  <AlertDescription className="text-green-800">
+                    Solicitud creada exitosamente. Redirigiendo...
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {/* Información de la Compra */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Información General</CardTitle>
+                  <CardTitle>Información de la Compra</CardTitle>
                   <CardDescription>
-                    Datos básicos de la solicitud de compra
+                    Completa los detalles de la solicitud de compra
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {/* Título */}
+                  {/* Producto */}
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">
-                      Título de la solicitud *
+                      Producto *
                     </label>
                     <Input
-                      placeholder="Ej: Materiales para instalación eléctrica"
-                      value={purchaseData.title}
+                      placeholder="Nombre del producto"
+                      value={newPurchase.product}
                       onChange={(e) =>
-                        setPurchaseData({
-                          ...purchaseData,
-                          title: e.target.value,
+                        setNewPurchase({
+                          ...newPurchase,
+                          product: e.target.value,
                         })
                       }
-                      className="h-12"
                       disabled={loading}
                     />
                   </div>
@@ -292,14 +211,14 @@ export default function NewPurchasePage() {
                   {/* Descripción */}
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">
-                      Descripción detallada *
+                      Descripción
                     </label>
                     <Textarea
-                      placeholder="Describe el propósito y detalles de la compra..."
-                      value={purchaseData.description}
+                      placeholder="Describe el producto y su uso..."
+                      value={newPurchase.description}
                       onChange={(e) =>
-                        setPurchaseData({
-                          ...purchaseData,
+                        setNewPurchase({
+                          ...newPurchase,
                           description: e.target.value,
                         })
                       }
@@ -308,292 +227,156 @@ export default function NewPurchasePage() {
                     />
                   </div>
 
-                  {/* Proveedor y Prioridad */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Cantidad y Unidad */}
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-gray-700">
-                        Proveedor *
+                        Cantidad
+                      </label>
+                      <Input
+                        type="number"
+                        min="1"
+                        value={newPurchase.quantity}
+                        onChange={(e) =>
+                          setNewPurchase({
+                            ...newPurchase,
+                            quantity: parseInt(e.target.value) || 1,
+                          })
+                        }
+                        disabled={loading}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">
+                        Unidad
                       </label>
                       <Select
-                        value={purchaseData.supplier}
+                        value={newPurchase.unity}
                         onValueChange={(value) =>
-                          setPurchaseData({ ...purchaseData, supplier: value })
+                          setNewPurchase({ ...newPurchase, unity: value })
                         }
                         disabled={loading}
                       >
-                        <SelectTrigger className="h-12">
-                          <SelectValue placeholder="Seleccionar proveedor" />
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccionar unidad" />
                         </SelectTrigger>
                         <SelectContent>
-                          {suppliers.map((supplier) => (
-                            <SelectItem key={supplier} value={supplier}>
-                              {supplier}
+                          {units.map((unit) => (
+                            <SelectItem key={unit.value} value={unit.value}>
+                              {unit.label}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">
-                        Prioridad
-                      </label>
-                      <Select
-                        value={purchaseData.priority}
-                        onValueChange={(value) =>
-                          setPurchaseData({
-                            ...purchaseData,
-                            priority: value as Purchase["priority"],
-                          })
-                        }
-                        disabled={loading}
-                      >
-                        <SelectTrigger className="h-12">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="low">
-                            <span className="flex items-center gap-2">
-                              <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                              Baja
-                            </span>
-                          </SelectItem>
-                          <SelectItem value="medium">
-                            <span className="flex items-center gap-2">
-                              <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
-                              Media
-                            </span>
-                          </SelectItem>
-                          <SelectItem value="high">
-                            <span className="flex items-center gap-2">
-                              <span className="w-2 h-2 rounded-full bg-orange-500"></span>
-                              Alta
-                            </span>
-                          </SelectItem>
-                          <SelectItem value="urgent">
-                            <span className="flex items-center gap-2">
-                              <span className="w-2 h-2 rounded-full bg-red-500"></span>
-                              Urgente
-                            </span>
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
                   </div>
 
-                  {/* Proveedor personalizado */}
-                  {purchaseData.supplier === "Otro (especificar)" && (
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">
-                        Especificar proveedor *
-                      </label>
-                      <Input
-                        placeholder="Nombre del proveedor"
-                        value={purchaseData.customSupplier}
-                        onChange={(e) =>
-                          setPurchaseData({
-                            ...purchaseData,
-                            customSupplier: e.target.value,
-                          })
-                        }
-                        className="h-12"
-                        disabled={loading}
-                      />
-                    </div>
-                  )}
-
-                  {/* Fecha de entrega */}
+                  {/* Precio */}
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">
-                      Fecha de entrega deseada
+                      Precio estimado
                     </label>
                     <Input
-                      type="date"
-                      value={purchaseData.deliveryDate}
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={newPurchase.price}
                       onChange={(e) =>
-                        setPurchaseData({
-                          ...purchaseData,
-                          deliveryDate: e.target.value,
+                        setNewPurchase({
+                          ...newPurchase,
+                          price: parseFloat(e.target.value) || 0,
                         })
                       }
-                      className="h-12"
                       disabled={loading}
                     />
                   </div>
-                </CardContent>
-              </Card>
 
-              {/* Artículos */}
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle>Artículos a Comprar</CardTitle>
-                      <CardDescription>
-                        Lista detallada de los artículos necesarios
-                      </CardDescription>
-                    </div>
-                    <Button
-                      type="button"
-                      onClick={addItem}
-                      size="sm"
-                      className="gap-2"
+                  {/* Proveedor */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">
+                      Proveedor
+                    </label>
+                    <Input
+                      placeholder="Nombre del proveedor"
+                      value={newPurchase.supplier}
+                      onChange={(e) =>
+                        setNewPurchase({
+                          ...newPurchase,
+                          supplier: e.target.value,
+                        })
+                      }
+                      disabled={loading}
+                    />
+                  </div>
+
+                  {/* Categoría */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">
+                      Categoría *
+                    </label>
+                    <Select
+                      value={newPurchase.category}
+                      onValueChange={(value) =>
+                        setNewPurchase({ ...newPurchase, category: value })
+                      }
                       disabled={loading}
                     >
-                      <Plus className="w-4 h-4" />
-                      Agregar Artículo
-                    </Button>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar categoría" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.map((cat) => (
+                          <SelectItem key={cat.value} value={cat.value}>
+                            {cat.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {items.map((item, index) => (
-                    <div
-                      key={item.id}
-                      className="p-4 border rounded-lg bg-gray-50"
+
+                  {/* Prioridad */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">
+                      Prioridad
+                    </label>
+                    <Select
+                      value={newPurchase.priority}
+                      onValueChange={(value) =>
+                        setNewPurchase({ ...newPurchase, priority: value })
+                      }
+                      disabled={loading}
                     >
-                      <div className="flex items-center justify-between mb-4">
-                        <h4 className="font-medium text-gray-700">
-                          Artículo {index + 1}
-                        </h4>
-                        {items.length > 1 && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeItem(item.id)}
-                            className="text-red-600 hover:text-red-800 hover:bg-red-50"
-                            disabled={loading}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        )}
-                      </div>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar prioridad" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {priorities.map((priority) => (
+                          <SelectItem key={priority.value} value={priority.value}>
+                            {priority.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                        {/* Nombre */}
-                        <div className="lg:col-span-2 space-y-2">
-                          <label className="text-sm font-medium text-gray-600">
-                            Nombre del artículo *
-                          </label>
-                          <Input
-                            placeholder="Ej: Cable eléctrico 12 AWG"
-                            value={item.name}
-                            onChange={(e) =>
-                              updateItem(item.id, "name", e.target.value)
-                            }
-                            disabled={loading}
-                          />
-                        </div>
-
-                        {/* Cantidad */}
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium text-gray-600">
-                            Cantidad *
-                          </label>
-                          <Input
-                            type="number"
-                            min="1"
-                            value={item.quantity}
-                            onChange={(e) =>
-                              updateItem(
-                                item.id,
-                                "quantity",
-                                parseInt(e.target.value) || 1
-                              )
-                            }
-                            disabled={loading}
-                          />
-                        </div>
-
-                        {/* Unidad */}
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium text-gray-600">
-                            Unidad
-                          </label>
-                          <Select
-                            value={item.unit}
-                            onValueChange={(value) =>
-                              updateItem(item.id, "unit", value)
-                            }
-                            disabled={loading}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {units.map((unit) => (
-                                <SelectItem key={unit} value={unit}>
-                                  {unit}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        {/* Precio unitario */}
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium text-gray-600">
-                            Precio unitario
-                          </label>
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            placeholder="0.00"
-                            value={item.unitPrice}
-                            onChange={(e) =>
-                              updateItem(
-                                item.id,
-                                "unitPrice",
-                                parseFloat(e.target.value) || 0
-                              )
-                            }
-                            disabled={loading}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Categoría */}
-                      <div className="mt-4 space-y-2">
-                        <label className="text-sm font-medium text-gray-600">
-                          Categoría *
-                        </label>
-                        <Select
-                          value={item.category}
-                          onValueChange={(value) =>
-                            updateItem(item.id, "category", value)
-                          }
-                          disabled={loading}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Seleccionar categoría" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {categories.map((category) => (
-                              <SelectItem key={category} value={category}>
-                                {category}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {/* Subtotal */}
-                      <div className="mt-4 text-right">
-                        <span className="text-sm text-gray-600">
-                          Subtotal:{" "}
-                        </span>
-                        <span className="font-medium text-gray-800">
-                          ${(item.quantity * item.unitPrice).toLocaleString()}
-                        </span>
-                      </div>
+                  {/* Total */}
+                  <div className="pt-4 border-t">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium text-gray-700">
+                        Total estimado:
+                      </span>
+                      <span className="text-xl font-bold text-blue-600">
+                        ${(newPurchase.quantity * newPurchase.price).toLocaleString()}
+                      </span>
                     </div>
-                  ))}
+                  </div>
                 </CardContent>
               </Card>
 
               {/* Botones de acción */}
-              <div className="flex gap-4 pt-4">
+              <div className="flex gap-4">
                 <Button
                   type="button"
                   variant="outline"
@@ -605,16 +388,16 @@ export default function NewPurchasePage() {
                 </Button>
                 <Button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || success}
                   className="flex-1 bg-blue-600 hover:bg-blue-700"
                 >
                   {loading ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Creando solicitud...
+                      Creando...
                     </>
                   ) : (
-                    "Crear Solicitud de Compra"
+                    "Crear Solicitud"
                   )}
                 </Button>
               </div>

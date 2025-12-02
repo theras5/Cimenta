@@ -95,9 +95,9 @@ export default function NewChangePage() {
       // Mostrar éxito
       setSuccess(true);
 
-      // Redirigir después de 2 segundos
+      // Redirigir después de 2 segundos con refresh
       setTimeout(() => {
-        router.push("/tasks");
+        router.push(`/tasks?refresh=${Date.now()}`);
       }, 2000);
 
     } catch (error: any) {

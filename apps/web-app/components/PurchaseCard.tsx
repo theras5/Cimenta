@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Check, ChevronDown, Edit } from "lucide-react";
 import {
   DropdownMenu,
@@ -90,6 +91,7 @@ interface PurchaseCardProps {
 }
 
 export const PurchaseCard = ({ purchase, onStatusChange, onEdit }: PurchaseCardProps) => {
+  const router = useRouter();
   const uiPurchase = adaptPurchaseToUI(purchase);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -189,7 +191,8 @@ const handleStatusChange = async (newStatus: Purchase['status']) => {
   return (
     <>
     <div
-      className={`flex-shrink-0 w-80 bg-white rounded-lg shadow-sm border border-gray-200 p-3 hover:shadow-md transition-all duration-200 ${isUpdating ? 'opacity-70' : ''}`}
+      className={`flex-shrink-0 w-80 bg-white rounded-lg shadow-sm border border-gray-200 p-3 hover:shadow-md transition-all duration-200 cursor-pointer ${isUpdating ? 'opacity-70' : ''}`}
+      onClick={() => router.push(`/purchases/${purchase.id}`)}
     >
       {/* Header con título y dropdown */}
       <div className="mb-1 flex justify-between items-start gap-2">
@@ -198,14 +201,20 @@ const handleStatusChange = async (newStatus: Purchase['status']) => {
         </h3>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="p-0.5 rounded hover:bg-gray-100 transition-colors flex-shrink-0">
+            <button 
+              className="p-0.5 rounded hover:bg-gray-100 transition-colors flex-shrink-0"
+              onClick={(e) => e.stopPropagation()}
+            >
               <ChevronDown className="h-3.5 w-3.5 text-gray-500" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             {purchase.status !== 'purchased' && purchase.status !== 'delivered' && (
               <DropdownMenuItem 
-                onClick={() => handleStatusChange('purchased')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleStatusChange('purchased');
+                }}
                 disabled={isUpdating}
               >
                 Marcar como Comprado
@@ -213,7 +222,10 @@ const handleStatusChange = async (newStatus: Purchase['status']) => {
             )}
             {purchase.status !== 'delivered' && (
               <DropdownMenuItem 
-                onClick={() => handleStatusChange('delivered')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleStatusChange('delivered');
+                }}
                 disabled={isUpdating}
               >
                 Marcar como Recibido
@@ -221,7 +233,10 @@ const handleStatusChange = async (newStatus: Purchase['status']) => {
             )}
             {purchase.status === 'purchased' && (
               <DropdownMenuItem 
-                onClick={() => handleStatusChange('pending')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleStatusChange('pending');
+                }}
                 disabled={isUpdating}
               >
                 Volver a Pendiente
@@ -229,14 +244,20 @@ const handleStatusChange = async (newStatus: Purchase['status']) => {
             )}
             {purchase.status === 'delivered' && (
               <DropdownMenuItem 
-                onClick={() => handleStatusChange('purchased')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleStatusChange('purchased');
+                }}
                 disabled={isUpdating}
               >
                 Volver a Comprado
               </DropdownMenuItem>
             )}
             <DropdownMenuItem 
-                onClick={handleEdit}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleEdit();
+                }}
                 disabled={isUpdating || !onEdit}
               >
                 <Edit className="h-4 w-4 mr-2" />
@@ -271,17 +292,20 @@ const handleStatusChange = async (newStatus: Purchase['status']) => {
         <div 
           style={{ backgroundColor: getCategoryColor(uiPurchase.category) }}
           className="px-1.5 py-0.5 rounded-full flex items-center justify-center"
-        >
-          <span className="text-white text-[10px] font-medium uppercase leading-none">
-            {uiPurchase.category}
-          </span>
-        </div>
-        {uiPurchase.supplier && (
-          <div 
-            style={{ backgroundColor: getCategoryColor(uiPurchase.category) }}
-            className="w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-bold"
-          >
-            {uiPurchase.supplier.charAt(0).toUpperCase()}
+      {/* Botón para cambiar al siguiente estado */}
+      {purchase.status !== 'delivered' && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleStatusChange(getNextStatus(purchase.status));
+          }}
+          className={`mt-2 w-full py-1.5 px-3 text-xs font-medium rounded-md transition-all ${
+            isUpdating ? 'bg-gray-300 cursor-not-allowed' : 
+            purchase.status === 'pending' ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 
+            'bg-green-100 text-green-700 hover:bg-green-200'
+          }`}
+          disabled={isUpdating}
+        >   {uiPurchase.supplier.charAt(0).toUpperCase()}
           </div>
         )}
       </div>
