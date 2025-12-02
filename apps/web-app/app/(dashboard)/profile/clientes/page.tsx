@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft,
   Building,
@@ -24,18 +25,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-
-interface Client {
-  id: string;
-  firstName: string;
-  lastName: string;
-  phone: string;
-}
+import { clientService, type Client } from "@/lib/services/clientService";
 
 export default function MisClientesPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
+  const { toast } = useToast();
   const [clients, setClients] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
     firstName: "",
@@ -53,6 +50,31 @@ export default function MisClientesPage() {
       router.replace("/login");
     }
   }, [user, authLoading, router]);
+
+  // Cargar clientes del usuario
+  useEffect(() => {
+    if (user?.id) {
+      loadClients();
+    }
+  }, [user?.id]);
+
+  const loadClients = async () => {
+    if (!user?.id) return;
+    
+    setLoading(true);
+    try {
+      const data = await clientService.getUserClients(user.id);
+      setClients(data);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar los clientes",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const validateForm = () => {
     const newErrors = {
@@ -79,24 +101,53 @@ export default function MisClientesPage() {
     return !Object.values(newErrors).some((error) => error !== "");
   };
 
-  const handleAddClient = () => {
-    if (validateForm()) {
-      const newClient: Client = {
-        id: Date.now().toString(),
-        firstName: formData.firstName,
-        lastName: formData.lastName,
+  const handleAddClient = async () => {
+    if (!validateForm() || !user?.id) return;
+
+    try {
+      const newClient = await clientService.createClient({
+        first_name: formData.firstName,
+        last_name: formData.lastName,
         phone: formData.phone,
-      };
+        user_id: user.id,
+      });
 
       setClients([...clients, newClient]);
       setFormData({ firstName: "", lastName: "", phone: "" });
       setErrors({ firstName: "", lastName: "", phone: "" });
       setIsDialogOpen(false);
+
+      toast({
+        title: "Cliente agregado",
+        description: "El cliente ha sido agregado correctamente",
+        variant: "success",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo agregar el cliente",
+        variant: "destructive",
+      });
     }
   };
 
-  const handleDeleteClient = (id: string) => {
-    setClients(clients.filter((client) => client.id !== id));
+  const handleDeleteClient = async (id: string) => {
+    try {
+      await clientService.deleteClient(id);
+      setClients(clients.filter((client) => client.id !== id));
+      
+      toast({
+        title: "Cliente eliminado",
+        description: "El cliente ha sido eliminado correctamente",
+        variant: "success",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar el cliente",
+        variant: "destructive",
+      });
+    }
   };
 
   if (authLoading) {
@@ -253,7 +304,7 @@ export default function MisClientesPage() {
                     </div>
                     <div>
                       <h3 className="font-semibold text-gray-900 mb-1">
-                        {client.firstName} {client.lastName}
+                        {client.first_name} {client.last_name}
                       </h3>
                       <div className="flex items-center text-sm text-gray-600">
                         <Phone className="w-4 h-4 mr-1" />

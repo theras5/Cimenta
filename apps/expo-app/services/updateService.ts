@@ -8,6 +8,10 @@ export interface Update {
   description?: string;
   image_url?: string;
   site_id: string;
+  user?: {
+    name: string;
+    email: string | null;
+  };
 }
 
 export interface CreateUpdateDTO {

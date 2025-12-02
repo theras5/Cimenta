@@ -65,8 +65,9 @@ export default function MiCuentaPage() {
       console.log("Cambios guardados exitosamente");
       
       toast({
-        title: "¡Cambios guardados!",
-        description: "Tu perfil se ha actualizado correctamente.",
+        title: "Perfil actualizado",
+        description: "Tus cambios se han guardado correctamente",
+        variant: "success",
       });
     } catch (error) {
       console.error("Error al guardar:", error);

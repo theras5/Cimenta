@@ -18,7 +18,7 @@ export const getSiteSummaryPDF = async (req: Request, res: Response) => {
       .single();
 
     if (siteError || !siteData) {
-      return res.status(404).json({ error: 'Site not found' });
+      return res.status(404).json({ error: 'Sitio no encontrado' });
     }
 
     // Obtener todas las tareas de la obra
@@ -28,7 +28,7 @@ export const getSiteSummaryPDF = async (req: Request, res: Response) => {
       .eq('site_id', siteId);
 
     if (tasksError) {
-      return res.status(500).json({ error: 'Error fetching tasks' });
+      return res.status(500).json({ error: 'Error al obtener tareas' });
     }
 
     // Calcular estadísticas de tareas
@@ -59,7 +59,7 @@ export const getSiteSummaryPDF = async (req: Request, res: Response) => {
       .eq('site_id', siteId);
 
     if (purchasesError) {
-      return res.status(500).json({ error: 'Error fetching purchases' });
+      return res.status(500).json({ error: 'Error al obtener compras' });
     }
 
     const totalPurchases = purchases?.length || 0;
@@ -90,8 +90,8 @@ export const getSiteSummaryPDF = async (req: Request, res: Response) => {
     res.setHeader('Content-Disposition', `attachment; filename=resumen-${siteData.address.replace(/\s+/g, '-')}.pdf`);
     res.send(pdfBuffer);
   } catch (error) {
-    console.error('Error generating PDF:', error);
-    res.status(500).json({ error: 'Error generating PDF' });
+    console.error('Error generando PDF:', error);
+    res.status(500).json({ error: 'Error al generar PDF' });
   }
 };
 
@@ -104,11 +104,11 @@ export const getAllSitesSummaryPDF = async (req: Request, res: Response) => {
       .order('address', { ascending: true });
 
     if (sitesError) {
-      return res.status(500).json({ error: 'Error fetching sites' });
+      return res.status(500).json({ error: 'Error al obtener sitios' });
     }
 
     if (!sites || sites.length === 0) {
-      return res.status(404).json({ error: 'No sites found' });
+      return res.status(404).json({ error: 'No se encontraron sitios' });
     }
 
     // Generar resumen para cada obra

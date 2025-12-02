@@ -264,36 +264,7 @@ useFocusEffect(
         alignItems: "center",
         marginBottom: 32,
       }}>
-        <TouchableOpacity
-          style={{
-            borderColor: "#2B44FF",
-            borderWidth: 2,
-            borderRadius: 10,
-            paddingVertical: 16,
-            width: BUTTON_WIDTH,
-            alignItems: "center",
-            backgroundColor: "#fff",
-            flexDirection: "row",
-            justifyContent: "center",
-          }}
-          onPress={() => Alert.alert("Funcionalidad por implementar")}
-        >
-          <Text style={{
-            color: "#2B44FF",
-            fontSize: 17,
-            fontWeight: "bold",
-            letterSpacing: 0.2,
-          }}>
-            Todas las obras&nbsp;
-          </Text>
-          <Text style={{
-            color: "#2B44FF",
-            fontSize: 20,
-            fontWeight: "bold",
-          }}>
-            →
-          </Text>
-        </TouchableOpacity>
+        
       </View>
     </View>
   );

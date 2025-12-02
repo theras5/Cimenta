@@ -8,6 +8,7 @@ import {
   RefreshCcwIcon,
   ShoppingCartIcon,
   BarChart3,
+  UserPlus,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -17,13 +18,17 @@ import { useState, useEffect } from "react";
 import { useTasks } from "@/hooks/useTasks";
 import { usePurchases } from "@/hooks/usePurchases";
 import { useUserRole } from "@/hooks/useUserRole";
+import { InviteUserModal } from "@/components/InviteUserModal";
+import { useSites } from "@/hooks/useSites";
 
 export default function CimentaDashboard() {
   const router = useRouter();
   const [selectedSiteId, setSelectedSiteId] = useState<string>("");
+  const [selectedSiteName, setSelectedSiteName] = useState<string>("");
   const { tasks, fetchTasks } = useTasks();
   const { purchases, fetchPurchases } = usePurchases();
   const { role, loading: roleLoading } = useUserRole();
+  const { sites } = useSites();
   const normalizedRole = role?.toLowerCase();
 
   // Load selected site and fetch data
@@ -33,8 +38,14 @@ export default function CimentaDashboard() {
       setSelectedSiteId(siteId);
       fetchTasks(siteId);
       fetchPurchases(siteId);
+      
+      // Find site name
+      const site = sites.find(s => s.id === siteId);
+      if (site) {
+        setSelectedSiteName(site.address);
+      }
     }
-  }, [fetchTasks, fetchPurchases]);
+  }, [fetchTasks, fetchPurchases, sites]);
 
   // Listen for site changes and refresh data
   useEffect(() => {
@@ -44,6 +55,12 @@ export default function CimentaDashboard() {
         setSelectedSiteId(newSiteId);
         fetchTasks(newSiteId);
         fetchPurchases(newSiteId);
+        
+        // Update site name
+        const site = sites.find(s => s.id === newSiteId);
+        if (site) {
+          setSelectedSiteName(site.address);
+        }
       }
     };
 
@@ -57,7 +74,7 @@ export default function CimentaDashboard() {
       window.removeEventListener("storage", handleSiteChange);
       clearInterval(intervalId);
     };
-  }, [selectedSiteId, fetchTasks, fetchPurchases]);
+  }, [selectedSiteId, fetchTasks, fetchPurchases, sites]);
 
   // Calculate stats based on real data
   const activeTasks = tasks.filter(
@@ -168,10 +185,12 @@ export default function CimentaDashboard() {
             </div>
           </div>
 
-          {/* Atajos Section - Alineado a la izquierda */}
+          {/* Atajos Section */}
           <div>
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Atajos</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            
+            {/* Grid de atajos - responsivo */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {/* Crear tarea (solo admin) */}
               {!roleLoading && normalizedRole === "admin" && (
                 <button
@@ -208,7 +227,7 @@ export default function CimentaDashboard() {
                 </button>
               )}
 
-              {/* Crear solicitud de compra (siempre visible) */}
+              {/* Crear solicitud de compra - SIEMPRE VISIBLE */}
               <button
                 onClick={() => router.push("/purchases/new-purchase")}
                 className="group flex flex-col items-center p-6 bg-white rounded-xl border border-gray-200 hover:border-orange-300 hover:bg-orange-50 transition-all duration-200 hover:shadow-md"
@@ -224,22 +243,41 @@ export default function CimentaDashboard() {
                 </p>
               </button>
 
-              {/* Ver resumen de obra (solo client) */}
-              {!roleLoading && normalizedRole === "client" && selectedSiteId && (
-                <button
-                  onClick={() => router.push("/summary")}
-                  className="group flex flex-col items-center p-6 bg-white rounded-xl border border-gray-200 hover:border-green-300 hover:bg-green-50 transition-all duration-200 hover:shadow-md"
-                >
-                  <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center mb-3 group-hover:bg-green-200 transition-colors">
-                    <BarChart3 className="w-6 h-6 text-green-600" />
-                  </div>
-                  <h3 className="text-md font-semibold text-gray-900 text-center mb-1">
-                    Resumen de obra
-                  </h3>
-                  <p className="text-xs text-gray-500 text-center">
-                    Ver estadísticas y progreso
-                  </p>
-                </button>
+              {/* Resumen de obra - SIEMPRE VISIBLE */}
+              <button
+                onClick={() => router.push("/summary")}
+                className="group flex flex-col items-center p-6 bg-white rounded-xl border border-gray-200 hover:border-green-300 hover:bg-green-50 transition-all duration-200 hover:shadow-md"
+              >
+                <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center mb-3 group-hover:bg-green-200 transition-colors">
+                  <BarChart3 className="w-6 h-6 text-green-600" />
+                </div>
+                <h3 className="text-md font-semibold text-gray-900 text-center mb-1">
+                  Resumen de obra
+                </h3>
+                <p className="text-xs text-gray-500 text-center">
+                  Ver estadísticas y progreso
+                </p>
+              </button>
+
+              {/* Invitar Usuario (solo admin con obra seleccionada) */}
+              {normalizedRole === "admin" && selectedSiteId && (
+                <InviteUserModal 
+                  siteId={selectedSiteId} 
+                  siteName={selectedSiteName}
+                  trigger={
+                    <button className="group flex flex-col items-center p-6 bg-white rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all duration-200 hover:shadow-md w-full">
+                      <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mb-3 group-hover:bg-blue-200 transition-colors">
+                        <UserPlus className="w-6 h-6 text-blue-600" />
+                      </div>
+                      <h3 className="text-md font-semibold text-gray-900 text-center mb-1">
+                        Invitar Usuario
+                      </h3>
+                      <p className="text-xs text-gray-500 text-center">
+                        Agregar colaborador a la obra
+                      </p>
+                    </button>
+                  }
+                />
               )}
             </div>
           </div>

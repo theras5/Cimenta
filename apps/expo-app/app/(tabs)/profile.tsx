@@ -133,7 +133,6 @@ const Profile = () => {
 
           <Text style={styles.userName}>{user.name || 'Usuario'}</Text>
           <Text style={styles.userEmail}>{user.email || 'Sin email'}</Text>
-          <Text style={styles.userRole}>Ingeniero Civil</Text>
         </View>
 
         {/* Menu Items */}

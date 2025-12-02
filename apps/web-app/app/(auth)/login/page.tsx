@@ -146,7 +146,7 @@ export default function LoginPage() {
                     Iniciando sesión...
                   </>
                 ) : (
-                  "Iniciar Sesión"
+                  "Iniciar sesión"
                 )}
               </Button>
 

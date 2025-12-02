@@ -113,8 +113,7 @@ export default function PerfilPage() {
             <h2 className="text-3xl font-bold text-gray-900 mb-2">
               {user.name || 'Usuario'}
             </h2>
-            <p className="text-gray-600 mb-1">{user.email || 'Sin email'}</p>
-            <p className="text-gray-500 text-sm">Ingeniero Civil</p>
+            <p className="text-gray-600">{user.email || 'Sin email'}</p>
           </div>
         </div>
 

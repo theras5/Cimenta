@@ -21,6 +21,22 @@ export async function signInWithPasswordService(email: string, password: string,
         throw new AppError(error.message, 400);
     }
 
+    // Insertar en la tabla profiles
+    if (data.user) {
+        const { error: profileError } = await supabase
+            .from('profiles')
+            .insert({
+                id: data.user.id,
+                name: name,
+                email: email,
+            });
+
+        if (profileError) {
+            console.log("Error al crear perfil:", profileError.message);
+            // No lanzamos error para no bloquear el registro
+        }
+    }
+
     return data;
 }
 

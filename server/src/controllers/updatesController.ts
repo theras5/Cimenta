@@ -22,19 +22,46 @@ export const getUpdates = async (
   try {
     const { site_id } = req.query;
 
-    let query = supabase.from("updates").select("*").order('created_at', { ascending: false });
+    let query = supabase
+      .from("updates")
+      .select("*")
+      .order('created_at', { ascending: false });
 
     if (site_id) {
       query = query.eq("site_id", site_id);
     }    
 
-    const { data, error } = await query;
+    const { data: updates, error } = await query;
 
     if (error) {
       return next(error);
     }
 
-    res.json(data);
+    // Obtener información de usuarios manualmente desde profiles
+    if (updates && updates.length > 0) {
+      const userIds = [...new Set(updates.map((u: any) => u.user_id))];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, name, email")
+        .in("id", userIds);
+
+      const profilesMap = new Map(profiles?.map(p => [p.id, p]) || []);
+      
+      const updatesWithUser = updates.map((update: any) => {
+        const profile = profilesMap.get(update.user_id);
+        return {
+          ...update,
+          user: profile ? {
+            name: profile.name,
+            email: profile.email
+          } : null
+        };
+      });
+
+      return res.json(updatesWithUser);
+    }
+
+    res.json(updates);
   } catch (err) {
     next(err);
   }
@@ -50,14 +77,27 @@ export const getUpdate = async (
   try {
     const id = req.params.id;
 
-    const { data, error } = await supabase
+    const { data: update, error } = await supabase
       .from("updates")
       .select("*")
       .eq("id", id)
       .single();
 
     if (error) return res.status(404).json({ error: error.message });
-    res.json(data);
+
+    // Obtener información del usuario desde profiles
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id, name, email")
+      .eq("id", update.user_id)
+      .single();
+
+    const updateWithUser = {
+      ...update,
+      user: profile ? { name: profile.name, email: profile.email } : null
+    };
+
+    res.json(updateWithUser);
   } catch (err) {
     next(err);
   }

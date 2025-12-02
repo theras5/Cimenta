@@ -467,19 +467,33 @@ export default function NewPurchase() {
           {/* Botones para agregar imágenes */}
           <View className="flex-row gap-2 mb-3">
             <TouchableOpacity
-              onPress={pickImages}
-              className="flex-1 bg-blue-100 border-2 border-blue-300 border-dashed p-4 rounded-xl flex-row items-center justify-center"
-            >
-              <Ionicons name="images-outline" size={24} color="#3B82F6" />
-              <Text className="text-blue-600 font-medium ml-2">Galería</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
               onPress={takePhoto}
-              className="flex-1 bg-green-100 border-2 border-green-300 border-dashed p-4 rounded-xl flex-row items-center justify-center"
+              className="bg-blue-500 flex-1 flex-row items-center justify-center p-4 rounded-xl"
+              style={{
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.25,
+                shadowRadius: 3.84,
+                elevation: 5,
+              }}
             >
-              <Ionicons name="camera-outline" size={24} color="#10B981" />
-              <Text className="text-green-600 font-medium ml-2">Cámara</Text>
+              <Ionicons name="camera-outline" size={20} color="#FFFFFF" />
+              <Text className="text-white font-medium ml-2">Cámara</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={pickImages}
+              className="bg-blue-500 flex-1 flex-row items-center justify-center p-4 rounded-xl"
+              style={{
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.25,
+                shadowRadius: 3.84,
+                elevation: 5,
+              }}
+            >
+              <Ionicons name="images-outline" size={20} color="#FFFFFF" />
+              <Text className="text-white font-medium ml-2">Galería</Text>
             </TouchableOpacity>
           </View>
 

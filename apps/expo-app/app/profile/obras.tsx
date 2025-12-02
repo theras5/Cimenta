@@ -24,6 +24,12 @@ const Obras = () => {
   const [sites, setSites] = useState<Site[]>([]);
   const [loading, setLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [selectedSiteForInvite, setSelectedSiteForInvite] = useState<Site | null>(null);
+  const [inviteFormData, setInviteFormData] = useState({
+    email: '',
+    role: 'client' as 'admin' | 'client',
+  });
   const [formData, setFormData] = useState({
     address: '',
     description: '',
@@ -96,6 +102,13 @@ const Obras = () => {
             text: 'Ir al Dashboard',
             onPress: () => router.push('/(tabs)'),
           },
+          {
+            text: 'Invitar a otro usuario',
+            onPress: () => {
+              setSelectedSiteForInvite(newSite);
+              setIsInviteModalOpen(true);
+            },
+          },
         ]
       );
     } catch (error) {
@@ -126,8 +139,70 @@ const Obras = () => {
           text: 'Ir al Dashboard',
           onPress: () => router.push('/(tabs)'),
         },
+        {
+          text: 'Invitar a otro usuario',
+          onPress: () => {
+            setSelectedSiteForInvite(site);
+            setIsInviteModalOpen(true);
+          },
+        },
       ]
     );
+  };
+
+  const validateInviteForm = () => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!inviteFormData.email.trim()) {
+      Alert.alert('Error', 'El email es obligatorio');
+      return false;
+    }
+    if (!emailRegex.test(inviteFormData.email)) {
+      Alert.alert('Error', 'El email no es válido');
+      return false;
+    }
+    return true;
+  };
+
+  const handleSendInvitation = async () => {
+    if (!validateInviteForm() || !selectedSiteForInvite) return;
+
+    setLoading(true);
+    try {
+      const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
+      
+      const response = await fetch(`${API_URL}/invitations`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: inviteFormData.email.toLowerCase().trim(),
+          site_id: selectedSiteForInvite.id,
+          role: inviteFormData.role,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Error al enviar la invitación');
+      }
+
+      Alert.alert(
+        '¡Invitación enviada!',
+        `Se ha enviado una invitación a ${inviteFormData.email}`,
+        [{ text: 'OK' }]
+      );
+
+      // Limpiar y cerrar
+      setInviteFormData({ email: '', role: 'client' });
+      setIsInviteModalOpen(false);
+      setSelectedSiteForInvite(null);
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'No se pudo enviar la invitación');
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (authLoading || loading) {
@@ -264,6 +339,136 @@ const Obras = () => {
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
                   <Text style={styles.submitButtonText}>Agregar</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Invite User Modal */}
+      <Modal
+        visible={isInviteModalOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          setIsInviteModalOpen(false);
+          setSelectedSiteForInvite(null);
+          setInviteFormData({ email: '', role: 'client' });
+        }}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalContainer}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Invitar Usuario a la Obra</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setIsInviteModalOpen(false);
+                  setSelectedSiteForInvite(null);
+                  setInviteFormData({ email: '', role: 'client' });
+                }}
+              >
+                <Ionicons name="close" size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            {selectedSiteForInvite && (
+              <View style={styles.inviteSiteInfo}>
+                <Ionicons name="business" size={16} color="#6B7280" />
+                <Text style={styles.inviteSiteText}>{selectedSiteForInvite.address}</Text>
+              </View>
+            )}
+
+            <View style={styles.modalBody}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>
+                  Email del usuario <Text style={styles.required}>*</Text>
+                </Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="usuario@ejemplo.com"
+                  value={inviteFormData.email}
+                  onChangeText={(text) =>
+                    setInviteFormData({ ...inviteFormData, email: text })
+                  }
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>
+                  Rol en la obra <Text style={styles.required}>*</Text>
+                </Text>
+                <View style={styles.roleSelector}>
+                  <TouchableOpacity
+                    style={[
+                      styles.roleButton,
+                      inviteFormData.role === 'client' && styles.roleButtonActive,
+                    ]}
+                    onPress={() => setInviteFormData({ ...inviteFormData, role: 'client' })}
+                  >
+                    <Text
+                      style={[
+                        styles.roleButtonText,
+                        inviteFormData.role === 'client' && styles.roleButtonTextActive,
+                      ]}
+                    >
+                      Cliente
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.roleButton,
+                      inviteFormData.role === 'admin' && styles.roleButtonActive,
+                    ]}
+                    onPress={() => setInviteFormData({ ...inviteFormData, role: 'admin' })}
+                  >
+                    <Text
+                      style={[
+                        styles.roleButtonText,
+                        inviteFormData.role === 'admin' && styles.roleButtonTextActive,
+                      ]}
+                    >
+                      Administrador
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.roleDescription}>
+                  {inviteFormData.role === 'admin'
+                    ? 'Podrá crear y gestionar tareas'
+                    : 'Podrá ver el progreso y crear solicitudes de cambio'}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => {
+                  setIsInviteModalOpen(false);
+                  setSelectedSiteForInvite(null);
+                  setInviteFormData({ email: '', role: 'client' });
+                }}
+              >
+                <Text style={styles.cancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.submitButton}
+                onPress={handleSendInvitation}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Ionicons name="mail-outline" size={16} color="#FFFFFF" style={{ marginRight: 4 }} />
+                    <Text style={styles.submitButtonText}>Enviar Invitación</Text>
+                  </>
                 )}
               </TouchableOpacity>
             </View>
@@ -451,11 +656,59 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingVertical: 14,
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
   },
   submitButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  inviteSiteInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: '#F3F4F6',
+    marginTop: 12,
+  },
+  inviteSiteText: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  roleSelector: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  roleButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+  },
+  roleButtonActive: {
+    backgroundColor: '#2563EB',
+    borderColor: '#2563EB',
+  },
+  roleButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6B7280',
+  },
+  roleButtonTextActive: {
+    color: '#FFFFFF',
+  },
+  roleDescription: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 8,
+    fontStyle: 'italic',
   },
 });
 

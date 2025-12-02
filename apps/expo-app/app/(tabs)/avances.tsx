@@ -128,7 +128,7 @@ const Avances = () => {
                 key={u.id}
                 title={u.title}
                 description={u.description}
-                author="Usuario"
+                author={u.user?.name || "Usuario"}
                 timeAgo={formatTime(u.created_at)}
                 imageUrl={u.image_url}
                 onPress={() => router.push(`/updates/${u.id}`)}

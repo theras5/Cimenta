@@ -114,8 +114,9 @@ export default function MisEmpleadosPage() {
       });
 
       toast({
-        title: "Éxito",
-        description: "Empleado agregado correctamente",
+        title: "Empleado agregado",
+        description: "El empleado ha sido agregado correctamente",
+        variant: "success",
       });
 
       setFormData({ firstName: "", lastName: "", phone: "" });
@@ -141,8 +142,9 @@ export default function MisEmpleadosPage() {
       await employeeService.deleteEmployee(id);
       
       toast({
-        title: "Éxito",
-        description: "Empleado eliminado correctamente",
+        title: "Empleado eliminado",
+        description: "El empleado ha sido eliminado correctamente",
+        variant: "success",
       });
       
       // Recargar la lista

@@ -77,21 +77,23 @@ export default function UpdateDetail() {
               ? new Date(update.created_at).toLocaleString()
               : "Fecha no disponible"}
           </Text>
-          <Text className="text-gray-700 text-base leading-6 mb-6">
-            {update.description || "Sin descripción"}
-          </Text>
+          {update.description && (
+            <Text className="text-gray-700 text-base leading-6 mb-6">
+              {update.description}
+            </Text>
+          )}
 
-          <View className="bg-gray-50 rounded-xl border border-gray-200 px-4 py-3 flex-row justify-between">
-            <View>
-              <Text className="text-gray-500 text-xs uppercase">Autor</Text>
+          <View className="bg-gray-50 rounded-xl border border-gray-200 px-4 py-3">
+            <View className="mb-3">
+              <Text className="text-gray-500 text-xs uppercase mb-1">Autor</Text>
               <Text className="text-gray-800 font-medium">
-                {update.user_id?.slice(0, 8) || "Usuario"}
+                {update.user?.name || "Usuario"}
               </Text>
             </View>
-            <View className="items-end">
-              <Text className="text-gray-500 text-xs uppercase">ID</Text>
+            <View>
+              <Text className="text-gray-500 text-xs uppercase mb-1">Email</Text>
               <Text className="text-gray-800 font-medium">
-                {update.id?.slice(0, 8)}
+                {update.user?.email || "No disponible"}
               </Text>
             </View>
           </View>

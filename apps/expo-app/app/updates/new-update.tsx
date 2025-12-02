@@ -5,16 +5,14 @@
   TouchableOpacity,
   ScrollView,
   TextInput,
-  Modal,
   Alert,
 } from "react-native";
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import RequiredTextInput from "@/components/RequiredTextInput";
 import * as ImagePicker from "expo-image-picker";
-import * as FileSystem from "expo-file-system/legacy";
 import * as ImageManipulator from "expo-image-manipulator";
 import { useUpdates } from "@/hooks/useUpdates";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -31,33 +29,12 @@ const NewUpdate = () => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
-  const [showCameraModal, setShowCameraModal] = useState(false);
-  const [showGalleryModal, setShowGalleryModal] = useState(false);
-  const { createUpdate } = useUpdates();
+  const { createUpdate, fetchUpdates } = useUpdates();
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      const libraryStatus =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
-      const cameraStatus = await ImagePicker.requestCameraPermissionsAsync();
-
-      if (
-        libraryStatus.status !== "granted" ||
-        cameraStatus.status !== "granted"
-      ) {
-        Alert.alert(
-          "Permisos",
-          "Se necesitan permisos para acceder a la galeria y camara"
-        );
-      }
-    })();
-  }, []);
-
   const convertToDataUrl = async (uri: string, mime?: string) => {
     try {
-      // Reducimos tamaño/compress siempre para evitar archivos grandes y depender del FS nuevo
       const manipulated = await ImageManipulator.manipulateAsync(
         uri,
         [{ resize: { width: 1600 } }],
@@ -74,8 +51,18 @@ const NewUpdate = () => {
     }
   };
 
-  const pickImageFromGallery = async () => {
+  const pickImage = async () => {
     try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== "granted") {
+        Alert.alert(
+          "Permisos necesarios",
+          "Se necesita permiso para acceder a la galería"
+        );
+        return;
+      }
+
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
@@ -83,10 +70,7 @@ const NewUpdate = () => {
         quality: 0.8,
       });
 
-      if (result.canceled) {
-        setShowGalleryModal(false);
-        return;
-      }
+      if (result.canceled) return;
 
       if (result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
@@ -110,40 +94,23 @@ const NewUpdate = () => {
         }
       }
     } catch (error) {
-      console.error("pickImageFromGallery error", error);
+      console.error("pickImage error", error);
       Alert.alert("Error", "No se pudo seleccionar la imagen");
     }
-    setShowGalleryModal(false);
-  };
-
-  const pickVideoFromGallery = async () => {
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
-        allowsEditing: true,
-        quality: 1,
-        videoMaxDuration: 30,
-      });
-
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        const asset = result.assets[0];
-        const newFile: MediaFile = {
-          uri: asset.uri,
-          type: "video",
-          name: asset.fileName || `video-${Date.now()}`,
-        };
-
-        setMediaFiles([...mediaFiles, newFile]);
-        setImageDataUrl(null); // la columna image_url solo guarda imagenes
-      }
-    } catch (error) {
-      Alert.alert("Error", "No se pudo seleccionar el video");
-    }
-    setShowGalleryModal(false);
   };
 
   const takePhoto = async () => {
     try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      
+      if (status !== "granted") {
+        Alert.alert(
+          "Permisos necesarios",
+          "Se necesita permiso para usar la cámara"
+        );
+        return;
+      }
+
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
@@ -151,10 +118,7 @@ const NewUpdate = () => {
         quality: 0.85,
       });
 
-      if (result.canceled) {
-        setShowCameraModal(false);
-        return;
-      }
+      if (result.canceled) return;
 
       if (result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
@@ -181,33 +145,6 @@ const NewUpdate = () => {
       console.error("takePhoto error", error);
       Alert.alert("Error", "No se pudo tomar la foto");
     }
-    setShowCameraModal(false);
-  };
-
-  const recordVideo = async () => {
-    try {
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
-        allowsEditing: true,
-        quality: 1,
-        videoMaxDuration: 30,
-      });
-
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        const asset = result.assets[0];
-        const newFile: MediaFile = {
-          uri: asset.uri,
-          type: "video",
-          name: asset.fileName || `video-${Date.now()}`,
-        };
-
-        setMediaFiles([...mediaFiles, newFile]);
-        setImageDataUrl(null);
-      }
-    } catch (error) {
-      Alert.alert("Error", "No se pudo grabar el video");
-    }
-    setShowCameraModal(false);
   };
 
   const removeMediaFile = (index: number) => {
@@ -252,9 +189,11 @@ const NewUpdate = () => {
     console.log("Enviando al backend:", nuevoAvance);
 
     await createUpdate(nuevoAvance);
+    
+    // Auto-refresh the updates list
+    await fetchUpdates();
 
     router.back();
-    router.setParams({ refresh: Date.now().toString() });
   };
 
   return (
@@ -311,19 +250,33 @@ const NewUpdate = () => {
 
           <View className="flex-row gap-2 mb-3">
             <TouchableOpacity
-              onPress={() => setShowCameraModal(true)}
-              className="bg-white flex-1 flex-row items-center justify-center p-3 rounded-xl border border-gray-200"
+              onPress={takePhoto}
+              className="bg-blue-500 flex-1 flex-row items-center justify-center p-4 rounded-xl"
+              style={{
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.25,
+                shadowRadius: 3.84,
+                elevation: 5,
+              }}
             >
-              <Ionicons name="camera-outline" size={20} color="#3B82F6" />
-              <Text className="text-blue-500 font-medium ml-2">Camara</Text>
+              <Ionicons name="camera-outline" size={20} color="#FFFFFF" />
+              <Text className="text-white font-medium ml-2">Cámara</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={() => setShowGalleryModal(true)}
-              className="bg-white flex-1 flex-row items-center justify-center p-3 rounded-xl border border-gray-200"
+              onPress={pickImage}
+              className="bg-blue-500 flex-1 flex-row items-center justify-center p-4 rounded-xl"
+              style={{
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.25,
+                shadowRadius: 3.84,
+                elevation: 5,
+              }}
             >
-              <Ionicons name="images-outline" size={20} color="#3B82F6" />
-              <Text className="text-blue-500 font-medium ml-2">Galeria</Text>
+              <Ionicons name="images-outline" size={20} color="#FFFFFF" />
+              <Text className="text-white font-medium ml-2">Galería</Text>
             </TouchableOpacity>
           </View>
 
@@ -375,190 +328,6 @@ const NewUpdate = () => {
           )}
         </View>
       </ScrollView>
-
-      <Modal
-        visible={showCameraModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowCameraModal(false)}
-      >
-        <View
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
-            justifyContent: "flex-end",
-          }}
-        >
-          <View
-            style={{
-              backgroundColor: "white",
-              borderTopLeftRadius: 20,
-              borderTopRightRadius: 20,
-              paddingTop: 20,
-              paddingBottom: 40,
-              paddingHorizontal: 20,
-            }}
-          >
-            <View className="items-center mb-6">
-              <View className="w-12 h-1 bg-gray-300 rounded-full mb-4" />
-              <Text className="text-lg font-semibold text-gray-800">
-                Usar Camara
-              </Text>
-            </View>
-
-            <View className="gap-3">
-              <TouchableOpacity
-                onPress={takePhoto}
-                className="flex-row items-center p-4 bg-gray-50 rounded-xl"
-                style={{
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 1 },
-                  shadowOpacity: 0.1,
-                  shadowRadius: 2,
-                  elevation: 2,
-                }}
-              >
-                <View className="w-12 h-12 bg-blue-100 rounded-full items-center justify-center mr-4">
-                  <Ionicons name="camera" size={24} color="#3B82F6" />
-                </View>
-                <View className="flex-1">
-                  <Text className="font-medium text-gray-800 text-base">
-                    Tomar Foto
-                  </Text>
-                  <Text className="text-gray-500 text-sm">
-                    Captura una imagen con la camara
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={recordVideo}
-                className="flex-row items-center p-4 bg-gray-50 rounded-xl"
-                style={{
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 1 },
-                  shadowOpacity: 0.1,
-                  shadowRadius: 2,
-                  elevation: 2,
-                }}
-              >
-                <View className="w-12 h-12 bg-red-100 rounded-full items-center justify-center mr-4">
-                  <Ionicons name="videocam" size={24} color="#EF4444" />
-                </View>
-                <View className="flex-1">
-                  <Text className="font-medium text-gray-800 text-base">
-                    Grabar Video
-                  </Text>
-                  <Text className="text-gray-500 text-sm">
-                    Graba un video de hasta 30 segundos
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity
-              onPress={() => setShowCameraModal(false)}
-              className="mt-6 p-4 bg-gray-100 rounded-xl items-center"
-            >
-              <Text className="font-medium text-gray-600">Cancelar</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal
-        visible={showGalleryModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowGalleryModal(false)}
-      >
-        <View
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
-            justifyContent: "flex-end",
-          }}
-        >
-          <View
-            style={{
-              backgroundColor: "white",
-              borderTopLeftRadius: 20,
-              borderTopRightRadius: 20,
-              paddingTop: 20,
-              paddingBottom: 40,
-              paddingHorizontal: 20,
-            }}
-          >
-            <View className="items-center mb-6">
-              <View className="w-12 h-1 bg-gray-300 rounded-full mb-4" />
-              <Text className="text-lg font-semibold text-gray-800">
-                Seleccionar de Galeria
-              </Text>
-            </View>
-
-            <View className="gap-3">
-              <TouchableOpacity
-                onPress={pickImageFromGallery}
-                className="flex-row items-center p-4 bg-gray-50 rounded-xl"
-                style={{
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 1 },
-                  shadowOpacity: 0.1,
-                  shadowRadius: 2,
-                  elevation: 2,
-                }}
-              >
-                <View className="w-12 h-12 bg-blue-100 rounded-full items-center justify-center mr-4">
-                  <Ionicons name="images" size={24} color="#3B82F6" />
-                </View>
-                <View className="flex-1">
-                  <Text className="font-medium text-gray-800 text-base">
-                    Seleccionar Imagen
-                  </Text>
-                  <Text className="text-gray-500 text-sm">
-                    Elige una foto de tu galeria
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={pickVideoFromGallery}
-                className="flex-row items-center p-4 bg-gray-50 rounded-xl"
-                style={{
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 1 },
-                  shadowOpacity: 0.1,
-                  shadowRadius: 2,
-                  elevation: 2,
-                }}
-              >
-                <View className="w-12 h-12 bg-purple-100 rounded-full items-center justify-center mr-4">
-                  <Ionicons name="videocam" size={24} color="#8B5CF6" />
-                </View>
-                <View className="flex-1">
-                  <Text className="font-medium text-gray-800 text-base">
-                    Seleccionar Video
-                  </Text>
-                  <Text className="text-gray-500 text-sm">
-                    Elige un video de hasta 30 segundos
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity
-              onPress={() => setShowGalleryModal(false)}
-              className="mt-6 p-4 bg-gray-100 rounded-xl items-center"
-            >
-              <Text className="font-medium text-gray-600">Cancelar</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 };

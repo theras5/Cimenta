@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSites } from "@/hooks/useSites";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Building2, Loader2, MapPin, Plus } from "lucide-react";
+import { ArrowLeft, Building2, Loader2, MapPin, Plus, UserPlus } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -19,6 +19,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { InviteUserModal } from "@/components/InviteUserModal";
 
 export default function MisObrasPage() {
   const { user, loading: authLoading } = useAuth();
@@ -201,16 +202,18 @@ export default function MisObrasPage() {
           {sites.map((site) => (
             <Card
               key={site.id}
-              className="hover:shadow-md transition-shadow cursor-pointer"
-              onClick={() => handleSelectSite(site.id)}
+              className="hover:shadow-md transition-shadow"
             >
               <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div 
+                    className="flex items-start gap-4 flex-1 cursor-pointer"
+                    onClick={() => handleSelectSite(site.id)}
+                  >
                     <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
                       <Building2 className="text-blue-600" size={24} />
                     </div>
-                    <div>
+                    <div className="flex-1">
                       <h3 className="font-semibold text-gray-900 mb-2">
                         Obra en {site.address}
                       </h3>
@@ -219,6 +222,30 @@ export default function MisObrasPage() {
                         {site.address}
                       </div>
                     </div>
+                  </div>
+                  <div onClick={(e) => e.stopPropagation()} className="flex flex-col gap-2">
+                    <Button 
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleSelectSite(site.id)}
+                      className="whitespace-nowrap"
+                    >
+                      Ver obra
+                    </Button>
+                    <InviteUserModal 
+                      siteId={site.id} 
+                      siteName={site.address}
+                      trigger={
+                        <Button 
+                          variant="outline"
+                          size="sm"
+                          className="whitespace-nowrap w-full"
+                        >
+                          <UserPlus className="mr-2 h-4 w-4" />
+                          Invitar Usuario
+                        </Button>
+                      }
+                    />
                   </div>
                 </div>
               </CardContent>

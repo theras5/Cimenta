@@ -142,21 +142,6 @@ export default function SelectSitePage() {
           </CardContent>
         </Card>
 
-        {/* Botón de Todas las obras */}
-        <Card className="shadow-sm hover:shadow-md transition-shadow cursor-pointer border-2 border-blue-600 mt-8">
-          <CardContent className="p-6 bg-white rounded-lg">
-            <div 
-              className="text-blue-600 text-lg font-bold flex items-center justify-center"
-              onClick={() => toast({
-                title: "Información",
-                description: "Funcionalidad por implementar",
-              })}
-            >
-              Todas las obras 
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Modal para crear sitio */}
