@@ -10,13 +10,18 @@ import makeWASocket, {
 } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
-import { CreateTaskDTO, isTaskCategory, isTaskStatus, Profile, Task, TaskCategory } from '@cimenta/dtos';
-import { api, apiUrl, defaultHeaders } from './config';
+import { CreateTaskDTO, isTaskCategory, isTaskStatus, Profile, Task, TaskCategory, CreatePurchaseDTO } from '@cimenta/dtos';
+import { api, apiUrl, defaultHeaders, ALLOWED_WHATSAPP_NUMBER } from './config';
 import { createTaskDTOFromAI } from './ai';
+import { transcribeAudioMessage } from './whisper';
 import path from 'path';
+import http from 'http';
 
 const verifiedUsersCache = new Map<string, Profile | null>();
 const chatStates = new Map<string, { state: string; context?: any }>();
+
+// Variable global para almacenar el socket de WhatsApp
+let globalSock: WASocket | null = null;
 
 function setChatState(userId: string, state: string, context: any = {}) {
     chatStates.set(userId, { state, context });
@@ -24,6 +29,150 @@ function setChatState(userId: string, state: string, context: any = {}) {
 
 function getChatState(userId: string) {
     return chatStates.get(userId) || { state: 'IDLE', context: {} };
+}
+
+/**
+ * Función helper para enviar mensajes de forma segura con manejo de errores 429
+ * Implementa retry con backoff exponencial para rate limiting
+ */
+async function safeSendMessage(
+    sock: WASocket,
+    jid: string,
+    text: string,
+    retries = 2
+): Promise<boolean> {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+            await sock.sendMessage(jid, { text });
+            return true; // Éxito
+        } catch (sendError: any) {
+            const isRateLimit = sendError?.output?.statusCode === 429 || 
+                              sendError?.statusCode === 429 ||
+                              sendError?.message?.includes('429') ||
+                              sendError?.message?.includes('rate limit') ||
+                              sendError?.message?.includes('Too Many Requests');
+            
+            if (isRateLimit && attempt < retries) {
+                // Esperar con backoff exponencial: 2s, 4s, 8s
+                const waitTime = Math.pow(2, attempt + 1) * 1000;
+                console.warn(`⚠️ Error 429 (Rate Limit) al enviar mensaje. Reintentando en ${waitTime/1000}s... (intento ${attempt + 1}/${retries})`);
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+                continue; // Reintentar
+            }
+            
+            // Si no es rate limit o ya agotamos los reintentos, loguear y salir
+            if (!isRateLimit) {
+                console.error('Error enviando mensaje:', sendError.message);
+            } else {
+                console.error('Error 429: Demasiados reintentos. Mensaje no enviado.');
+            }
+            return false; // Falló
+        }
+    }
+    return false;
+}
+
+async function handleAudioMessage(
+    msg: WAMessage,
+    user: Profile,
+    senderNumber: string,
+    sock: WASocket
+) {
+    try {
+        await safeSendMessage(sock, senderNumber, '🎤 Recibiendo audio... Transcribiendo...');
+
+        // Transcribir el audio usando Whisper
+        let transcribedText: string | null = null;
+        try {
+            transcribedText = await transcribeAudioMessage(msg);
+        } catch (transcribeError: any) {
+            console.error('Error en transcripción:', transcribeError.message);
+            // Enviar mensaje de error más amigable
+            const errorMsg = transcribeError.message?.includes('ffmpeg') 
+                ? '❌ Error: Necesitas instalar ffmpeg para transcribir audios.\n\nInstala ffmpeg:\n• Linux: sudo apt-get install ffmpeg\n• macOS: brew install ffmpeg\n• Windows: https://ffmpeg.org/download.html'
+                : transcribeError.message?.includes('Cannot find module')
+                ? '❌ Error: Falta instalar @xenova/transformers.\n\nEjecuta: npm install @xenova/transformers'
+                : '❌ Error al transcribir el audio. Verifica que:\n• El audio tenga buena calidad\n• ffmpeg esté instalado\n• @xenova/transformers esté instalado';
+            
+            await safeSendMessage(sock, senderNumber, errorMsg);
+            return;
+        }
+
+        if (!transcribedText || transcribedText.trim().length === 0) {
+            await safeSendMessage(sock, senderNumber, '⚠️ No pude transcribir el audio. Asegurate de que el audio tenga contenido de voz claro.');
+            return;
+        }
+
+        // Mostrar la transcripción al usuario
+        await safeSendMessage(sock, senderNumber, `📝 Transcripción: "${transcribedText}"\n\n🧠 Procesando con IA...`);
+
+        // Procesar el texto transcrito con Gemini AI (igual que con texto normal)
+        let dto = null;
+        try {
+            dto = await createTaskDTOFromAI(transcribedText, user.id);
+        } catch (aiError: any) {
+            // Manejo específico del error 429 de Gemini AI
+            if (aiError.isRateLimit || aiError.message === 'GEMINI_QUOTA_EXCEEDED') {
+                console.error('⚠️ Error 429: Cuota de Gemini AI agotada');
+                await safeSendMessage(
+                    sock, 
+                    senderNumber, 
+                    '❌ Error: La cuota de Gemini AI está agotada.\n\n' +
+                    'Por favor, revisa tu plan y facturación en:\n' +
+                    'https://ai.dev/usage?tab=rate-limit\n\n' +
+                    'El audio se transcribió correctamente, pero no pude procesarlo con IA.'
+                );
+                return;
+            }
+            console.error('Error procesando con Gemini AI:', aiError.message);
+            await safeSendMessage(sock, senderNumber, '⚠️ Error al procesar el texto con IA. Intenta de nuevo.');
+            return;
+        }
+        
+        if (dto) {
+            // Intentar obtener el site_id si el usuario tiene obras
+            try {
+                const sites = await api.SiteService.getSitesByUser(user.id);
+                if (sites && sites.length > 0) {
+                    // Si hay una sola obra, usarla automáticamente
+                    if (sites.length === 1) {
+                        (dto as any).site_id = (sites[0] as any).id;
+                    } else {
+                        // Si hay múltiples obras, intentar encontrar la mencionada en el audio
+                        // o usar la primera
+                        const siteMentioned = sites.find((s: any) => 
+                            transcribedText!.toLowerCase().includes((s.address || '').toLowerCase())
+                        );
+                        if (siteMentioned) {
+                            (dto as any).site_id = (siteMentioned as any).id;
+                        } else {
+                            // Si no se mencionó ninguna obra específica, usar la primera
+                            (dto as any).site_id = (sites[0] as any).id;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('Error obteniendo obras del usuario:', e);
+            }
+
+            await safeSendMessage(sock, senderNumber, '✅ Entendido. Creando la tarea a partir de tu audio...');
+            try {
+                await handleTaskCreation(dto, senderNumber, sock);
+                setChatState(senderNumber, 'IDLE');
+            } catch (taskError: any) {
+                console.error('Error creando tarea:', taskError.message);
+                await safeSendMessage(sock, senderNumber, `❌ Error al crear la tarea: ${taskError.message || 'Error desconocido'}`);
+            }
+            return;
+        }
+
+        // Si no se pudo parsear como tarea, mostrar mensaje de ayuda
+        await safeSendMessage(sock, senderNumber, `⚠️ No pude identificar una tarea en tu audio. Asegurate de mencionar:\n• Qué hay que hacer\n• En qué obra (si tenés varias)\n• Fecha y hora (opcional)\n\nEjemplo: "quiero crear una tarea para mi obra en gurruchaga que sea cambiar la tuberia el dia miercoles 10/12 desde la mañana hasta el mediodia"`);
+    } catch (error: any) {
+        console.error('Error inesperado al procesar audio:', error.message);
+        // No intentar enviar mensaje si hay un error crítico, solo loguear
+        // Esto evita que se cierre la sesión
+    }
 }
 
 async function handleMediaMessage(
@@ -141,17 +290,40 @@ async function createTextUpdate(user: Profile, jid: string, sock: WASocket, text
 }
 
 async function handleIncomingMessage(m: any, sock: WASocket) {
-    const msg: WAMessage | undefined = m.messages[0];
-    if (!msg || !msg.message || msg.key.fromMe) return;
+    try {
+        const msg: WAMessage | undefined = m.messages[0];
+        if (!msg || !msg.message) return;
 
-    const senderNumber = msg.key.remoteJid;
-    if (!senderNumber) return;
+        // Ignorar mensajes enviados por el bot mismo (evita loops infinitos)
+        if (msg.key.fromMe) {
+            return;
+        }
 
-    const user = await getVerifiedUser(senderNumber);
-    if (!user) {
-        await sock.sendMessage(senderNumber, {
-            text: "Hola, para usar el bot, primero agrega tu número de WhatsApp en tu perfil de la app Cimenta."
-        });
+        const senderNumber = msg.key.remoteJid;
+        if (!senderNumber) return;
+
+        // Restricción: solo responder al número permitido (si está configurado)
+        if (ALLOWED_WHATSAPP_NUMBER && senderNumber !== ALLOWED_WHATSAPP_NUMBER) {
+            console.log(`Mensaje bloqueado de: ${senderNumber} (solo se permite: ${ALLOWED_WHATSAPP_NUMBER})`);
+            return;
+        }
+
+        // Ignorar mensajes del propio bot (verificación adicional)
+        const botJid = sock.user?.id;
+        if (botJid && senderNumber === botJid) {
+            console.log(`Mensaje ignorado: el bot no procesa sus propios mensajes`);
+            return;
+        }
+
+        const user = await getVerifiedUser(senderNumber);
+        if (!user) {
+            await safeSendMessage(sock, senderNumber, "Hola, para usar el bot, primero agrega tu número de WhatsApp en tu perfil de la app Cimenta.");
+            return;
+        }
+
+    // Manejo de audios (transcripción con Whisper)
+    if (msg.message.audioMessage) {
+        await handleAudioMessage(msg, user, senderNumber, sock);
         return;
     }
 
@@ -248,6 +420,12 @@ async function handleIncomingMessage(m: any, sock: WASocket) {
         return;
     }
 
+    // Comando de compra
+    if (lower === 'compra' || lower === 'comprar' || lower === 'c') {
+        await startPurchaseFlow(senderNumber, sock, user);
+        return;
+    }
+
     // Avances de texto: "av <texto>" o "avance <texto>" (opcional: "av <obra>: <texto>")
     if (lower === 'av' || lower === 'avance') {
         await sock.sendMessage(senderNumber, { text: '📝 Para subir un avance de texto, escribí: *av* <texto> o *av* <obra>: <texto>' });
@@ -297,6 +475,22 @@ async function handleIncomingMessage(m: any, sock: WASocket) {
 
     const { state, context } = getChatState(senderNumber);
     await handleMessageByState(state, messageText, context, user, senderNumber, sock);
+    } catch (error: any) {
+        console.error('Error crítico en handleIncomingMessage:', error);
+        // No relanzar el error para evitar cerrar la conexión
+        // Intentar enviar mensaje de error solo si la conexión está activa
+        try {
+            const senderNumber = m.messages?.[0]?.key?.remoteJid;
+            if (senderNumber) {
+                await sock.sendMessage(senderNumber, {
+                    text: '❌ Ocurrió un error al procesar tu mensaje. Por favor intenta de nuevo.'
+                });
+            }
+        } catch (sendError) {
+            // Si falla el envío, no hacer nada para evitar más errores
+            console.error('No se pudo enviar mensaje de error:', sendError);
+        }
+    }
 }
 
 async function handleMessageByState(
@@ -352,6 +546,34 @@ async function handleMessageByState(
             await handleUpdateSiteSelection(messageText, context, user, senderNumber, sock);
             break;
 
+        case 'AWAITING_PURCHASE_SITE':
+            await handlePurchaseSiteSelection(messageText, context, user, senderNumber, sock);
+            break;
+
+        case 'AWAITING_PURCHASE_PRODUCT':
+            await handlePurchaseProduct(messageText, context, senderNumber, sock);
+            break;
+
+        case 'AWAITING_PURCHASE_CATEGORY':
+            await handlePurchaseCategory(messageText, context, senderNumber, sock);
+            break;
+
+        case 'AWAITING_PURCHASE_QUANTITY':
+            await handlePurchaseQuantity(messageText, context, senderNumber, sock);
+            break;
+
+        case 'AWAITING_PURCHASE_PRICE':
+            await handlePurchasePrice(messageText, context, senderNumber, sock);
+            break;
+
+        case 'AWAITING_PURCHASE_SUPPLIER':
+            await handlePurchaseSupplier(messageText, context, senderNumber, sock);
+            break;
+
+        case 'AWAITING_PURCHASE_DESCRIPTION':
+            await handlePurchaseDescription(messageText, context, user, senderNumber, sock);
+            break;
+
         default:
             await sock.sendMessage(senderNumber, {
                 text: "Estado desconocido. Envía 'cancelar' para volver al inicio."
@@ -392,17 +614,10 @@ async function handleIdleState(
     } else if (lower.startsWith('resumen')) {
         const query = messageText.trim().slice(7).trim();
         await sendDailySummary_v2(senderNumber, sock, query);
+    } else if (lower === 'compra' || lower === 'comprar' || lower === 'c') {
+        await startPurchaseFlow(senderNumber, sock, user);
     } else {
-        // Intento 1: Parseo con IA para creación directa
-        const dto = await createTaskDTOFromAI(messageText, user.id);
-        if (dto) {
-            await sock.sendMessage(senderNumber, { text: '🧠 Entendido. Creando la tarea a partir de tu mensaje...' });
-            await handleTaskCreation(dto, senderNumber, sock);
-            setChatState(senderNumber, 'IDLE');
-            return;
-        }
-
-        // Fallback: guía al usuario al flujo asistido
+        // Mostrar mensaje de ayuda sin llamar a Gemini AI
         await sock.sendMessage(senderNumber, {
             text: `👋 Hola ${user.name}!
 
@@ -416,7 +631,11 @@ async function handleIdleState(
 
 📝 Escribí "*av <texto>*" para crear un avance de texto (o enviá una foto con descripción para un avance con imagen).
 
-🏷️ Escribí "*obras*" para ver la lista de tus obras.`
+🏷️ Escribí "*obras*" para ver la lista de tus obras.
+
+🛒 Escribí "*compra*" o "*c*" para crear una solicitud de compra.
+
+❌ Escribí "*cancelar*" para cancelar cualquier operación en curso.`
         });
     }
 }
@@ -574,21 +793,41 @@ async function handleTaskInput(
     sock: WASocket
 ) {
     try {
-        const dto = await createTaskDTOFromAI(messageText, user.id);
+        let dto = null;
+        try {
+            dto = await createTaskDTOFromAI(messageText, user.id);
+        } catch (aiError: any) {
+            // Manejo específico del error 429 de Gemini AI
+            if (aiError.isRateLimit || aiError.message === 'GEMINI_QUOTA_EXCEEDED') {
+                console.error('⚠️ Error 429: Cuota de Gemini AI agotada');
+                await safeSendMessage(
+                    sock, 
+                    senderNumber, 
+                    '❌ Error: La cuota de Gemini AI está agotada.\n\n' +
+                    'Por favor, revisa tu plan y facturación en:\n' +
+                    'https://ai.dev/usage?tab=rate-limit\n\n' +
+                    'Intenta describir la tarea de forma más simple o espera unos minutos.'
+                );
+                return;
+            }
+            // Si es otro error, continuar
+            console.error('Error procesando con Gemini AI:', aiError.message);
+        }
+        
         if (!dto) {
-            await sock.sendMessage(senderNumber, { text: '⚠️ No entendí. Contame en una sola línea qué hay que hacer (ej: "Cambiar foco del baño mañana").' });
+            await safeSendMessage(sock, senderNumber, '⚠️ No entendí. Contame en una sola línea qué hay que hacer (ej: "Cambiar foco del baño mañana").');
             return;
         }
         // Asegurar site_id desde el contexto de selección previa
         if (context?.site_id) {
             (dto as any).site_id = context.site_id;
         }
-        await sock.sendMessage(senderNumber, { text: '🧠 Perfecto. Creando la tarea...' });
+        await safeSendMessage(sock, senderNumber, '🧠 Perfecto. Creando la tarea...');
         await handleTaskCreation(dto, senderNumber, sock);
         setChatState(senderNumber, 'IDLE');
     } catch (e: any) {
         console.error('Error en handleTaskInput:', e);
-        await sock.sendMessage(senderNumber, { text: `❌ No pude crear la tarea: ${e?.message || 'Error desconocido'}` });
+        await safeSendMessage(sock, senderNumber, `❌ No pude crear la tarea: ${e?.message || 'Error desconocido'}`);
     }
 }
 
@@ -1322,6 +1561,217 @@ async function handleUpdateSiteSelection(
     setChatState(senderNumber, 'IDLE');
 }
 
+// ====================
+// Flujo de compras
+// ====================
+
+async function startPurchaseFlow(senderNumber: string, sock: WASocket, user: Profile) {
+    try {
+        const sites = await api.SiteService.getSitesByUser(user.id);
+        if (!sites || sites.length === 0) {
+            await sock.sendMessage(senderNumber, { text: '⚠️ No encontré obras asociadas a tu usuario. Creá una obra desde la app para continuar.' });
+            return;
+        }
+        if (sites.length === 1) {
+            setChatState(senderNumber, 'AWAITING_PURCHASE_PRODUCT', { site_id: (sites[0] as any).id, site_address: (sites[0] as any).address });
+            await sock.sendMessage(senderNumber, { text: `🛒 ¡Perfecto! Vamos a crear una solicitud de compra.\n\n🏷️ Obra: ${(sites[0] as any).address || ''}\n\n📦 ¿Qué producto necesitás comprar?` });
+            return;
+        }
+        const lines: string[] = [];
+        lines.push('🛒 ¡Vamos a crear una solicitud de compra!\n');
+        lines.push('🏷️ ¿En qué obra es para? (respondé con el número):');
+        sites.slice(0, 20).forEach((s: any, idx: number) => lines.push(`${idx + 1}) ${s.address}`));
+        await sock.sendMessage(senderNumber, { text: lines.join('\n') });
+        setChatState(senderNumber, 'AWAITING_PURCHASE_SITE', { sitesOptions: sites });
+    } catch (e) {
+        await sock.sendMessage(senderNumber, { text: '❌ No pude obtener tus obras. Intentá de nuevo más tarde.' });
+    }
+}
+
+async function handlePurchaseSiteSelection(messageText: string, context: any, user: Profile, senderNumber: string, sock: WASocket) {
+    const options: any[] = context?.sitesOptions || [];
+    if (!options.length) {
+        await sock.sendMessage(senderNumber, { text: '❌ No encontré opciones de obra. Escribí "compra" para empezar de nuevo.' });
+        setChatState(senderNumber, 'IDLE');
+        return;
+    }
+    let input = messageText.trim().toLowerCase();
+    let chosen: any | null = null;
+    const num = input.match(/^\d+/);
+    if (num) {
+        const idx = parseInt(num[0], 10) - 1;
+        if (idx >= 0 && idx < options.length) chosen = options[idx];
+    }
+    if (!chosen) {
+        chosen = options.find((s: any) => (s.address || '').toLowerCase().includes(input) || (s.id || '').toLowerCase() === input) || null;
+    }
+    if (!chosen) {
+        await sock.sendMessage(senderNumber, { text: '⚠️ No reconocí la obra. Respondé con el número de la lista o parte del nombre.' });
+        return;
+    }
+    setChatState(senderNumber, 'AWAITING_PURCHASE_PRODUCT', { site_id: chosen.id, site_address: chosen.address });
+    await sock.sendMessage(senderNumber, { text: `✅ Obra seleccionada: ${chosen.address}\n\n📦 ¿Qué producto necesitás comprar?` });
+}
+
+async function handlePurchaseProduct(messageText: string, context: any, senderNumber: string, sock: WASocket) {
+    const product = messageText.trim();
+    if (!product) {
+        await sock.sendMessage(senderNumber, { text: '⚠️ Por favor, escribí el nombre del producto.' });
+        return;
+    }
+    setChatState(senderNumber, 'AWAITING_PURCHASE_CATEGORY', { ...context, product });
+    // Categorías permitidas en la base de datos (enum task_category)
+    const categories = [
+        { display: 'Electricidad', value: 'electricidad' },
+        { display: 'Construcción', value: 'construccion' },
+        { display: 'Pintura', value: 'pintura' },
+        { display: 'Plomería', value: 'plomeria' }
+    ];
+    const lines: string[] = [];
+    lines.push(`✅ Producto: ${product}\n`);
+    lines.push('📂 ¿A qué categoría pertenece? (respondé con el número):');
+    categories.forEach((cat, idx) => lines.push(`${idx + 1}) ${cat.display}`));
+    await sock.sendMessage(senderNumber, { text: lines.join('\n') });
+}
+
+async function handlePurchaseCategory(messageText: string, context: any, senderNumber: string, sock: WASocket) {
+    // Categorías permitidas en la base de datos (enum task_category)
+    const categories = [
+        { display: 'Electricidad', value: 'electricidad' },
+        { display: 'Construcción', value: 'construccion' },
+        { display: 'Pintura', value: 'pintura' },
+        { display: 'Plomería', value: 'plomeria' }
+    ];
+    let input = messageText.trim();
+    let category: string | null = null;
+    const num = input.match(/^\d+/);
+    if (num) {
+        const idx = parseInt(num[0], 10) - 1;
+        if (idx >= 0 && idx < categories.length) {
+            category = categories[idx].value;
+        }
+    }
+    if (!category) {
+        // Buscar por nombre (case insensitive, sin acentos)
+        const normalizedInput = input.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const matched = categories.find(cat => {
+            const normalizedDisplay = cat.display.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            return normalizedDisplay.includes(normalizedInput) || cat.value === normalizedInput;
+        });
+        if (matched) category = matched.value;
+    }
+    if (!category) {
+        await sock.sendMessage(senderNumber, { text: '⚠️ Categoría no válida. Respondé con el número de la lista (1-4).' });
+        return;
+    }
+    const categoryDisplay = categories.find(c => c.value === category)?.display || category;
+    setChatState(senderNumber, 'AWAITING_PURCHASE_QUANTITY', { ...context, category });
+    await sock.sendMessage(senderNumber, { text: `✅ Categoría: ${categoryDisplay}\n\n🔢 ¿Cuántas unidades necesitás? (escribí solo el número)` });
+}
+
+async function handlePurchaseQuantity(messageText: string, context: any, senderNumber: string, sock: WASocket) {
+    const quantityStr = messageText.trim();
+    const quantity = parseFloat(quantityStr);
+    if (isNaN(quantity) || quantity <= 0) {
+        await sock.sendMessage(senderNumber, { text: '⚠️ Por favor, escribí un número válido mayor a cero.' });
+        return;
+    }
+    setChatState(senderNumber, 'AWAITING_PURCHASE_PRICE', { ...context, quantity });
+    await sock.sendMessage(senderNumber, { text: `✅ Cantidad: ${quantity}\n\n💰 ¿Cuál es el precio unitario? (escribí el número, o "0" si no lo sabés)` });
+}
+
+async function handlePurchasePrice(messageText: string, context: any, senderNumber: string, sock: WASocket) {
+    const priceStr = messageText.trim();
+    const price = parseFloat(priceStr);
+    if (isNaN(price) || price < 0) {
+        await sock.sendMessage(senderNumber, { text: '⚠️ Por favor, escribí un número válido (0 si no lo sabés).' });
+        return;
+    }
+    const finalPrice = price === 0 ? undefined : price;
+    setChatState(senderNumber, 'AWAITING_PURCHASE_SUPPLIER', { ...context, price: finalPrice });
+    await sock.sendMessage(senderNumber, { text: `✅ Precio: ${finalPrice ? `$${finalPrice}` : 'No especificado'}\n\n🏪 ¿Cuál es el proveedor? (escribí el nombre o "ninguno" para omitir)` });
+}
+
+async function handlePurchaseSupplier(messageText: string, context: any, senderNumber: string, sock: WASocket) {
+    const supplier = messageText.trim();
+    const finalSupplier = supplier.toLowerCase() === 'ninguno' || supplier.toLowerCase() === 'no' ? undefined : supplier;
+    setChatState(senderNumber, 'AWAITING_PURCHASE_DESCRIPTION', { ...context, supplier: finalSupplier });
+    await sock.sendMessage(senderNumber, { text: `✅ Proveedor: ${finalSupplier || 'No especificado'}\n\n📝 ¿Querés agregar una descripción? (escribí la descripción o "no" para omitir)` });
+}
+
+async function handlePurchaseDescription(messageText: string, context: any, user: Profile, senderNumber: string, sock: WASocket) {
+    const description = messageText.trim();
+    const finalDescription = description.toLowerCase() === 'no' || description.toLowerCase() === 'ninguna' ? undefined : description;
+    
+    try {
+        await sock.sendMessage(senderNumber, { text: '⏳ Creando la solicitud de compra...' });
+        
+        // Asegurar que quantity sea un número
+        const quantityNum = typeof context.quantity === 'number' ? context.quantity : parseFloat(String(context.quantity));
+        if (isNaN(quantityNum) || quantityNum <= 0) {
+            await sock.sendMessage(senderNumber, { text: '❌ Error: La cantidad debe ser un número válido mayor a cero.' });
+            setChatState(senderNumber, 'IDLE');
+            return;
+        }
+
+        // Asegurar que price sea un número o undefined
+        let priceNum: number | undefined = undefined;
+        if (context.price !== undefined && context.price !== null) {
+            const parsedPrice = typeof context.price === 'number' ? context.price : parseFloat(String(context.price));
+            if (!isNaN(parsedPrice) && parsedPrice >= 0) {
+                priceNum = parsedPrice;
+            }
+        }
+
+        const purchaseData: CreatePurchaseDTO = {
+            product: context.product,
+            category: context.category,
+            quantity: quantityNum,
+            price: priceNum,
+            supplier: context.supplier,
+            description: finalDescription,
+            status: 'pending'
+        };
+
+        // El servicio espera CreatePurchaseDTO pero el backend necesita site_id y user_id
+        const purchasePayload: any = {
+            ...purchaseData,
+            site_id: context.site_id,
+            user_id: user.id
+        };
+
+        console.log('Creando compra con payload:', JSON.stringify(purchasePayload, null, 2));
+        const createdPurchase = await api.PurchaseService.createPurchase(purchasePayload);
+
+        const summary = [
+            '✅ ¡Solicitud de compra creada con éxito!\n',
+            `📦 Producto: ${createdPurchase.product}`,
+            `📂 Categoría: ${createdPurchase.category}`,
+            `🔢 Cantidad: ${createdPurchase.quantity}`,
+            createdPurchase.price ? `💰 Precio unitario: $${createdPurchase.price}` : '',
+            createdPurchase.supplier ? `🏪 Proveedor: ${createdPurchase.supplier}` : '',
+            createdPurchase.description ? `📝 Descripción: ${createdPurchase.description}` : '',
+            `\n🏷️ Obra: ${context.site_address || ''}`
+        ].filter(Boolean).join('\n');
+
+        await sock.sendMessage(senderNumber, { text: summary });
+        setChatState(senderNumber, 'IDLE');
+    } catch (error: any) {
+        console.error('Error creando solicitud de compra:', error);
+        console.error('Contexto:', JSON.stringify(context, null, 2));
+        console.error('Usuario:', JSON.stringify({ id: user.id, name: user.name }, null, 2));
+        
+        // Mensaje de error más detallado
+        const errorMessage = error?.message || 'Error desconocido';
+        const errorDetails = errorMessage.includes('500') 
+            ? 'Error del servidor. Verificá que todos los datos sean correctos.'
+            : errorMessage;
+        
+        await sock.sendMessage(senderNumber, { text: `❌ No pude crear la solicitud de compra: ${errorDetails}` });
+        setChatState(senderNumber, 'IDLE');
+    }
+}
+
 // Resumen de contadores del día (avances + agenda)
 async function sendTodayCounts(jid: string, sock: WASocket, siteQuery?: string) {
     try {
@@ -1493,35 +1943,123 @@ export default async function connectToWhatsApp() {
         browser: ['Cimenta', 'Chrome', '120'],
     });
 
+    // Guardar el socket globalmente para usarlo en las notificaciones
+    globalSock = sock;
+
     // Manejo de la conexión y el código QR
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr } = update;
+        
+        // Log del estado de conexión
+        if (connection) {
+            console.log(`[CONEXIÓN] Estado actual: ${connection}`);
+        }
+        
         if (qr) {
             console.log('Escanea este código QR con tu WhatsApp:');
             qrcode.generate(qr, { small: true });
             console.log(qr);
         }
+        
         if (connection === 'close') {
-            const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
+            console.log('\n========== DESCONEXIÓN DETECTADA ==========');
+            console.log(`[TIMESTAMP] ${new Date().toISOString()}`);
+            
+            // Log completo del objeto lastDisconnect
+            if (lastDisconnect) {
+                console.log('[LAST_DISCONNECT] Objeto completo:', JSON.stringify(lastDisconnect, null, 2));
+            } else {
+                console.log('[LAST_DISCONNECT] No hay información de desconexión disponible');
+            }
+            
+            // Extraer información del error
+            const error = lastDisconnect?.error as any;
+            const statusCode = error?.output?.statusCode || error?.statusCode;
+            const errorMessage = error?.message || '';
+            const errorOutput = error?.output;
+            const errorData = error?.data;
+            
+            console.log(`[STATUS_CODE] ${statusCode || 'NO DISPONIBLE'}`);
+            console.log(`[ERROR_MESSAGE] ${errorMessage || 'NO DISPONIBLE'}`);
+            
+            if (errorOutput) {
+                console.log('[ERROR_OUTPUT]', JSON.stringify(errorOutput, null, 2));
+            }
+            
+            if (errorData) {
+                console.log('[ERROR_DATA]', JSON.stringify(errorData, null, 2));
+            }
+            
+            // Log de todos los DisconnectReason para referencia
+            console.log('\n[REFERENCIA] DisconnectReason posibles:');
+            console.log(`  - loggedOut: ${DisconnectReason.loggedOut}`);
+            console.log(`  - badSession: ${DisconnectReason.badSession}`);
+            console.log(`  - restartRequired: ${DisconnectReason.restartRequired}`);
+            console.log(`  - timedOut: ${DisconnectReason.timedOut}`);
+            console.log(`  - connectionClosed: ${DisconnectReason.connectionClosed}`);
+            console.log(`  - connectionLost: ${DisconnectReason.connectionLost}`);
+            console.log(`  - connectionReplaced: ${DisconnectReason.connectionReplaced}`);
+            console.log(`  - multideviceMismatch: ${DisconnectReason.multideviceMismatch}`);
+            
+            // Determinar la razón específica
+            let disconnectReason = 'DESCONOCIDA';
+            if (statusCode === DisconnectReason.loggedOut) disconnectReason = 'LOGGED_OUT (Sesión cerrada desde otro dispositivo)';
+            else if (statusCode === DisconnectReason.badSession) disconnectReason = 'BAD_SESSION (Sesión inválida o corrupta)';
+            else if (statusCode === DisconnectReason.restartRequired) disconnectReason = 'RESTART_REQUIRED (Reinicio requerido)';
+            else if (statusCode === DisconnectReason.timedOut) disconnectReason = 'TIMED_OUT (Timeout de conexión)';
+            else if (statusCode === DisconnectReason.connectionClosed) disconnectReason = 'CONNECTION_CLOSED (Conexión cerrada)';
+            else if (statusCode === DisconnectReason.connectionLost) disconnectReason = 'CONNECTION_LOST (Conexión perdida)';
+            else if (statusCode === DisconnectReason.connectionReplaced) disconnectReason = 'CONNECTION_REPLACED (Conexión reemplazada)';
+            else if (statusCode === DisconnectReason.multideviceMismatch) disconnectReason = 'MULTIDEVICE_MISMATCH (Incompatibilidad multi-dispositivo)';
+            
+            console.log(`[RAZÓN] ${disconnectReason}`);
+            
+            // Manejo específico del error 429 (Too Many Requests)
+            if (statusCode === 429 || errorMessage.includes('429') || errorMessage.includes('rate limit')) {
+                console.log('⚠️ Error 429: Demasiadas solicitudes. Esperando antes de reconectar...');
+                // Esperar más tiempo antes de reconectar (30 segundos)
+                setTimeout(() => connectToWhatsApp(), 30000);
+                console.log('========== FIN LOG DESCONEXIÓN ==========\n');
+                return;
+            }
+            
             const shouldReconnect = statusCode !== DisconnectReason.loggedOut && statusCode !== DisconnectReason.badSession;
-            console.log('Conexión cerrada, reconectando...', shouldReconnect);
+            console.log(`[SHOULD_RECONNECT] ${shouldReconnect}`);
+            console.log('========== FIN LOG DESCONEXIÓN ==========\n');
+            
             if (shouldReconnect) {
+                console.log('🔄 Intentando reconectar en 2 segundos...');
                 // Pequeño delay para evitar bucles de reconexión que impiden el QR
                 setTimeout(() => connectToWhatsApp(), 2000);
             } else {
-                console.log('Sesión inválida o cerrada. Si querés reautenticar, borrá la carpeta:', AUTH_DIR);
+                console.log('❌ Sesión inválida o cerrada. Si querés reautenticar, borrá la carpeta:', AUTH_DIR);
+                console.log(`   Razón: ${disconnectReason}`);
             }
         } else if (connection === 'open') {
-            console.log('¡Conexión con WhatsApp abierta!');
+            console.log('✅ ¡Conexión con WhatsApp abierta!');
+            console.log(`[TIMESTAMP] ${new Date().toISOString()}`);
+        } else if (connection === 'connecting') {
+            console.log('🔄 Conectando a WhatsApp...');
+        } else if (connection) {
+            console.log(`[CONEXIÓN] Estado: ${connection}`);
         }
     });
 
     // Guardar credenciales de sesión
-    sock.ev.on('creds.update', saveCreds);
+    sock.ev.on('creds.update', () => {
+        console.log('[CREDENCIALES] Actualizando credenciales de sesión...');
+        saveCreds();
+        console.log('[CREDENCIALES] Credenciales guardadas correctamente');
+    });
 
     // Manejo de mensajes entrantes
     sock.ev.on('messages.upsert', async (m) => {
-        await handleIncomingMessage(m, sock);
+        try {
+            await handleIncomingMessage(m, sock);
+        } catch (error: any) {
+            console.error('Error crítico en handleIncomingMessage:', error);
+            // No relanzar el error para evitar cerrar la conexión
+        }
     })
 
     // No se requiere manejar messages.update para botones
@@ -1575,4 +2113,155 @@ async function handleTaskStateUpdate(taskId: string, newState: string, senderNum
     }
 }
 
+// Función para enviar notificación cuando una tarea pasa a blocked
+async function notifyBlockedTask(whatsappJid: string, taskId: string, taskTitle: string, taskDescription?: string, siteAddress?: string) {
+    if (!globalSock) {
+        console.error('Socket de WhatsApp no está disponible para enviar notificación');
+        return;
+    }
+
+    try {
+        const message = [
+            '⛔ *Tarea Bloqueada*',
+            '',
+            `📋 *${taskTitle}*`,
+            taskDescription ? `📝 ${taskDescription}` : '',
+            siteAddress ? `🏷️ Obra: ${siteAddress}` : '',
+            '',
+            'Tu tarea ha sido marcada como bloqueada. Revisá los detalles en la app.'
+        ].filter(Boolean).join('\n');
+
+        await safeSendMessage(globalSock, whatsappJid, message);
+        console.log(`Notificación de tarea bloqueada enviada a ${whatsappJid}`);
+    } catch (error: any) {
+        console.error('Error enviando notificación de tarea bloqueada:', error);
+        throw error;
+    }
+}
+
+// Función para enviar notificación cuando una compra cambia a purchased o delivered
+async function notifyPurchaseStatusChange(whatsappJid: string, purchaseId: string, product: string, status: 'purchased' | 'delivered', siteAddress?: string) {
+    if (!globalSock) {
+        console.error('Socket de WhatsApp no está disponible para enviar notificación');
+        return;
+    }
+
+    try {
+        const statusEmoji = status === 'purchased' ? '🛒' : '📦';
+        const statusText = status === 'purchased' ? 'Comprada' : 'Recibida';
+        
+        const message = [
+            `${statusEmoji} *Compra ${statusText}*`,
+            '',
+            `📦 *${product}*`,
+            siteAddress ? `🏷️ Obra: ${siteAddress}` : '',
+            '',
+            status === 'purchased' 
+                ? 'Tu solicitud de compra ha sido marcada como comprada. Revisá los detalles en la app.'
+                : 'Tu compra ha sido marcada como recibida. Revisá los detalles en la app.'
+        ].filter(Boolean).join('\n');
+
+        await safeSendMessage(globalSock, whatsappJid, message);
+        console.log(`Notificación de compra ${status} enviada a ${whatsappJid}`);
+    } catch (error: any) {
+        console.error('Error enviando notificación de cambio de estado de compra:', error);
+        throw error;
+    }
+}
+
+// Crear servidor HTTP para recibir notificaciones del backend
+function createNotificationServer() {
+    const port = process.env.WHATSAPP_BOT_PORT || 3001;
+    
+    const server = http.createServer(async (req, res) => {
+        // Configurar CORS
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+        if (req.method === 'OPTIONS') {
+            res.writeHead(200);
+            res.end();
+            return;
+        }
+
+        if (req.method === 'POST' && req.url === '/notify/blocked-task') {
+            let body = '';
+            
+            req.on('data', chunk => {
+                body += chunk.toString();
+            });
+            
+            req.on('end', async () => {
+                try {
+                    const data = JSON.parse(body);
+                    const { whatsappJid, taskId, taskTitle, taskDescription, siteAddress } = data;
+                    
+                    if (!whatsappJid || !taskId || !taskTitle) {
+                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ error: 'Faltan campos requeridos: whatsappJid, taskId, taskTitle' }));
+                        return;
+                    }
+                    
+                    await notifyBlockedTask(whatsappJid, taskId, taskTitle, taskDescription, siteAddress);
+                    
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: true, message: 'Notificación enviada' }));
+                } catch (error: any) {
+                    console.error('Error procesando notificación:', error);
+                    res.writeHead(500, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: error.message || 'Error interno del servidor' }));
+                }
+            });
+        } else if (req.method === 'POST' && req.url === '/notify/purchase-status') {
+            let body = '';
+            
+            req.on('data', chunk => {
+                body += chunk.toString();
+            });
+            
+            req.on('end', async () => {
+                try {
+                    const data = JSON.parse(body);
+                    const { whatsappJid, purchaseId, product, status, siteAddress } = data;
+                    
+                    if (!whatsappJid || !purchaseId || !product || !status) {
+                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ error: 'Faltan campos requeridos: whatsappJid, purchaseId, product, status' }));
+                        return;
+                    }
+                    
+                    if (status !== 'purchased' && status !== 'delivered') {
+                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ error: 'Status debe ser "purchased" o "delivered"' }));
+                        return;
+                    }
+                    
+                    await notifyPurchaseStatusChange(whatsappJid, purchaseId, product, status, siteAddress);
+                    
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: true, message: 'Notificación enviada' }));
+                } catch (error: any) {
+                    console.error('Error procesando notificación de compra:', error);
+                    res.writeHead(500, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: error.message || 'Error interno del servidor' }));
+                }
+            });
+        } else {
+            res.writeHead(404, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Endpoint no encontrado' }));
+        }
+    });
+    
+    server.listen(port, () => {
+        console.log(`🚀 Servidor de notificaciones del bot escuchando en puerto ${port}`);
+    });
+    
+    return server;
+}
+
+// Iniciar el servidor de notificaciones
+createNotificationServer();
+
+// Conectar a WhatsApp
 connectToWhatsApp();

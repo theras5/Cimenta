@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +26,9 @@ import {
   BarChart3,
 } from "lucide-react";
 import Sidebar from "@/components/SideBar";
+import { useTasks } from "@/hooks/useTasks";
+import { usePurchases } from "@/hooks/usePurchases";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Project {
   id: string;
@@ -210,6 +213,11 @@ const statusConfig = {
 };
 
 export default function AvancesPage() {
+  const { user } = useAuth();
+  const { tasks, loading: tasksLoading, fetchTasks } = useTasks();
+  const { purchases, loading: purchasesLoading, fetchPurchases } = usePurchases();
+  const [selectedSiteId, setSelectedSiteId] = useState<string>("");
+  
   const [projects, setProjects] = useState<Project[]>(initialProjects);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newProject, setNewProject] = useState({
@@ -221,6 +229,39 @@ export default function AvancesPage() {
     teamMembers: 1,
     status: "on-track" as Project["status"],
   });
+
+  // Load selected site and fetch data
+  useEffect(() => {
+    const siteId = localStorage.getItem("selectedSiteId");
+    if (siteId) {
+      setSelectedSiteId(siteId);
+      fetchTasks(siteId);
+      fetchPurchases(siteId);
+    }
+  }, [fetchTasks, fetchPurchases]);
+
+  // Listen for site changes and refresh data
+  useEffect(() => {
+    const handleSiteChange = () => {
+      const newSiteId = localStorage.getItem("selectedSiteId");
+      if (newSiteId && newSiteId !== selectedSiteId) {
+        setSelectedSiteId(newSiteId);
+        fetchTasks(newSiteId);
+        fetchPurchases(newSiteId);
+      }
+    };
+
+    // Listen for storage events (when localStorage changes)
+    window.addEventListener("storage", handleSiteChange);
+    
+    // Also check periodically for changes within the same tab
+    const intervalId = setInterval(handleSiteChange, 500);
+
+    return () => {
+      window.removeEventListener("storage", handleSiteChange);
+      clearInterval(intervalId);
+    };
+  }, [selectedSiteId, fetchTasks, fetchPurchases]);
 
   const handleAddProject = () => {
     if (
@@ -266,37 +307,43 @@ export default function AvancesPage() {
   };
 
   const calculateOverallProgress = () => {
-    if (projects.length === 0) return 0;
-    const totalProgress = projects.reduce(
-      (sum, project) => sum + project.progress,
-      0
-    );
-    return Math.round(totalProgress / projects.length);
+    if (!tasks || tasks.length === 0) return 0;
+    const completedTasks = tasks.filter((t: any) => t.status === "done").length;
+    return Math.round((completedTasks / tasks.length) * 100);
   };
 
   const getTotalBudget = () => {
-    return projects.reduce((sum, project) => sum + project.budget, 0);
+    if (!purchases || purchases.length === 0) return 0;
+    return purchases.reduce((sum, purchase) => sum + (purchase.price * purchase.quantity), 0);
   };
 
   const getTotalSpent = () => {
-    return projects.reduce((sum, project) => sum + project.spent, 0);
+    if (!purchases || purchases.length === 0) return 0;
+    const spent = purchases
+      .filter(p => p.status === "purchased" || p.status === "delivered")
+      .reduce((sum, purchase) => sum + (purchase.price * purchase.quantity), 0);
+    return spent;
   };
 
   const getTotalTeamMembers = () => {
-    return projects.reduce((sum, project) => sum + project.teamMembers, 0);
+    // Esto podría calcularse desde los usuarios asignados a tareas
+    // Por ahora retornamos un valor basado en tareas únicas
+    if (!tasks || tasks.length === 0) return 0;
+    const uniqueUsers = new Set(tasks.map((t: any) => t.user_id).filter(Boolean));
+    return uniqueUsers.size || 1;
   };
 
   return (
     <div className="flex min-h-screen bg-gray-50">
 
-      <div className="flex-1 p-8">
-        <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">
+      <div className="flex-1 p-4 md:p-6 lg:p-8">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 md:mb-8">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
             Avances del Proyecto
           </h1>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-blue-600 hover:bg-blue-700">
+              <Button className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
                 <Plus size={20} className="mr-2" />
                 Nuevo Proyecto
               </Button>
@@ -377,66 +424,66 @@ export default function AvancesPage() {
         </div>
 
         {/* Overview Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Progreso General</p>
-                  <p className="text-2xl font-bold text-gray-900">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardContent className="p-4 md:p-6 flex items-center h-full">
+              <div className="flex items-center justify-between gap-3 w-full">
+                <div className="flex-1 min-w-0 flex flex-col justify-center">
+                  <p className="text-[10px] sm:text-xs md:text-sm text-gray-600 mb-1 leading-tight">Progreso General</p>
+                  <p className="text-xs sm:text-sm md:text-base lg:text-lg font-bold text-gray-900 break-all leading-tight">
                     {calculateOverallProgress()}%
                   </p>
                 </div>
-                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <BarChart3 className="text-blue-600" size={24} />
+                <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <BarChart3 className="text-blue-600" size={16} />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Presupuesto Total</p>
-                  <p className="text-2xl font-bold text-gray-900">
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardContent className="p-4 md:p-6 flex items-center h-full">
+              <div className="flex items-center justify-between gap-3 w-full">
+                <div className="flex-1 min-w-0 flex flex-col justify-center">
+                  <p className="text-[10px] sm:text-xs md:text-sm text-gray-600 mb-1 leading-tight">Presupuesto Total</p>
+                  <p className="text-xs sm:text-sm md:text-base lg:text-lg font-bold text-gray-900 break-all leading-tight">
                     {formatCurrency(getTotalBudget())}
                   </p>
                 </div>
-                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                  <DollarSign className="text-green-600" size={24} />
+                <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <DollarSign className="text-green-600" size={16} />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Gastado</p>
-                  <p className="text-2xl font-bold text-gray-900">
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardContent className="p-4 md:p-6 flex items-center h-full">
+              <div className="flex items-center justify-between gap-3 w-full">
+                <div className="flex-1 min-w-0 flex flex-col justify-center">
+                  <p className="text-[10px] sm:text-xs md:text-sm text-gray-600 mb-1 leading-tight">Gastado</p>
+                  <p className="text-xs sm:text-sm md:text-base lg:text-lg font-bold text-gray-900 break-all leading-tight">
                     {formatCurrency(getTotalSpent())}
                   </p>
                 </div>
-                <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                  <TrendingUp className="text-orange-600" size={24} />
+                <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <TrendingUp className="text-orange-600" size={16} />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Equipo Total</p>
-                  <p className="text-2xl font-bold text-gray-900">
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardContent className="p-4 md:p-6 flex items-center h-full">
+              <div className="flex items-center justify-between gap-3 w-full">
+                <div className="flex-1 min-w-0 flex flex-col justify-center">
+                  <p className="text-[10px] sm:text-xs md:text-sm text-gray-600 mb-1 leading-tight">Equipo Total</p>
+                  <p className="text-xs sm:text-sm md:text-base lg:text-lg font-bold text-gray-900 break-all leading-tight">
                     {getTotalTeamMembers()}
                   </p>
                 </div>
-                <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                  <Users className="text-purple-600" size={24} />
+                <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Users className="text-purple-600" size={16} />
                 </div>
               </div>
             </CardContent>

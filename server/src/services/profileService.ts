@@ -30,3 +30,19 @@ export async function getProfileByPhone(whatsappJid: string) {
 
     return data;
 }
+
+export async function getProfileById(userId: string) {
+    if (!userId) {
+        throw new AppError("Se necesita un user_id para obtener un perfil", 400);
+    }
+
+    const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .single();
+
+    if (error) throw new AppError(error.message, 500);
+
+    return data;
+}

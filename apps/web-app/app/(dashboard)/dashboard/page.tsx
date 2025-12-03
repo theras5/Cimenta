@@ -12,9 +12,57 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/SideBar";
+import { useState, useEffect } from "react";
+import { useTasks } from "@/hooks/useTasks";
+import { usePurchases } from "@/hooks/usePurchases";
 
 export default function CimentaDashboard() {
   const router = useRouter();
+  const [selectedSiteId, setSelectedSiteId] = useState<string>("");
+  const { tasks, fetchTasks } = useTasks();
+  const { purchases, fetchPurchases } = usePurchases();
+
+  // Load selected site and fetch data
+  useEffect(() => {
+    const siteId = localStorage.getItem("selectedSiteId");
+    if (siteId) {
+      setSelectedSiteId(siteId);
+      fetchTasks(siteId);
+      fetchPurchases(siteId);
+    }
+  }, [fetchTasks, fetchPurchases]);
+
+  // Listen for site changes and refresh data
+  useEffect(() => {
+    const handleSiteChange = () => {
+      const newSiteId = localStorage.getItem("selectedSiteId");
+      if (newSiteId && newSiteId !== selectedSiteId) {
+        setSelectedSiteId(newSiteId);
+        fetchTasks(newSiteId);
+        fetchPurchases(newSiteId);
+      }
+    };
+
+    // Listen for storage events (when localStorage changes)
+    window.addEventListener("storage", handleSiteChange);
+    
+    // Also check periodically for changes within the same tab
+    const intervalId = setInterval(handleSiteChange, 500);
+
+    return () => {
+      window.removeEventListener("storage", handleSiteChange);
+      clearInterval(intervalId);
+    };
+  }, [selectedSiteId, fetchTasks, fetchPurchases]);
+
+  // Calculate stats based on real data
+  const activeTasks = tasks.filter(
+    (task) => task.status !== "completed"
+  ).length;
+  
+  const pendingPurchases = purchases.filter(
+    (purchase) => purchase.status === "pending"
+  ).length;
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -87,7 +135,7 @@ export default function CimentaDashboard() {
                       Seguimiento de tareas
                     </h3>
                     <p className="text-md text-green-600 font-medium">
-                      12 tareas activas
+                      {activeTasks} {activeTasks === 1 ? "tarea activa" : "tareas activas"}
                     </p>
                   </div>
                 </div>
@@ -108,7 +156,7 @@ export default function CimentaDashboard() {
                       Seguimiento de compra
                     </h3>
                     <p className="text-md text-orange-600 font-medium">
-                      3 solicitudes pendientes
+                      {pendingPurchases} {pendingPurchases === 1 ? "solicitud pendiente" : "solicitudes pendientes"}
                     </p>
                   </div>
                 </div>

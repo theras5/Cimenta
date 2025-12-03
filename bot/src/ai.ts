@@ -136,7 +136,24 @@ export async function createTaskDTOFromAI(userInput: string, userId: string): Pr
 
         // Si no usó la herramienta, no hay tarea
         return null;
-    } catch (err) {
+    } catch (err: any) {
+        // Manejo específico del error 429 (cuota agotada)
+        const isRateLimit = err?.status === 429 || 
+                          err?.error?.code === 429 ||
+                          err?.message?.includes('429') ||
+                          err?.message?.includes('quota') ||
+                          err?.message?.includes('RESOURCE_EXHAUSTED') ||
+                          err?.error?.status === 'RESOURCE_EXHAUSTED';
+        
+        if (isRateLimit) {
+            console.error("⚠️ Error 429: Cuota de Gemini AI agotada. Revisa tu plan y facturación.");
+            // Lanzar un error específico que será manejado en el código que llama
+            const rateLimitError = new Error('GEMINI_QUOTA_EXCEEDED');
+            (rateLimitError as any).isRateLimit = true;
+            (rateLimitError as any).originalError = err;
+            throw rateLimitError;
+        }
+        
         console.error("Error llamando al modelo:", err);
         return null;
     }

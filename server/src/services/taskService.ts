@@ -93,6 +93,11 @@ export async function updateTaskByIdService(taskId: string, newTask: Partial<Tas
     console.log(`updateTaskByIdService - ID: ${taskId}`);
     console.log(`updateTaskByIdService - Datos recibidos:`, JSON.stringify(newTask, null, 2));
     
+    // Obtener la tarea actual para comparar el status
+    const currentTask = await getTaskByIdService(taskId);
+    const previousStatus = currentTask?.status;
+    const newStatus = newTask.status;
+    
     // Filtrar campos que existen en la tabla de la base de datos
     const allowedFields = {
         title: newTask.title,
@@ -140,7 +145,58 @@ export async function updateTaskByIdService(taskId: string, newTask: Partial<Tas
     }
 
     console.log(`updateTaskByIdService - Tarea actualizada:`, JSON.stringify(data, null, 2));
+    
+    // Detectar si la tarea cambió a "blocked" y notificar al dueño
+    if (newStatus === 'blocked' && previousStatus !== 'blocked' && data.user_id) {
+        try {
+            await notifyTaskBlocked(data);
+        } catch (notifyError) {
+            // No fallar la actualización si la notificación falla
+            console.error('Error notificando tarea bloqueada:', notifyError);
+        }
+    }
+    
     return data;
+}
+
+// Función para notificar cuando una tarea pasa a blocked
+async function notifyTaskBlocked(task: Task) {
+    const { getProfileById } = await import('./profileService');
+    const botUrl = process.env.WHATSAPP_BOT_URL || 'http://localhost:3001';
+    
+    try {
+        // Obtener el perfil del dueño de la tarea
+        const profile = await getProfileById(task.user_id);
+        
+        if (!profile.whatsapp_jid) {
+            console.log(`Usuario ${task.user_id} no tiene WhatsApp configurado, no se enviará notificación`);
+            return;
+        }
+        
+        // Llamar al bot para enviar la notificación
+        const response = await fetch(`${botUrl}/notify/blocked-task`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                whatsappJid: profile.whatsapp_jid,
+                taskId: task.id,
+                taskTitle: task.title,
+                taskDescription: task.description,
+                siteAddress: (task as any).site?.address || 'Obra no especificada'
+            }),
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Error al notificar: ${response.status} ${response.statusText}`);
+        }
+        
+        console.log(`Notificación enviada a ${profile.whatsapp_jid} por tarea bloqueada ${task.id}`);
+    } catch (error: any) {
+        console.error('Error en notifyTaskBlocked:', error.message);
+        throw error;
+    }
 }
 
 export async function deleteTaskByIdService(taskId: string) {

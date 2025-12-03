@@ -269,7 +269,7 @@ const handleStatusChange = async (
       <main className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <div className="fixed top-0 left-64 right-0 z-40 flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200">
-          <h1 className="text-2xl font-bold text-gray-800">Compras</h1>
+          <h1 className="text-2xl font-bold text-gray-800">Compritas</h1>
           <Button
             onClick={() => setShowModal(true)}
             className="rounded-full bg-blue-600 hover:bg-blue-700 shadow-lg px-6 h-10"

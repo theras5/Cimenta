@@ -111,6 +111,22 @@ class AuthService {
     }
   }
 
+  async updateUser(userData: Partial<User>): Promise<User> {
+    const token = this.getToken();
+    
+    if (!token) {
+      throw new Error('No hay sesión activa');
+    }
+
+    return this.request<User>('/update', {
+      method: 'PATCH',
+      body: JSON.stringify(userData),
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  }
+
   logout(): void {
     this.removeToken();
     this.removeUser();

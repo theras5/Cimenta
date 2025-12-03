@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogClose,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,8 +20,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight, Plus, Clock } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Clock, X } from "lucide-react";
 import Sidebar from "@/components/SideBar";
+import { useRouter } from "next/navigation";
 
 interface CalendarEvent {
   id: string;
@@ -31,81 +33,19 @@ interface CalendarEvent {
   date: string;
   type: "meeting" | "task" | "deadline" | "inspection";
   attendees: string[];
+  color?: string;
+  category?: string;
+  // preserve original ISO timestamps from backend so day view can compute multi-day spans
+  startISO?: string;
+  endISO?: string;
+  // numeric timestamps (ms) derived from backend dates to avoid reparsing strings
+  startMs?: number;
+  endMs?: number;
 }
 
-const initialEvents: CalendarEvent[] = [
-  {
-    id: "1",
-    title: "Carlos Gomez",
-    description: "Reunión de seguimiento del proyecto",
-    startTime: "09:00",
-    endTime: "11:00",
-    date: "2025-09-20",
-    type: "meeting",
-    attendees: ["Carlos Gomez"],
-  },
-  {
-    id: "2",
-    title: "Juan Doe",
-    description: "Inspección de avances de construcción",
-    startTime: "11:00",
-    endTime: "13:00",
-    date: "2025-09-20",
-    type: "inspection",
-    attendees: ["Juan Doe"],
-  },
-  {
-    id: "3",
-    title: "Carlos Gomez",
-    description: "Revisión de materiales",
-    startTime: "18:00",
-    endTime: "20:00",
-    date: "2025-09-20",
-    type: "task",
-    attendees: ["Carlos Gomez"],
-  },
-  {
-    id: "4",
-    title: "Juan Doe",
-    description: "Entrega de documentación",
-    startTime: "17:00",
-    endTime: "19:00",
-    date: "2025-09-20",
-    type: "deadline",
-    attendees: ["Juan Doe"],
-  },
-  // More events for busy view
-  {
-    id: "5",
-    title: "Pepe Grillo",
-    description: "Supervisión de obra",
-    startTime: "10:00",
-    endTime: "12:00",
-    date: "2025-09-21",
-    type: "inspection",
-    attendees: ["Pepe Grillo"],
-  },
-  {
-    id: "6",
-    title: "Ariel Sarat",
-    description: "Reunión con proveedores",
-    startTime: "14:00",
-    endTime: "16:00",
-    date: "2025-09-21",
-    type: "meeting",
-    attendees: ["Ariel Sarat"],
-  },
-  {
-    id: "7",
-    title: "Luca Briosca",
-    description: "Instalación eléctrica",
-    startTime: "16:00",
-    endTime: "18:00",
-    date: "2025-09-21",
-    type: "task",
-    attendees: ["Luca Briosca"],
-  },
-];
+
+// We'll map backend tasks to this shape
+const initialEvents: CalendarEvent[] = [];
 
 const eventTypeColors = {
   meeting: "bg-orange-500",
@@ -129,8 +69,91 @@ const attendeeColors = [
   "bg-pink-500",
 ];
 
+const getCategoryColor = (category?: string) => {
+  if (!category) return "#999999";
+  const c = category.toLowerCase();
+  switch (c) {
+    case "electricidad":
+    case "electric":
+      return "#007AFF"; // blue
+    case "plomeria":
+    case "plumbing":
+      return "#FF9500"; // orange
+    case "construccion":
+    case "construction":
+      return "#8A2BE2"; // purple
+    case "pintura":
+    case "paint":
+      return "#FF2D92"; // pink
+    default:
+      return "#10B981"; // green-ish default
+  }
+};
+
+// Helpers to convert hex colors and generate rgba/darker variants (restored for translucent fills)
+const hexToRgb = (hex: string) => {
+  const cleaned = hex.replace('#', '').trim();
+  const short = cleaned.length === 3;
+  const r = parseInt(short ? cleaned[0] + cleaned[0] : cleaned.substring(0,2), 16);
+  const g = parseInt(short ? cleaned[1] + cleaned[1] : cleaned.substring(short?2:2, short?4:4), 16);
+  const b = parseInt(short ? cleaned[2] + cleaned[2] : cleaned.substring(short?4:4, short?6:6), 16);
+  return { r, g, b };
+};
+
+const rgbaFromHex = (hex: string, alpha = 1) => {
+  try {
+    const { r, g, b } = hexToRgb(hex);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  } catch (e) {
+    return `rgba(16,185,129, ${alpha})`; // fallback
+  }
+};
+
+const darkenHex = (hex: string, amount = 0.18) => {
+  try {
+    const { r, g, b } = hexToRgb(hex);
+    const rr = Math.max(0, Math.min(255, Math.round(r * (1 - amount))));
+    const gg = Math.max(0, Math.min(255, Math.round(g * (1 - amount))));
+    const bb = Math.max(0, Math.min(255, Math.round(b * (1 - amount))));
+    return `rgba(${rr}, ${gg}, ${bb}, 1)`;
+  } catch (e) {
+    return `rgba(0,0,0,0.14)`;
+  }
+};
+
 export default function CalendarPage() {
-  const [currentDate, setCurrentDate] = useState(new Date(2025, 8, 20)); // September 20, 2025
+  const router = useRouter();
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [selectedTask, setSelectedTask] = useState<any | null>(null);
+  const [selectedTaskLoading, setSelectedTaskLoading] = useState(false);
+
+  const openTaskDetail = async (id: string) => {
+    setSelectedTaskId(id);
+    setIsDetailOpen(true);
+    setSelectedTaskLoading(true);
+    try {
+      const res = await fetch(`/api/tasks/${encodeURIComponent(id)}`);
+      if (!res.ok) {
+        setSelectedTask(null);
+      } else {
+        const data = await res.json();
+        setSelectedTask(data);
+      }
+    } catch (err) {
+      setSelectedTask(null);
+    } finally {
+      setSelectedTaskLoading(false);
+    }
+  };
+
+  const closeTaskDetail = () => {
+    setIsDetailOpen(false);
+    setSelectedTaskId(null);
+    setSelectedTask(null);
+  };
+  // Start on the current date/month
+  const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState<CalendarEvent[]>(initialEvents);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newEvent, setNewEvent] = useState({
@@ -170,11 +193,155 @@ export default function CalendarPage() {
   };
 
   const formatDate = (date: Date) => {
-    return date.toISOString().split("T")[0];
+    // Use local date parts to avoid timezone shifts from toISOString
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   };
 
+  // Import hook lazily to avoid adding a top-level dependency in case of server render
+  const [tasksLoaded, setTasksLoaded] = useState(false);
+  const [categoriesMap, setCategoriesMap] = useState<Record<string,string>>({});
+  const [selectedSiteId, setSelectedSiteId] = useState<string>("");
+  const innerRef = useRef<HTMLDivElement | null>(null);
+  const [innerWidth, setInnerWidth] = useState<number>(0);
+
+  useEffect(() => {
+    const measure = () => {
+      const el = innerRef.current;
+      setInnerWidth(el ? Math.max(0, el.getBoundingClientRect().width) : 0);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
+
+  // Function to load tasks for a given site
+  const loadTasksForSite = async (siteId: string) => {
+    if (!siteId) {
+      // No site selected: clear events and categories and mark loaded so UI can show a message
+      setEvents([]);
+      setCategoriesMap({});
+      setTasksLoaded(true);
+      return;
+    }
+    
+    try {
+      const res = await fetch(`/api/tasks?site_id=${encodeURIComponent(siteId)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      
+      // Map Task -> CalendarEvent
+      const mapped: CalendarEvent[] = data
+        .filter((t: any) => t.start_date) // only map tasks that have a start date
+        .map((t: any) => {
+          const start = t.start_date ? new Date(t.start_date) : null;
+          const end = t.end_date ? new Date(t.end_date) : null;
+          // Build local date string (yyyy-mm-dd)
+          const date = start ? `${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,'0')}-${String(start.getDate()).padStart(2,'0')}` : end ? `${end.getFullYear()}-${String(end.getMonth()+1).padStart(2,'0')}-${String(end.getDate()).padStart(2,'0')}` : "";
+          // Build local time strings HH:MM
+          const startTime = start ? `${String(start.getHours()).padStart(2,'0')}:${String(start.getMinutes()).padStart(2,'0')}` : "08:00";
+          const endTime = end ? `${String(end.getHours()).padStart(2,'0')}:${String(end.getMinutes()).padStart(2,'0')}` : "09:00";
+          return {
+            id: t.id?.toString() ?? String(Math.random()),
+            title: t.title ?? "Tarea",
+            description: t.description ?? "",
+            startTime,
+            endTime,
+            date,
+            startISO: t.start_date,
+            endISO: t.end_date,
+            startMs: start ? start.getTime() : undefined,
+            endMs: end ? end.getTime() : undefined,
+            type: t.category === "inspection" ? "inspection" : t.category === "deadline" ? "deadline" : "task",
+            attendees: [],
+            color: getCategoryColor(t.category),
+            category: t.category,
+          } as CalendarEvent;
+        });
+
+      setEvents((prev) => {
+        // merge but prefer mapped events
+        const byId = new Map(prev.map((e) => [e.id, e]));
+        for (const m of mapped) byId.set(m.id, m);
+        return Array.from(byId.values());
+      });
+
+      // Build categories legend map from tasks
+      const catMap: Record<string,string> = {};
+      for (const t of data) {
+        if (t.category) catMap[t.category] = getCategoryColor(t.category);
+      }
+      setCategoriesMap(catMap);
+      setTasksLoaded(true);
+    } catch (e) {
+      // ignore - do not log to console in production-like environments
+    }
+  };
+
+  // Load tasks on initial mount
+  useEffect(() => {
+    const siteId = localStorage.getItem("selectedSiteId") || "";
+    setSelectedSiteId(siteId);
+    loadTasksForSite(siteId);
+  }, []);
+
+  // Listen for site changes and refresh data
+  useEffect(() => {
+    const handleSiteChange = () => {
+      const newSiteId = localStorage.getItem("selectedSiteId");
+      if (newSiteId && newSiteId !== selectedSiteId) {
+        setSelectedSiteId(newSiteId);
+        loadTasksForSite(newSiteId);
+      }
+    };
+
+    // Listen for storage events (when localStorage changes)
+    window.addEventListener("storage", handleSiteChange);
+    
+    // Also check periodically for changes within the same tab
+    const intervalId = setInterval(handleSiteChange, 500);
+
+    return () => {
+      window.removeEventListener("storage", handleSiteChange);
+      clearInterval(intervalId);
+    };
+  }, [selectedSiteId]);
+
   const getEventsForDate = (date: string) => {
-    return events.filter((event) => event.date === date);
+    // Return events that overlap the selected date (00:00 - 24:00 local time)
+    const dayStart = new Date(`${date}T00:00:00`).getTime();
+    const dayEnd = dayStart + 24 * 60 * 60 * 1000;
+
+    return events.filter((event) => {
+      // Try numeric timestamps first
+      let s: number | undefined = (event as any).startMs;
+      let e: number | undefined = (event as any).endMs;
+
+      try {
+        if (s == null && event.startISO) s = new Date(event.startISO).getTime();
+        if (e == null && event.endISO) e = new Date(event.endISO).getTime();
+
+        // fallback: if timestamps still missing, try event.date + startTime/endTime
+        if (s == null && event.date && event.startTime) s = new Date(`${event.date}T${event.startTime}:00`).getTime();
+        if (e == null && event.date && event.endTime) e = new Date(`${event.date}T${event.endTime}:00`).getTime();
+      } catch (err) {
+        // ignore parse issues and leave s/e undefined
+      }
+
+      // If end is missing, assume 1 hour duration
+      if (s != null && e == null) e = s + 60 * 60 * 1000;
+
+      // If start missing, try using event.date at midnight
+      if (s == null && event.date) s = new Date(`${event.date}T00:00:00`).getTime();
+      if (e == null && event.date) e = new Date(`${event.date}T23:59:59`).getTime();
+
+      if (s == null || e == null) return false;
+
+      // Overlap if event starts before dayEnd and ends after dayStart
+      return s < dayEnd && e > dayStart;
+    });
   };
 
   const handleAddEvent = () => {
@@ -225,6 +392,8 @@ export default function CalendarPage() {
     const firstDay = getFirstDayOfMonth(currentDate);
     const days = [];
 
+    const selectedDateString = formatDate(currentDate);
+
     // Empty cells for days before the first day of the month
     for (let i = 0; i < firstDay; i++) {
       days.push(<div key={`empty-${i}`} className="h-24"></div>);
@@ -240,31 +409,33 @@ export default function CalendarPage() {
       const dateString = formatDate(date);
       const dayEvents = getEventsForDate(dateString);
       const isToday = dateString === formatDate(new Date());
+      const isSelected = dateString === selectedDateString;
 
       days.push(
         <div
           key={day}
-          className={`h-24 border border-gray-200 p-1 ${isToday ? "bg-blue-50" : "bg-white"}`}
+          role="button"
+          onClick={() => setCurrentDate(date)}
+          className={`h-24 border border-gray-200 p-1 cursor-pointer ${isSelected ? 'bg-blue-50 ring-1 ring-blue-300' : 'bg-white'}`}
         >
           <div
-            className={`text-sm font-medium mb-1 ${isToday ? "text-blue-600" : "text-gray-900"}`}
+            className={`text-sm font-medium mb-1 ${isSelected ? 'text-blue-600' : 'text-gray-900'}`}
           >
             {day}
           </div>
           <div className="space-y-1">
             {dayEvents.slice(0, 2).map((event, index) => {
-              const attendeeIndex =
-                event.attendees.length > 0
-                  ? Math.abs(event.attendees[0].charCodeAt(0)) %
-                    attendeeColors.length
-                  : 0;
+              const bg = event.color || getCategoryColor(event.type);
+              const barColor = getCategoryColor(event.category) || darkenHex(bg);
               return (
                 <div
                   key={event.id}
-                  className={`text-xs px-1 py-0.5 rounded text-white truncate ${attendeeColors[attendeeIndex]}`}
+                  className={`truncate relative`} 
                   title={`${event.title} (${event.startTime} - ${event.endTime})`}
+                  style={{ background: rgbaFromHex(bg, 0.08), color: '#0f172a', padding: '1px 8px 3px 14px', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', overflow: 'hidden' }}
                 >
-                  {event.title}
+                  <div style={{ position: 'absolute', left: 6, top: 6, bottom: 6, width: 4, backgroundColor: barColor, borderRadius: 4 }} />
+                  <div style={{ marginLeft: 6, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }}>{event.title}</div>
                 </div>
               );
             })}
@@ -282,52 +453,224 @@ export default function CalendarPage() {
   };
 
   const renderTimeSlots = () => {
-    const slots = [];
     const selectedDate = formatDate(currentDate);
-    const dayEvents = getEventsForDate(selectedDate);
+    const dayEvents = getEventsForDate(selectedDate).sort((a, b) => a.startTime.localeCompare(b.startTime));
 
-    for (let hour = 8; hour <= 19; hour++) {
-      const timeString = `${hour.toString().padStart(2, "0")}:00`;
-      const hourEvents = dayEvents.filter((event) => {
-        const eventStart = Number.parseInt(event.startTime.split(":")[0]);
-        const eventEnd = Number.parseInt(event.endTime.split(":")[0]);
-        return hour >= eventStart && hour < eventEnd;
-      });
+  // Visual layout constants
+  const startHour = 8;
+  const endHour = 21;
+  const hourHeight = 64; // px per hour
+  const minutesToPx = (minutes: number) => (minutes / 60) * hourHeight;
+  // container covers hours from startHour to endHour (exclusive) so no +1
+  const containerHeight = (endHour - startHour) * hourHeight;
 
-      slots.push(
-        <div key={hour} className="flex border-b border-gray-100">
-          <div className="w-16 py-4 text-sm text-gray-500 text-right pr-4">
-            {timeString}
-          </div>
-          <div className="flex-1 py-2 px-4 relative">
-            {hourEvents.map((event, index) => {
-              const attendeeIndex =
-                event.attendees.length > 0
-                  ? Math.abs(event.attendees[0].charCodeAt(0)) %
-                    attendeeColors.length
-                  : 0;
-              return (
-                <div
-                  key={event.id}
-                  className={`absolute left-4 right-4 p-2 rounded text-white text-sm ${attendeeColors[attendeeIndex]}`}
-                  style={{
-                    top: `${index * 4}px`,
-                    zIndex: index + 1,
-                  }}
-                >
-                  <div className="font-medium">{event.title}</div>
-                  <div className="text-xs opacity-90">
-                    {event.startTime} - {event.endTime}
+    return (
+      <div style={{ height: containerHeight }} className="relative">
+        {/* Hour labels and separators */}
+        <div className="absolute left-0 top-0 bottom-0 w-full">
+          {Array.from({ length: endHour - startHour }).map((_, i) => {
+            const hour = startHour + i;
+            const top = i * hourHeight;
+            return (
+              <div key={hour} className="absolute left-0 right-0" style={{ top }}>
+                <div className="border-b border-gray-100" style={{ height: hourHeight }}>
+                  <div className="h-full flex items-center">
+                    <div className="w-16 flex items-center justify-end pr-4 text-sm text-gray-500">{`${hour.toString().padStart(2, "0")}:00`}</div>
+                    <div className="flex-1"></div>
                   </div>
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            );
+          })}
         </div>
-      );
-    }
 
-    return slots;
+        {/* Events positioned with overlap columns */}
+        <div ref={innerRef} className="absolute left-0 top-0 right-0" style={{ height: containerHeight }}>
+          {(() => {
+            // Prepare events with minute ranges. Use original date/time when possible.
+            type E = (CalendarEvent & { startMin: number; endMin: number; startDateObj?: Date; endDateObj?: Date; col?: number; cols?: number });
+            const evs: E[] = dayEvents.map((event) => {
+              // compute minutes relative to the selectedDate's startHour (preferred reference)
+              const refStartMs = new Date(`${selectedDate}T${String(startHour).padStart(2,'0')}:00:00`).getTime();
+              const visibleStartMin = 0;
+              const visibleEndMin = (endHour - startHour) * 60;
+
+              let startMin = visibleStartMin;
+              let endMin = visibleEndMin;
+
+              try {
+                // Prefer local parse from event.date + time (guarantees local timezone interpretation)
+                let sMs: number | undefined = undefined;
+                let eMs: number | undefined = undefined;
+                if (event.date && event.startTime) {
+                  sMs = new Date(`${event.date}T${event.startTime}:00`).getTime();
+                }
+                if (event.date && event.endTime) {
+                  eMs = new Date(`${event.date}T${event.endTime}:00`).getTime();
+                }
+
+                // Fallback to numeric timestamps provided by backend
+                if (sMs == null && typeof (event as any).startMs === 'number') sMs = (event as any).startMs;
+                if (eMs == null && typeof (event as any).endMs === 'number') eMs = (event as any).endMs;
+
+                // Last-resort fallback to ISO strings
+                if (sMs == null && event.startISO) sMs = new Date(event.startISO).getTime();
+                if (eMs == null && event.endISO) eMs = new Date(event.endISO).getTime();
+
+                if (typeof sMs === 'number') {
+                  startMin = Math.floor((sMs - refStartMs) / 60000);
+                }
+                if (typeof eMs === 'number') {
+                  endMin = Math.floor((eMs - refStartMs) / 60000);
+                }
+
+                // Final fallback to parsing time strings (local)
+                if (typeof sMs !== 'number' && event.startTime) {
+                  const [sh, sm] = event.startTime.split(":").map((v) => parseInt(v, 10));
+                  startMin = (sh - startHour) * 60 + sm;
+                }
+                if (typeof eMs !== 'number' && event.endTime) {
+                  const [eh, em] = event.endTime.split(":").map((v) => parseInt(v, 10));
+                  endMin = (eh - startHour) * 60 + em;
+                }
+
+                // Debug logs for developer (console)
+                // Developer debug logs removed to keep console clean
+              } catch (err) {
+                // fallback to parsing times
+                const [sh, sm] = event.startTime.split(":").map((v) => parseInt(v, 10));
+                const [eh, em] = event.endTime.split(":").map((v) => parseInt(v, 10));
+                startMin = (sh - startHour) * 60 + sm;
+                endMin = (eh - startHour) * 60 + em;
+              }
+
+              return { ...event, startMin, endMin } as E;
+            });
+
+            // Group overlapping events using a simple sweep algorithm (original behavior)
+            evs.sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
+            const groups: E[][] = [];
+
+            for (const e of evs) {
+              let placed = false;
+              for (const g of groups) {
+                // If overlaps with any in group, add to that group
+                if (g.some((x) => !(e.endMin <= x.startMin || e.startMin >= x.endMin))) {
+                  g.push(e);
+                  placed = true;
+                  break;
+                }
+              }
+              if (!placed) groups.push([e]);
+            }
+
+            // For each group, assign columns
+            const positioned: E[] = [];
+            groups.forEach((g) => {
+              // assign columns greedily
+              const cols: E[][] = [];
+              for (const ev of g) {
+                let placed = false;
+                for (let i = 0; i < cols.length; i++) {
+                  const col = cols[i];
+                  if (!col.some((x) => !(ev.endMin <= x.startMin || ev.startMin >= x.endMin))) {
+                    col.push(ev);
+                    ev.col = i;
+                    placed = true;
+                    break;
+                  }
+                }
+                if (!placed) {
+                  ev.col = cols.length;
+                  cols.push([ev]);
+                }
+              }
+              const total = cols.length || 1;
+              for (const col of cols) for (const ev of col) { ev.cols = total; positioned.push(ev); }
+            });
+
+            // Px layout: use hourHeight as source of truth for vertical scale
+            const leftOffsetPx = 75; // left gutter + labels like mobile
+            const rightPaddingPx = 20; // small right padding similar to mobile
+            const spacing = 4; // px between overlapping events
+            const pixelsPerMinute = hourHeight / 60; // derive from hourHeight so events align with hour lines
+
+            // available width for event columns
+            const availableWidth = Math.max(0, innerWidth - leftOffsetPx - rightPaddingPx);
+
+            return (
+              <div key="events-inner" style={{ position: 'absolute', left: 0, right: 0, top: 0, height: containerHeight }}>
+                {positioned.map((event) => {
+                  // clamp start/end minutes to visible range
+                  const visibleStart = 0;
+                  const visibleEnd = (endHour - startHour) * 60;
+                  const startMinClamped = Math.max(visibleStart, Math.min(visibleEnd, event.startMin));
+                  const endMinClamped = Math.max(visibleStart, Math.min(visibleEnd, event.endMin));
+                  const durationMin = Math.max(15, endMinClamped - startMinClamped);
+
+                  // compute px positions using minutesToPx (derived from hourHeight)
+                  const topPx = Math.round(minutesToPx(startMinClamped));
+                  const heightPx = Math.max(20, Math.round(minutesToPx(durationMin)));
+
+                  const bg = event.color || getCategoryColor(event.type);
+                  const col = event.col ?? 0;
+                  const cols = event.cols ?? 1;
+
+                  const totalSpacing = Math.max(0, (cols - 1) * spacing);
+                  const eventWidthPx = cols > 0 ? Math.max(40, Math.floor((availableWidth - totalSpacing) / cols)) : Math.floor(availableWidth);
+                  const leftPx = leftOffsetPx + col * (eventWidthPx + spacing);
+                  const contentWidth = Math.max(40, eventWidthPx - 6);
+                  // width-based visibility thresholds (px)
+                  const SHOW_TITLE_MIN = 56; // show title when at least this wide
+                  const SHOW_META_MIN = 120; // show time and category only when this wide
+                  const showTitle = contentWidth >= SHOW_TITLE_MIN;
+                  const showMeta = contentWidth >= SHOW_META_MIN;
+
+                  return (
+                    <div
+                      key={event.id}
+                      role="button"
+                      onClick={() => openTaskDetail(event.id)}
+                      className="absolute rounded-lg text-white overflow-hidden cursor-pointer"
+                      style={{
+                        top: topPx,
+                        height: heightPx,
+                        left: leftPx,
+                        width: contentWidth,
+                        background: rgbaFromHex(bg, 0.08),
+                        borderRadius: 10,
+                        boxShadow: '0 6px 18px rgba(0,0,0,0.06)',
+                        border: 'none',
+                        padding: '6px 8px',
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        position: 'absolute',
+                        overflow: 'hidden',
+                        zIndex: 10 + col
+                      }}
+                      title={`${event.title} ${event.startTime} - ${event.endTime}`}
+                    >
+                      <div style={{ position: 'absolute', left: 6, top: 6, bottom: 6, width: 4, backgroundColor: getCategoryColor(event.category) || darkenHex(bg), borderRadius: 4, boxShadow: '0 2px 6px rgba(0,0,0,0.06)' }} />
+                      <div className="truncate" style={{ marginLeft: 9 }}>
+                        {showTitle ? (
+                          <div className="font-semibold text-sm leading-4 text-slate-900 truncate">{event.title}</div>
+                        ) : null}
+                        {showMeta ? (
+                          <>
+                            <div className="text-xs text-slate-600">{event.startTime} - {event.endTime}</div>
+                            {event.category && <div className="text-[11px] text-slate-500 mt-1">{event.category}</div>}
+                          </>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -485,34 +828,80 @@ export default function CalendarPage() {
               </CardContent>
             </Card>
 
-            {/* Legend */}
-            <Card>
-              <CardContent className="p-4">
-                <h3 className="font-semibold text-gray-900 mb-3">Leyenda</h3>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-orange-500 rounded"></div>
-                    <span className="text-sm">Carlos Gomez</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-blue-500 rounded"></div>
-                    <span className="text-sm">Juan Doe</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-green-500 rounded"></div>
-                    <span className="text-sm">Pepe Grillo</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-purple-500 rounded"></div>
-                    <span className="text-sm">Ariel Sarat</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-pink-500 rounded"></div>
-                    <span className="text-sm">Luca Briosca</span>
+            <Dialog open={isDetailOpen} onOpenChange={(v) => !v && closeTaskDetail()}>
+              <DialogContent
+                className="max-w-lg w-full"
+                style={{
+                  background: '#ffffff',
+                  borderRadius: 12,
+                  padding: 0,
+                }}
+              >
+                <div className="relative px-4 py-4">
+                  {/* left color bar */}
+                  {selectedTask && (
+                    <div
+                      aria-hidden
+                      style={{
+                        position: 'absolute',
+                        left: 10,
+                        top: 10,
+                        bottom: 10,
+                        width: 6,
+                        backgroundColor: getCategoryColor(selectedTask.category),
+                        borderRadius: 6,
+                        boxShadow: '0 6px 18px rgba(0,0,0,0.06)'
+                      }}
+                    />
+                  )}
+
+                  <DialogHeader className="pl-3 pr-12">
+                    <DialogTitle className="text-lg font-semibold" style={{ color: selectedTask ? darkenHex(getCategoryColor(selectedTask.category)) : undefined }}>Detalle de Tarea</DialogTitle>
+                  </DialogHeader>
+
+                  <DialogClose className="absolute right-3 top-3 p-1 rounded hover:bg-slate-100">
+                    <X size={16} />
+                  </DialogClose>
+
+                  <div className="pt-2 pl-3">
+                    {selectedTaskLoading ? (
+                      <div>Cargando...</div>
+                    ) : selectedTask ? (
+                      <div>
+                        <h4 className="font-semibold text-lg text-slate-900 truncate">{selectedTask.title}</h4>
+                        <div className="mt-0 flex items-center gap-3">
+                          <div className="text-sm text-slate-600">
+                            {selectedTask.start_date ? new Date(selectedTask.start_date).toLocaleString() : ''}
+                            {selectedTask.end_date ? ` - ${new Date(selectedTask.end_date).toLocaleString()}` : ''}
+                          </div>
+                          {selectedTask.category && (
+                            <span
+                              className="inline-flex items-center px-2 py-0.5 rounded-md text-sm font-medium"
+                              style={{
+                                background: rgbaFromHex(getCategoryColor(selectedTask.category), 0.12),
+                                color: darkenHex(getCategoryColor(selectedTask.category)),
+                              }}
+                            >
+                              {selectedTask.category}
+                            </span>
+                          )}
+                        </div>
+
+                        {selectedTask.description && (
+                          <div className="mt-4 text-sm text-slate-700 leading-relaxed">
+                            {selectedTask.description}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div>No se encontró la tarea.</div>
+                    )}
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </DialogContent>
+            </Dialog>
+
+            {/* Legend removed per design: categories are reflected as event colors */}
           </div>
         </div>
       </div>

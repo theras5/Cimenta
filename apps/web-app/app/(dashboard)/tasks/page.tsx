@@ -39,7 +39,7 @@ interface LocalTask {
   id: number;
   title: string;
   description: string;
-  status: "pending" | "in_progress" | "completed" | "changes";
+  status: "pending" | "in_progress" | "completed" | "changes" | "blocked";
   category: string;
   categoryColor: string;
   assignedMembers: string[];
@@ -180,6 +180,8 @@ const TasksScreen = () => {
     description: "",
     category: "",
     status: "pending" as Task["status"],
+    start_date: undefined as string | undefined,
+    end_date: undefined as string | undefined,
   });
   const [newChange, setNewChange] = useState({
     title: "",
@@ -253,6 +255,8 @@ const TasksScreen = () => {
       description: "",
       category: "",
       status: "pending",
+      start_date: undefined,
+      end_date: undefined,
     });
     setSelectedMembers([]);
   };
@@ -280,14 +284,23 @@ const TasksScreen = () => {
   const handleAddTask = async () => {
     if (newTask.title && newTask.category) {
       try {
-        await createTask({
+        const startIso = newTask.start_date ? new Date(newTask.start_date).toISOString() : undefined;
+        const endIso = newTask.end_date ? new Date(newTask.end_date).toISOString() : undefined;
+
+        const payload = {
           title: newTask.title,
           description: newTask.description,
           status: newTask.status,
           category: newTask.category,
+          start_date: startIso,
+          end_date: endIso,
           user_id: user?.id,
           site_id: selectedSiteId,
-        });
+        };
+
+        console.debug("handleAddTask payload:", payload);
+
+        await createTask(payload);
         resetTaskForm();
         setShowTaskModal(false);
       } catch (error) {
@@ -394,6 +407,7 @@ const TasksScreen = () => {
   const changes = tasks.filter((task) => task.status === "changes");
   const pendingTasks = tasks.filter((task) => task.status === "pending");
   const inProgressTasks = tasks.filter((task) => task.status === "in_progress");
+  const blockedTasks = tasks.filter((task) => task.status === "blocked");
   const completedTasks = tasks.filter((task) => task.status === "completed");
 
   console.log("Las tareas pendientes son:", pendingTasks);
@@ -543,6 +557,28 @@ const TasksScreen = () => {
                   <SelectItem value="in_progress">En progreso</SelectItem>
                 </SelectContent>
               </Select>
+
+              {/* Fecha y hora inicio/fin (quick create) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Fecha y hora de inicio</label>
+                  <Input
+                    type="datetime-local"
+                    value={newTask.start_date || ""}
+                    onChange={(e) => setNewTask({ ...newTask, start_date: e.target.value })}
+                    className="h-10"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Fecha y hora de fin</label>
+                  <Input
+                    type="datetime-local"
+                    value={newTask.end_date || ""}
+                    onChange={(e) => setNewTask({ ...newTask, end_date: e.target.value })}
+                    className="h-10"
+                  />
+                </div>
+              </div>
 
               {/* Team Members Selection */}
               <div>
@@ -697,6 +733,15 @@ const TasksScreen = () => {
                 <ScrollableTaskSection
                   title="En progreso"
                   tasks={inProgressTasks}
+                  onEditTask={handleEditTask}
+                />
+              )}
+
+              {/* Blocked */}
+              {blockedTasks.length > 0 && (
+                <ScrollableTaskSection
+                  title="Bloqueadas"
+                  tasks={blockedTasks}
                   onEditTask={handleEditTask}
                 />
               )}

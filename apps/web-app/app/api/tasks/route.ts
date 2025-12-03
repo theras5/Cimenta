@@ -59,11 +59,25 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify(body),
     });
-    
+
+    // If backend returned an error, try to forward the real body and status
     if (!response.ok) {
-      throw new Error(`Error del servidor: ${response.status}`);
+      let serverBody: any;
+      const contentType = response.headers.get('content-type') || '';
+      try {
+        if (contentType.includes('application/json')) {
+          serverBody = await response.json();
+        } else {
+          serverBody = await response.text();
+        }
+      } catch (e) {
+        serverBody = { error: 'No se pudo leer el cuerpo del error del backend' };
+      }
+
+      console.error('Backend /tasks returned error', response.status, serverBody);
+      return NextResponse.json(serverBody, { status: response.status });
     }
-    
+
     const data = await response.json();
     return NextResponse.json(data, { status: 201 });
     

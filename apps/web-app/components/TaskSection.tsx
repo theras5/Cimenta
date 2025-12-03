@@ -1,18 +1,8 @@
 "use client"
 
 import type React from "react"
-
 import TaskCard from "./TaskCard"
-
-interface Task {
-  id: string
-  title: string
-  description?: string
-  status: "pending" | "in_progress" | "completed" | "blocked" | "changes"
-  category: string
-  categoryColor?: string
-  assignedMembers?: string[]
-}
+import { Task } from "@/lib/api"
 
 interface TaskSectionProps {
   title: string
@@ -23,14 +13,14 @@ interface TaskSectionProps {
 }
 
 const TaskSection: React.FC<TaskSectionProps> = ({ title, tasks, onSeeAll, changes, onEditTask }) => (
-  <div className="mb-6">
-    <div className="flex justify-between items-center mb-4">
+  <div className="mb-2">
+    <div className="flex justify-between items-center mb-3">
       <h2 className="text-xl font-bold text-gray-800">
         {title} ({tasks.length})
       </h2>
     </div>
 
-    <div className="flex overflow-x-auto space-x-4 pb-4">
+    <div className="flex overflow-x-auto space-x-4 pb-2">
       {tasks.map((task) => (
         <TaskCard key={task.id} task={task} changes={changes} onEdit={onEditTask} />
       ))}
