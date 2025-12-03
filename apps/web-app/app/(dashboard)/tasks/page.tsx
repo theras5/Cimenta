@@ -354,9 +354,17 @@ const TasksScreen = () => {
     }
   };
 
-  const handleRejectChangeStatus = async (id: string) => {
+  const handleRejectChangeStatus = async (id: string, reason?: string) => {
     try {
       await updateTask(id, { status: "rejected" });
+      // Save reason locally if provided
+      if (reason) {
+        try {
+          localStorage.setItem(`rejectionReason:${id}`, reason);
+        } catch (e) {
+          console.error("Error saving rejection reason to localStorage", e);
+        }
+      }
       setShowEditModal(false);
       setTaskToEdit(null);
       if (selectedSiteId) {
@@ -410,6 +418,7 @@ const TasksScreen = () => {
   }
 
   const changes = tasks.filter((task) => task.status === "changes");
+  const rejectedTasks = tasks.filter((task) => task.status === "rejected");
   const pendingTasks = tasks.filter((task) => task.status === "pending");
   const inProgressTasks = tasks.filter((task) => task.status === "in_progress");
   const blockedTasks = tasks.filter((task) => task.status === "blocked");
@@ -719,6 +728,13 @@ const TasksScreen = () => {
                 <ScrollableTaskSection
                   title="Completadas"
                   tasks={completedTasks}
+                  onEditTask={handleEditTask}
+                />
+              )}
+              {rejectedTasks.length > 0 && (
+                <ScrollableTaskSection
+                  title="Rechazadas"
+                  tasks={rejectedTasks}
                   onEditTask={handleEditTask}
                 />
               )}

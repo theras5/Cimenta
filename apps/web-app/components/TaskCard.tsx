@@ -7,7 +7,7 @@ interface Task {
   id: string
   title: string
   description?: string
-  status: "pending" | "in_progress" | "completed" | "blocked" | "changes"
+  status: "pending" | "in_progress" | "completed" | "blocked" | "changes" | "rejected"
   category: string
   assignedMembers?: string[]
   start_date?: string | null
@@ -29,6 +29,8 @@ const getStatusBgColor = (status: Task["status"]) => {
     case "completed":
       return "bg-green-100"
     case "blocked":
+      return "bg-orange-100"
+    case "rejected":
       return "bg-red-100"
     case "changes":
       return "bg-purple-100"
