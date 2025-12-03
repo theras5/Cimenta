@@ -150,14 +150,14 @@ export const getPurchasesBySite = async (siteId: string): Promise<Purchase[]> =>
   }
 };
 
-export const updatePurchaseStatus = async (id: string, status: Purchase['status']): Promise<Purchase> => {
+export const updatePurchaseStatus = async (id: string, updateData: Partial<Purchase>): Promise<Purchase> => {
   try {
-    const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/purchases/${id}/status`, {
-      method: 'PATCH',
+    const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/purchases/${id}`, {
+      method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify(updateData),
     });
     
     if (!response.ok) {

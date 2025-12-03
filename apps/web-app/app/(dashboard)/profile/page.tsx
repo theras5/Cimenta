@@ -1,7 +1,7 @@
 // apps/web-app/app/(dashboard)/profile/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
 
 const profileMenuItems = [
   {
@@ -72,46 +73,38 @@ export default function PerfilPage() {
   }, [user, loading, router]);
 
   // Cargar avatar cuando el usuario esté disponible
+  const loadAvatar = useCallback(async () => {
+    if (!user?.id) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('avatar_url')
+        .eq('id', user.id)
+        .single();
+
+      if (error) {
+        console.error('Error loading avatar:', error);
+        return;
+      }
+
+      if (data?.avatar_url) {
+        const { data: publicUrlData } = supabase.storage
+          .from('avatars')
+          .getPublicUrl(data.avatar_url);
+        
+        setAvatarUrl(publicUrlData.publicUrl);
+      }
+    } catch (error) {
+      console.error('Error loading avatar:', error);
+    }
+  }, [user?.id]);
+
   useEffect(() => {
     if (user?.id) {
       loadAvatar();
     }
-  }, [user?.id]);
-
-  const loadAvatar = async () => {
-    if (!user?.id) return;
-
-    try {
-      const token = localStorage.getItem('auth_token');
-      if (!token) {
-        // Si no hay token, simplemente no cargar el avatar
-        return;
-      }
-
-      const response = await fetch(`/api/user-profile/${user.id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        // Solo loguear, no mostrar error al usuario
-        console.log("No se pudo cargar el perfil, usando avatar por defecto");
-        return;
-      }
-
-      const data = await response.json();
-      if (data?.avatar_url) {
-        // Construir la URL pública de Supabase Storage
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://bbydxzfxfuihwshrqxcu.supabase.co';
-        const publicUrl = `${supabaseUrl}/storage/v1/object/public/avatars/${data.avatar_url}`;
-        setAvatarUrl(publicUrl);
-      }
-    } catch (error) {
-      // Capturar errores silenciosamente para no romper la UI
-      console.log("Avatar no disponible, usando avatar por defecto");
-    }
-  };
+  }, [user?.id, loadAvatar]);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -285,9 +278,7 @@ export default function PerfilPage() {
             {/* Avatar with upload button */}
             <div className="relative mb-6">
               <Avatar className="w-32 h-32">
-                {avatarUrl ? (
-                  <AvatarImage src={avatarUrl} alt={user.name || "Avatar"} />
-                ) : null}
+                <AvatarImage src={avatarUrl || undefined} alt={user.name || "Avatar"} />
                 <AvatarFallback className="text-4xl font-bold bg-blue-100 text-blue-600">
                   {getInitials(user.name)}
                 </AvatarFallback>

@@ -11,8 +11,8 @@ import {
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import TaskSection from "../../components/TaskSection";
-import { type Task } from "../../components/TaskCard";
+import PurchaseSection from "../../components/PurchaseSection";
+import { type Purchase } from "../../components/PurchaseCard";
 import { router, useLocalSearchParams } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getPurchasesBySite } from "../../services/purchaseService";
@@ -21,36 +21,11 @@ const handleAddPurchase = () => {
   router.push("/purchases/new-purchase");
 };
 
-// Función para mapear compras de la API a Tasks para mostrar en TaskSection
-const mapPurchaseToTask = (purchase: any): Task => {
-  // Mapeo de categorías a colores (según purchase_category enum)
-  const categoryColors: { [key: string]: { bg: string; category: string } } = {
-    materiales: { bg: 'bg-amber-100', category: 'bg-amber-500' },
-    herramientas: { bg: 'bg-emerald-100', category: 'bg-emerald-500' },
-    equipamiento: { bg: 'bg-blue-100', category: 'bg-blue-500' },
-    seguridad: { bg: 'bg-red-100', category: 'bg-red-500' },
-    oficina: { bg: 'bg-purple-100', category: 'bg-purple-500' },
-    otros: { bg: 'bg-gray-100', category: 'bg-gray-500' },
-  };
-
-  const colors = categoryColors[purchase.category?.toLowerCase()] || categoryColors.materiales;
-
-  return {
-    id: purchase.id,
-    title: purchase.product,
-    description: purchase.description || `${purchase.quantity} unidades`,
-    category: purchase.category?.toUpperCase() || 'MATERIALES',
-    categoryColor: colors.category,
-    bgColor: colors.bg,
-    avatars: ['👷‍♂️'],
-  };
-};
-
 export default function Purchases() {
   const params = useLocalSearchParams();
-  const [pendingItems, setPendingItems] = useState<Task[]>([]);
-  const [purchasedItems, setPurchasedItems] = useState<Task[]>([]);
-  const [deliveredItems, setDeliveredItems] = useState<Task[]>([]);
+  const [pendingItems, setPendingItems] = useState<Purchase[]>([]);
+  const [purchasedItems, setPurchasedItems] = useState<Purchase[]>([]);
+  const [deliveredItems, setDeliveredItems] = useState<Purchase[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -78,18 +53,10 @@ export default function Purchases() {
       const purchases = await getPurchasesBySite(siteId);
       console.log('Compras obtenidas:', purchases);
 
-      // Filtrar y mapear compras por estado
-      const pending = purchases
-        .filter(p => p.status === 'pending')
-        .map(mapPurchaseToTask);
-      
-      const purchased = purchases
-        .filter(p => p.status === 'purchased')
-        .map(mapPurchaseToTask);
-      
-      const delivered = purchases
-        .filter(p => p.status === 'delivered')
-        .map(mapPurchaseToTask);
+      // Filtrar compras por estado
+      const pending = purchases.filter(p => p.status === 'pending');
+      const purchased = purchases.filter(p => p.status === 'purchased');
+      const delivered = purchases.filter(p => p.status === 'delivered');
 
       setPendingItems(pending);
       setPurchasedItems(purchased);
@@ -159,26 +126,23 @@ export default function Purchases() {
         ) : (
           <>
             {pendingItems.length > 0 && (
-              <TaskSection
-                title="Solicitado"
-                tasks={pendingItems}
-                routePrefix="purchases"
+              <PurchaseSection
+                title="Para comprar"
+                purchases={pendingItems}
               />
             )}
 
             {purchasedItems.length > 0 && (
-              <TaskSection
+              <PurchaseSection
                 title="Comprado"
-                tasks={purchasedItems}
-                routePrefix="purchases"
+                purchases={purchasedItems}
               />
             )}
 
             {deliveredItems.length > 0 && (
-              <TaskSection
-                title="Llegó"
-                tasks={deliveredItems}
-                routePrefix="purchases"
+              <PurchaseSection
+                title="Recibido"
+                purchases={deliveredItems}
               />
             )}
           </>

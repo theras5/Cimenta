@@ -337,19 +337,14 @@ const AvancesScreen = () => {
             <div className="flex flex-col items-center justify-center py-20">
               <Clipboard className="w-16 h-16 text-gray-400 mb-4" />
               <h3 className="text-lg font-medium text-gray-500 mb-2">
-                No hay avances a├║n
+                No hay avances aún
               </h3>
               <p className="text-gray-400 text-center px-6">
-                Crea tu primer avance usando el bot├│n +
+                Crea tu primer avance usando el botón +
               </p>
             </div>
           ) : (
             <>
-              {/* Notification card */}
-              <NotificationCard
-                message={normalizeText("Se ha terminado")}
-                highlight={normalizeText("Instalación del aire")}
-              />
 
               {/* Remaining cards */}
               {updates.map((update) => {

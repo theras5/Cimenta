@@ -159,9 +159,7 @@ const TasksScreen = () => {
       fetchTasks();
     }
   }, [searchParams, fetchTasks]);
-    start_date: undefined as string | undefined,
-    end_date: undefined as string | undefined,
-  });
+
   const [newChange, setNewChange] = useState({
     title: "",
     description: "",

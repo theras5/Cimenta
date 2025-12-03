@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Ima
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import { getPurchaseById, deletePurchase } from '@/services/purchaseService';
+import { getPurchaseById, deletePurchase, updatePurchaseStatus } from '@/services/purchaseService';
 
 interface Purchase {
   id: string;
@@ -101,6 +101,7 @@ export default function PurchaseDetails() {
   const [images, setImages] = useState<PurchaseImage[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
     loadPurchaseDetails();
@@ -183,6 +184,54 @@ export default function PurchaseDetails() {
     );
   };
 
+  const getNextStatus = (currentStatus: Purchase['status']): Purchase['status'] => {
+    switch (currentStatus) {
+      case 'pending': return 'purchased';
+      case 'purchased': return 'delivered';
+      case 'delivered': return 'delivered';
+      default: return 'pending';
+    }
+  };
+
+  const getStatusButtonText = (status: Purchase['status']): string => {
+    switch (status) {
+      case 'pending': return "Marcar como Comprado";
+      case 'purchased': return "Marcar como Recibido";
+      case 'delivered': return "✓ Completado";
+      default: return "Cambiar estado";
+    }
+  };
+
+  const handleStatusChange = async () => {
+    if (!purchase || purchase.status === 'delivered') return;
+    
+    try {
+      setIsUpdating(true);
+      const newStatus = getNextStatus(purchase.status);
+      
+      const updateData: any = { status: newStatus };
+      
+      if (newStatus === 'purchased' && !purchase.purchase_date) {
+        updateData.purchase_date = new Date().toISOString();
+      }
+      if (newStatus === 'delivered' && !purchase.delivery_date) {
+        updateData.delivery_date = new Date().toISOString();
+      }
+      
+      await updatePurchaseStatus(purchase.id, updateData);
+      
+      // Recargar los detalles
+      await loadPurchaseDetails();
+      
+      Alert.alert('Éxito', 'Estado actualizado correctamente');
+    } catch (error) {
+      console.error("Error al cambiar estado:", error);
+      Alert.alert('Error', 'No se pudo actualizar el estado');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   if (loading) {
     return (
       <SafeAreaView className="flex-1 bg-white">
@@ -226,14 +275,14 @@ export default function PurchaseDetails() {
         <View className="flex-row gap-2">
           <TouchableOpacity 
             onPress={handleEdit}
-            className="bg-blue-500 px-3 py-2 rounded-lg"
+            className="bg-blue-500 px-3 py-2 rounded-full"
             disabled={deleting}
           >
             <Ionicons name="create-outline" size={20} color="white" />
           </TouchableOpacity>
           <TouchableOpacity 
             onPress={handleDelete}
-            className="bg-red-500 px-3 py-2 rounded-lg"
+            className="bg-red-500 px-3 py-2 rounded-full"
             disabled={deleting}
           >
             <Ionicons name="trash-outline" size={20} color="white" />
@@ -244,7 +293,7 @@ export default function PurchaseDetails() {
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         {/* Estado */}
         <View className="bg-white px-4 py-4 mb-2">
-          <View className="flex-row items-center justify-between">
+          <View className="flex-row items-center justify-between mb-3">
             <Text className="text-gray-600 font-medium">Estado</Text>
             <View className={`${getStatusColor(purchase.status)} px-4 py-2 rounded-full`}>
               <Text className="text-white font-semibold">
@@ -252,6 +301,31 @@ export default function PurchaseDetails() {
               </Text>
             </View>
           </View>
+          
+          {/* Botón para cambiar estado */}
+          {purchase.status !== 'delivered' && (
+            <TouchableOpacity
+              onPress={handleStatusChange}
+              disabled={isUpdating}
+              className={`w-full py-3 px-4 rounded-full ${
+                isUpdating ? 'bg-gray-300' : 
+                purchase.status === 'pending' ? 'bg-blue-500' : 'bg-green-500'
+              }`}
+            >
+              {isUpdating ? (
+                <View className="flex-row items-center justify-center">
+                  <ActivityIndicator size="small" color="white" />
+                  <Text className="text-white font-semibold ml-2">
+                    Actualizando...
+                  </Text>
+                </View>
+              ) : (
+                <Text className="text-white font-semibold text-center">
+                  {getStatusButtonText(purchase.status)}
+                </Text>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Información Principal */}
