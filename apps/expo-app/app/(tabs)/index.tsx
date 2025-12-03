@@ -221,7 +221,7 @@ export default function HomeScreen() {
   const navigateToCalendar = () => router.push("/(tabs)/teamCalendar");
   const navigateToGantt = () => router.push("/gantt/project-1");
   const navigateToNewTask = () => router.push("/tasks/new-task");
-  const navigateToNewChange = () => router.push("/tasks/new-change");
+  const navigateToNewChange = () => router.push("/changes/new-change");
   const navigateToNewPurchase = () => router.push("/purchases/new-purchase");
   const navigateToNewUpdate = () => router.push("/updates/new-update");
   const navigateToSummary = () => router.push("/site-summary");
