@@ -106,7 +106,9 @@ async function handleAudioMessage(
         // Mostrar la transcripción al usuario
         await safeSendMessage(sock, senderNumber, `📝 Transcripción: "${transcribedText}"\n\n🧠 Procesando con IA...`);
 
-        // Procesar el texto transcrito con Gemini AI (igual que con texto normal)
+        // Procesar el texto transcrito con Gemini AI
+        // NOTA: Esta es la ÚNICA llamada a Gemini AI en todo el sistema.
+        // Solo se usa para procesar transcripciones de audio destinadas a crear tareas.
         let dto = null;
         try {
             dto = await createTaskDTOFromAI(transcribedText, user.id);
@@ -294,25 +296,56 @@ async function handleIncomingMessage(m: any, sock: WASocket) {
         const msg: WAMessage | undefined = m.messages[0];
         if (!msg || !msg.message) return;
 
-        // Ignorar mensajes enviados por el bot mismo (evita loops infinitos)
+        const botJid = sock.user?.id;
+        let senderNumber: string | null | undefined = msg.key.remoteJid;
+
+        // Función auxiliar para normalizar números (sin @s.whatsapp.net)
+        const normalizeJid = (jid: string | null | undefined) => {
+            if (!jid) return undefined;
+            return jid.replace('@s.whatsapp.net', '').replace('@c.us', '');
+        };
+
+        // Permitir mensajes que te escribes a ti mismo (fromMe: true) solo si son del número permitido
+        // Esto evita loops infinitos pero permite que te respondas a ti misma
         if (msg.key.fromMe) {
+            if (ALLOWED_WHATSAPP_NUMBER) {
+                const normalizedAllowed = normalizeJid(ALLOWED_WHATSAPP_NUMBER);
+                const normalizedSender = normalizeJid(senderNumber);
+                const normalizedBotJid = normalizeJid(botJid);
+                
+                // Permitir si el mensaje es del número permitido
+                const isFromAllowedNumber = normalizedSender === normalizedAllowed || 
+                                          (normalizedBotJid === normalizedAllowed && !senderNumber);
+                
+                if (isFromAllowedNumber) {
+                    // Si senderNumber es undefined, usar el número permitido como senderNumber
+                    if (!senderNumber && ALLOWED_WHATSAPP_NUMBER) {
+                        senderNumber = ALLOWED_WHATSAPP_NUMBER;
+                    }
+                    // Continuar procesando el mensaje
+                } else {
+                    // Ignorar mensajes fromMe que no son del número permitido (evita loops)
+                    return;
+                }
+            } else {
+                // Si no hay número permitido configurado, ignorar todos los mensajes fromMe (evita loops)
+                return;
+            }
+        }
+        
+        if (!senderNumber) {
             return;
         }
-
-        const senderNumber = msg.key.remoteJid;
-        if (!senderNumber) return;
 
         // Restricción: solo responder al número permitido (si está configurado)
-        if (ALLOWED_WHATSAPP_NUMBER && senderNumber !== ALLOWED_WHATSAPP_NUMBER) {
-            console.log(`Mensaje bloqueado de: ${senderNumber} (solo se permite: ${ALLOWED_WHATSAPP_NUMBER})`);
-            return;
-        }
-
-        // Ignorar mensajes del propio bot (verificación adicional)
-        const botJid = sock.user?.id;
-        if (botJid && senderNumber === botJid) {
-            console.log(`Mensaje ignorado: el bot no procesa sus propios mensajes`);
-            return;
+        if (ALLOWED_WHATSAPP_NUMBER) {
+            const normalizedAllowed = normalizeJid(ALLOWED_WHATSAPP_NUMBER);
+            const normalizedSender = normalizeJid(senderNumber);
+            
+            if (normalizedSender !== normalizedAllowed) {
+                console.log(`Mensaje bloqueado de: ${senderNumber} (solo se permite: ${ALLOWED_WHATSAPP_NUMBER})`);
+                return;
+            }
         }
 
         const user = await getVerifiedUser(senderNumber);
@@ -417,6 +450,46 @@ async function handleIncomingMessage(m: any, sock: WASocket) {
     // Comando de obras (lista las obras del usuario)
     if (lower === 'obras' || lower.startsWith('obras ')) {
         await sendMySites(senderNumber, sock, user);
+        return;
+    }
+
+    // Comando de comparar obras
+    if (lower === 'comparar obras' || lower === 'comparar' || lower.startsWith('comparar obras')) {
+        await sendSitesComparison(senderNumber, sock, user);
+        return;
+    }
+
+    // Comandos para actualizar estado de tareas
+    if (lower.startsWith('completar tarea') || lower.startsWith('completada tarea') || 
+        lower.startsWith('bloquear tarea') || lower.startsWith('bloqueada tarea') ||
+        lower.startsWith('en progreso tarea') || lower.startsWith('progreso tarea') ||
+        lower.startsWith('pendiente tarea')) {
+        await handleTaskStatusUpdateCommand(messageText, user, senderNumber, sock);
+        return;
+    }
+
+    // Comandos de búsqueda y filtrado de tareas
+    if (lower.startsWith('buscar tarea') || lower.startsWith('buscar tareas') ||
+        lower.startsWith('tareas bloqueadas') || lower.startsWith('tareas pendientes') ||
+        lower.startsWith('tareas completadas') || lower.startsWith('tareas en progreso') ||
+        lower.startsWith('tareas esta semana') || lower.startsWith('tareas esta mes') ||
+        lower.startsWith('tareas hoy') || lower.startsWith('tareas mañana')) {
+        await handleTaskSearchCommand(messageText, user, senderNumber, sock);
+        return;
+    }
+
+    // Comando de clima para obra
+    if (lower.startsWith('clima obra') || lower.startsWith('clima')) {
+        const obraName = messageText.replace(/^clima\s+(obra\s+)?/i, '').trim();
+        await handleWeatherCommand(obraName, user, senderNumber, sock);
+        return;
+    }
+
+    // Comandos de seguimiento de compras
+    if (lower.startsWith('compras pendientes') || lower.startsWith('compras esta semana') ||
+        lower.startsWith('estado compra') || lower.startsWith('compras compradas') ||
+        lower.startsWith('compras entregadas')) {
+        await handlePurchaseTrackingCommand(messageText, user, senderNumber, sock);
         return;
     }
 
@@ -574,6 +647,18 @@ async function handleMessageByState(
             await handlePurchaseDescription(messageText, context, user, senderNumber, sock);
             break;
 
+        case 'AWAITING_TASK_SELECTION_FOR_STATUS':
+            await handleTaskSelectionForStatus(messageText, context, user, senderNumber, sock);
+            break;
+
+        case 'VIEWING_TASK_SEARCH_RESULTS':
+            await handleTaskSearchResultsInteraction(messageText, context, user, senderNumber, sock);
+            break;
+
+        case 'AWAITING_WEATHER_SITE_SELECTION':
+            await handleWeatherSiteSelection(messageText, context, user, senderNumber, sock);
+            break;
+
         default:
             await sock.sendMessage(senderNumber, {
                 text: "Estado desconocido. Envía 'cancelar' para volver al inicio."
@@ -633,7 +718,20 @@ async function handleIdleState(
 
 🏷️ Escribí "*obras*" para ver la lista de tus obras.
 
+📊 Escribí "*comparar obras*" para ver una comparativa de productividad entre tus obras.
+
+✅ Escribí "*completar tarea [número/título]*" para marcar una tarea como completada.
+⛔ Escribí "*bloquear tarea [número/título]*" para bloquear una tarea.
+🚧 Escribí "*en progreso tarea [número/título]*" para poner una tarea en progreso.
+
+🔍 Escribí "*buscar tarea [categoría/texto]*" para buscar tareas.
+📋 Escribí "*tareas bloqueadas*" o "*tareas esta semana*" para filtrar tareas.
+
+🌤️ Escribí "*clima obra [nombre]*" para ver el pronóstico del tiempo de una obra.
+
 🛒 Escribí "*compra*" o "*c*" para crear una solicitud de compra.
+📋 Escribí "*compras pendientes*" o "*compras esta semana*" para ver tus compras.
+🔍 Escribí "*estado compra [ID]*" para ver el estado de una compra específica.
 
 ❌ Escribí "*cancelar*" para cancelar cualquier operación en curso.`
         });
@@ -645,11 +743,30 @@ async function handleTaskTitle(
     senderNumber: string,
     sock: WASocket
 ) {
-    await sock.sendMessage(senderNumber, {
-        text: '✅ Título guardado.\n🖊️ Ahora escribí una breve *descripción*.'
-    });
     const { context } = getChatState(senderNumber);
-    setChatState(senderNumber, 'AWAITING_TASK_DESCRIPTION', { ...context, title: messageText });
+    // Si hay una descripción inicial, usarla automáticamente
+    if (context?.initialDescription) {
+        setChatState(senderNumber, 'AWAITING_TASK_CATEGORY', {
+            ...context,
+            title: messageText,
+            description: context.initialDescription
+        });
+        const body = [
+            '✅ Título guardado.',
+            '',
+            'Elegí la categoría de la tarea (respondé con número o nombre):',
+            '1) *Pintura* 🎨',
+            '2) *Construcción* 🏗️',
+            '3) *Electricidad* ⚡',
+            '4) *Plomería* 🚰',
+        ].join('\n');
+        await sock.sendMessage(senderNumber, { text: body });
+    } else {
+        await sock.sendMessage(senderNumber, {
+            text: '✅ Título guardado.\n🖊️ Ahora escribí una breve *descripción*.'
+        });
+        setChatState(senderNumber, 'AWAITING_TASK_DESCRIPTION', { ...context, title: messageText });
+    }
 }
 
 async function handleTaskDescription(
@@ -784,7 +901,8 @@ async function handleTaskStatus(
     }
 }
 
-// Nuevo flujo simplificado: un solo estado para recibir el contenido y crear la tarea con IA
+// Flujo manual para crear tareas desde texto: el usuario describe la tarea y luego se piden los campos necesarios
+// NOTA: Este flujo NO usa Gemini AI. Solo los audios usan Gemini AI para procesar transcripciones.
 async function handleTaskInput(
     messageText: string,
     context: any,
@@ -793,41 +911,15 @@ async function handleTaskInput(
     sock: WASocket
 ) {
     try {
-        let dto = null;
-        try {
-            dto = await createTaskDTOFromAI(messageText, user.id);
-        } catch (aiError: any) {
-            // Manejo específico del error 429 de Gemini AI
-            if (aiError.isRateLimit || aiError.message === 'GEMINI_QUOTA_EXCEEDED') {
-                console.error('⚠️ Error 429: Cuota de Gemini AI agotada');
-                await safeSendMessage(
-                    sock, 
-                    senderNumber, 
-                    '❌ Error: La cuota de Gemini AI está agotada.\n\n' +
-                    'Por favor, revisa tu plan y facturación en:\n' +
-                    'https://ai.dev/usage?tab=rate-limit\n\n' +
-                    'Intenta describir la tarea de forma más simple o espera unos minutos.'
-                );
-                return;
-            }
-            // Si es otro error, continuar
-            console.error('Error procesando con Gemini AI:', aiError.message);
-        }
-        
-        if (!dto) {
-            await safeSendMessage(sock, senderNumber, '⚠️ No entendí. Contame en una sola línea qué hay que hacer (ej: "Cambiar foco del baño mañana").');
-            return;
-        }
-        // Asegurar site_id desde el contexto de selección previa
-        if (context?.site_id) {
-            (dto as any).site_id = context.site_id;
-        }
-        await safeSendMessage(sock, senderNumber, '🧠 Perfecto. Creando la tarea...');
-        await handleTaskCreation(dto, senderNumber, sock);
-        setChatState(senderNumber, 'IDLE');
+        // Guardar la descripción inicial y pedir el título
+        await safeSendMessage(sock, senderNumber, '📝 Describiste: "' + messageText + '"\n\n✍️ Ahora escribí un *título breve* para la tarea (ej: "Arreglar caño del baño").');
+        setChatState(senderNumber, 'AWAITING_TASK_TITLE', {
+            ...context,
+            initialDescription: messageText
+        });
     } catch (e: any) {
         console.error('Error en handleTaskInput:', e);
-        await safeSendMessage(sock, senderNumber, `❌ No pude crear la tarea: ${e?.message || 'Error desconocido'}`);
+        await safeSendMessage(sock, senderNumber, `❌ No pude procesar tu mensaje: ${e?.message || 'Error desconocido'}`);
     }
 }
 
@@ -1834,10 +1926,169 @@ async function sendMySites(jid: string, sock: WASocket, user: Profile) {
         lines.push('• 🧾 res <obra>  · resumen por obra');
         lines.push('• 📅 agenda <obra> · agenda de hoy');
         lines.push('• 📸 avances <obra> · avances de hoy');
+        lines.push('• 📊 comparar obras · comparativa entre obras');
         await sock.sendMessage(jid, { text: lines.join('\n') });
     } catch (err: any) {
         console.error('Error listando obras:', err);
         await sock.sendMessage(jid, { text: `❌ No pude obtener tus obras: ${err?.message || 'Error desconocido'}` });
+    }
+}
+
+// --------------------
+// Comparativa entre obras
+// --------------------
+async function sendSitesComparison(jid: string, sock: WASocket, user: Profile) {
+    try {
+        await sock.sendMessage(jid, { text: '📊 Analizando obras... Esto puede tomar unos segundos.' });
+
+        const sites = await api.SiteService.getSitesByUser(user.id);
+        if (!sites || sites.length === 0) {
+            await sock.sendMessage(jid, { text: '😕 No tenés obras asignadas para comparar.' });
+            return;
+        }
+
+        if (sites.length === 1) {
+            await sock.sendMessage(jid, { text: '⚠️ Necesitás al menos 2 obras para hacer una comparación.' });
+            return;
+        }
+
+        // Obtener tareas de todas las obras
+        const sitesWithTasks = await Promise.all(
+            sites.map(async (site: any) => {
+                try {
+                    const tasks = await api.TaskService.getTasksBySite(site.id);
+                    return { site, tasks: tasks || [] };
+                } catch (error) {
+                    console.error(`Error obteniendo tareas para obra ${site.id}:`, error);
+                    return { site, tasks: [] };
+                }
+            })
+        );
+
+        // Calcular métricas para cada obra
+        interface SiteMetrics {
+            site: any;
+            total: number;
+            completed: number;
+            pending: number;
+            inProgress: number;
+            blocked: number;
+            changes: number;
+            avgResolutionDays: number;
+            completionRate: number;
+        }
+
+        const metrics: SiteMetrics[] = sitesWithTasks.map(({ site, tasks }) => {
+            const total = tasks.length;
+            const completed = tasks.filter((t: any) => t.status === 'completed').length;
+            const pending = tasks.filter((t: any) => t.status === 'pending').length;
+            const inProgress = tasks.filter((t: any) => t.status === 'in_progress').length;
+            const blocked = tasks.filter((t: any) => t.status === 'blocked').length;
+            const changes = tasks.filter((t: any) => t.status === 'changes').length;
+
+            // Calcular tiempo promedio de resolución (solo para tareas completadas)
+            // NOTA: La tabla de tasks NO tiene updated_at según la estructura de Supabase.
+            // Usamos end_date como aproximación para tareas completadas (fecha planificada de finalización).
+            // Esto es una aproximación, no el tiempo real de resolución.
+            const completedTasks = tasks.filter((t: any) => {
+                if (t.status !== 'completed') return false;
+                const hasCreated = t.created_at || t.createdAt;
+                const hasEndDate = t.end_date || t.endDate;
+                // Solo calcular si tiene ambas fechas
+                return hasCreated && hasEndDate;
+            });
+            let avgResolutionDays = 0;
+            
+            if (completedTasks.length > 0) {
+                const totalDays = completedTasks.reduce((sum: number, task: any) => {
+                    const createdStr = task.created_at || task.createdAt;
+                    const endDateStr = task.end_date || task.endDate;
+                    if (!createdStr || !endDateStr) return sum;
+                    
+                    const created = new Date(createdStr);
+                    const endDate = new Date(endDateStr);
+                    if (isNaN(created.getTime()) || isNaN(endDate.getTime())) return sum;
+                    
+                    const days = (endDate.getTime() - created.getTime()) / (1000 * 60 * 60 * 24);
+                    return sum + Math.max(0, days); // Evitar días negativos
+                }, 0);
+                avgResolutionDays = totalDays / completedTasks.length;
+            }
+
+            // Calcular tasa de completitud
+            const completionRate = total > 0 ? (completed / total) * 100 : 0;
+
+            return {
+                site,
+                total,
+                completed,
+                pending,
+                inProgress,
+                blocked,
+                changes,
+                avgResolutionDays,
+                completionRate
+            };
+        });
+
+        // Ordenar por tasa de completitud (mayor a menor)
+        metrics.sort((a, b) => b.completionRate - a.completionRate);
+
+        // Formatear mensaje
+        const lines: string[] = [];
+        lines.push('📊 *Comparativa de Obras*');
+        lines.push('');
+        lines.push(`📈 Análisis de ${metrics.length} obra${metrics.length > 1 ? 's' : ''}:`);
+        lines.push('');
+
+        metrics.forEach((m, index) => {
+            const siteName = m.site.address || 'Sin nombre';
+            const rank = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '  ';
+            
+            lines.push(`${rank} *${siteName}*`);
+            lines.push(`   📋 Total: ${m.total} tareas`);
+            lines.push(`   ✅ Completadas: ${m.completed} (${m.completionRate.toFixed(1)}%)`);
+            lines.push(`   🕒 Pendientes: ${m.pending}`);
+            lines.push(`   🚧 En progreso: ${m.inProgress}`);
+            lines.push(`   ⛔ Bloqueadas: ${m.blocked}`);
+            if (m.changes > 0) {
+                lines.push(`   🔄 Cambios: ${m.changes}`);
+            }
+            
+            if (m.avgResolutionDays > 0) {
+                const days = Math.round(m.avgResolutionDays * 10) / 10;
+                lines.push(`   ⏱️ Tiempo planificado: ${days} días (aprox.)`);
+            }
+            
+            lines.push('');
+        });
+
+        // Agregar insights
+        const bestSite = metrics[0];
+        const worstSite = metrics[metrics.length - 1];
+        const mostBlocked = metrics.reduce((prev, curr) => 
+            curr.blocked > prev.blocked ? curr : prev
+        , metrics[0]);
+
+        lines.push('💡 *Insights:*');
+        if (bestSite.completionRate > worstSite.completionRate + 10) {
+            lines.push(`• ${bestSite.site.address} tiene la mejor productividad (${bestSite.completionRate.toFixed(1)}%)`);
+        }
+        if (mostBlocked.blocked > 0) {
+            lines.push(`• ${mostBlocked.site.address} tiene ${mostBlocked.blocked} tarea${mostBlocked.blocked > 1 ? 's' : ''} bloqueada${mostBlocked.blocked > 1 ? 's' : ''} - requiere atención`);
+        }
+        
+        const fastestSite = metrics
+            .filter(m => m.avgResolutionDays > 0)
+            .sort((a, b) => a.avgResolutionDays - b.avgResolutionDays)[0];
+        if (fastestSite) {
+            lines.push(`• ${fastestSite.site.address} tiene el menor tiempo planificado (${Math.round(fastestSite.avgResolutionDays * 10) / 10} días aprox.)`);
+        }
+
+        await sock.sendMessage(jid, { text: lines.join('\n') });
+    } catch (err: any) {
+        console.error('Error en comparativa de obras:', err);
+        await sock.sendMessage(jid, { text: `❌ No pude generar la comparativa: ${err?.message || 'Error desconocido'}` });
     }
 }
 
@@ -2038,6 +2289,8 @@ export default async function connectToWhatsApp() {
         } else if (connection === 'open') {
             console.log('✅ ¡Conexión con WhatsApp abierta!');
             console.log(`[TIMESTAMP] ${new Date().toISOString()}`);
+            // Configurar notificaciones diarias cuando la conexión esté abierta
+            setupDailyNotifications(sock);
         } else if (connection === 'connecting') {
             console.log('🔄 Conectando a WhatsApp...');
         } else if (connection) {
@@ -2063,6 +2316,7 @@ export default async function connectToWhatsApp() {
     })
 
     // No se requiere manejar messages.update para botones
+    return sock;
 }
 
 async function getVerifiedUser(senderNumber: string) {
@@ -2111,6 +2365,1220 @@ async function handleTaskStateUpdate(taskId: string, newState: string, senderNum
         console.error('Error al actualizar el estado de la tarea:', error.message);
         await sock.sendMessage(senderNumber, { text: `❌ Error al actualizar la tarea: ${error.message}` });
     }
+}
+
+// --------------------
+// Actualizar estado de tareas por comando
+// --------------------
+async function handleTaskStatusUpdateCommand(
+    messageText: string,
+    user: Profile,
+    senderNumber: string,
+    sock: WASocket
+) {
+    try {
+        const lower = messageText.trim().toLowerCase();
+        
+        // Detectar el estado deseado
+        let targetStatus: Task['status'] | null = null;
+        if (lower.startsWith('completar tarea') || lower.startsWith('completada tarea')) {
+            targetStatus = 'completed';
+        } else if (lower.startsWith('bloquear tarea') || lower.startsWith('bloqueada tarea')) {
+            targetStatus = 'blocked';
+        } else if (lower.startsWith('en progreso tarea') || lower.startsWith('progreso tarea')) {
+            targetStatus = 'in_progress';
+        } else if (lower.startsWith('pendiente tarea')) {
+            targetStatus = 'pending';
+        }
+
+        if (!targetStatus) {
+            await sock.sendMessage(senderNumber, {
+                text: '⚠️ Comando no reconocido. Usa:\n• "completar tarea [número/título]"\n• "bloquear tarea [número/título]"\n• "en progreso tarea [número/título]"\n• "pendiente tarea [número/título]"'
+            });
+            return;
+        }
+
+        // Extraer el identificador (número o texto después de "tarea")
+        const taskIdentifier = messageText
+            .replace(/^(completar|completada|bloquear|bloqueada|en progreso|progreso|pendiente)\s+tarea\s+/i, '')
+            .trim();
+
+        // Si no hay identificador, listar tareas para seleccionar
+        if (!taskIdentifier) {
+            await listTasksForStatusUpdate(user, senderNumber, sock, targetStatus);
+            return;
+        }
+
+        // Buscar la tarea por ID o título
+        const task = await findTaskByIdentifier(taskIdentifier, user.id);
+        
+        if (!task) {
+            await sock.sendMessage(senderNumber, {
+                text: `❌ No encontré una tarea con "${taskIdentifier}".\n\nUsa el número de la lista o el título completo.`
+            });
+            return;
+        }
+
+        // Verificar que el estado sea diferente
+        if (task.status === targetStatus) {
+            const statusText = statusBadge(targetStatus);
+            await sock.sendMessage(senderNumber, {
+                text: `ℹ️ La tarea "${task.title}" ya está en estado "${statusText}".`
+            });
+            return;
+        }
+
+        // Actualizar el estado
+        await api.TaskService.updateTaskStatus(task.id, targetStatus);
+        
+        const statusText = statusBadge(targetStatus);
+        const icon = categoryIcon(task.category);
+        
+        await sock.sendMessage(senderNumber, {
+            text: `✅ Tarea actualizada:\n\n${icon} *${task.title}*\nEstado: ${statusText}`
+        });
+
+        // Si la tarea se bloqueó, verificar dependencias y notificar
+        if (targetStatus === 'blocked') {
+            await checkAndNotifyTaskDependencies(task.id, task.title, user, sock);
+        }
+
+    } catch (error: any) {
+        console.error('Error en handleTaskStatusUpdateCommand:', error);
+        await sock.sendMessage(senderNumber, {
+            text: `❌ Error al actualizar la tarea: ${error?.message || 'Error desconocido'}`
+        });
+    }
+}
+
+async function listTasksForStatusUpdate(
+    user: Profile,
+    senderNumber: string,
+    sock: WASocket,
+    targetStatus: Task['status']
+) {
+    try {
+        // Obtener todas las obras del usuario
+        const sites = await api.SiteService.getSitesByUser(user.id);
+        if (!sites || sites.length === 0) {
+            await sock.sendMessage(senderNumber, {
+                text: '😕 No tenés obras asignadas.'
+            });
+            return;
+        }
+
+        // Obtener tareas de todas las obras que NO estén en el estado objetivo
+        const allTasks: Array<{ task: any; site: any }> = [];
+        
+        for (const site of sites) {
+            try {
+                const tasks = await api.TaskService.getTasksBySite(site.id);
+                // Filtrar tareas que no estén en el estado objetivo (para poder cambiarlas)
+                const relevantTasks = tasks.filter((t: any) => t.status !== targetStatus);
+                relevantTasks.forEach((task: any) => {
+                    allTasks.push({ task, site });
+                });
+            } catch (error) {
+                console.error(`Error obteniendo tareas para obra ${site.id}:`, error);
+            }
+        }
+
+        if (allTasks.length === 0) {
+            const statusText = statusBadge(targetStatus);
+            await sock.sendMessage(senderNumber, {
+                text: `ℹ️ No hay tareas que puedan cambiarse a "${statusText}".`
+            });
+            return;
+        }
+
+        // Limitar a las primeras 20 tareas
+        const tasksToShow = allTasks.slice(0, 20);
+        
+        const lines: string[] = [];
+        const statusText = statusBadge(targetStatus);
+        lines.push(`📋 Seleccioná la tarea para cambiar a "${statusText}":`);
+        lines.push('');
+
+        tasksToShow.forEach(({ task, site }, index) => {
+            const num = index + 1;
+            const icon = categoryIcon(task.category);
+            const currentStatus = statusBadge(String(task.status));
+            const siteName = site.address || 'Sin obra';
+            lines.push(`${num}. ${icon} ${task.title}`);
+            lines.push(`   Estado actual: ${currentStatus} | Obra: ${siteName}`);
+            lines.push('');
+        });
+
+        if (allTasks.length > 20) {
+            lines.push(`... y ${allTasks.length - 20} tareas más`);
+            lines.push('');
+        }
+
+        lines.push('💡 Escribí el número de la tarea o su título completo.');
+
+        await sock.sendMessage(senderNumber, { text: lines.join('\n') });
+        
+        // Guardar el estado objetivo y las tareas en el contexto para cuando el usuario responda
+        setChatState(senderNumber, 'AWAITING_TASK_SELECTION_FOR_STATUS', {
+            targetStatus,
+            tasks: tasksToShow.map(({ task, site }) => ({ task, site }))
+        });
+
+    } catch (error: any) {
+        console.error('Error listando tareas para actualizar estado:', error);
+        await sock.sendMessage(senderNumber, {
+            text: `❌ Error al listar tareas: ${error?.message || 'Error desconocido'}`
+        });
+    }
+}
+
+async function handleTaskSelectionForStatus(
+    messageText: string,
+    context: any,
+    user: Profile,
+    senderNumber: string,
+    sock: WASocket
+) {
+    try {
+        const { targetStatus, tasks } = context;
+        if (!targetStatus || !tasks || tasks.length === 0) {
+            await sock.sendMessage(senderNumber, {
+                text: '❌ Error: No hay tareas disponibles. Intentá de nuevo.'
+            });
+            setChatState(senderNumber, 'IDLE');
+            return;
+        }
+
+        const input = messageText.trim();
+        let selectedTask: any = null;
+
+        // Buscar por número
+        const numMatch = input.match(/^\d+$/);
+        if (numMatch) {
+            const index = parseInt(numMatch[0], 10) - 1;
+            if (index >= 0 && index < tasks.length) {
+                selectedTask = tasks[index].task;
+            }
+        }
+
+        // Si no se encontró por número, buscar por título
+        if (!selectedTask) {
+            const taskByTitle = tasks.find(({ task }: any) => 
+                task.title.toLowerCase().includes(input.toLowerCase()) ||
+                input.toLowerCase().includes(task.title.toLowerCase())
+            );
+            if (taskByTitle) {
+                selectedTask = taskByTitle.task;
+            }
+        }
+
+        if (!selectedTask) {
+            await sock.sendMessage(senderNumber, {
+                text: '❌ No encontré esa tarea. Escribí el número de la lista o el título completo.'
+            });
+            return;
+        }
+
+        // Verificar que el estado sea diferente
+        if (selectedTask.status === targetStatus) {
+            const statusText = statusBadge(targetStatus);
+            await sock.sendMessage(senderNumber, {
+                text: `ℹ️ La tarea "${selectedTask.title}" ya está en estado "${statusText}".`
+            });
+            setChatState(senderNumber, 'IDLE');
+            return;
+        }
+
+        // Actualizar el estado
+        await api.TaskService.updateTaskStatus(selectedTask.id, targetStatus);
+        
+        const statusText = statusBadge(targetStatus);
+        const icon = categoryIcon(selectedTask.category);
+        
+        await sock.sendMessage(senderNumber, {
+            text: `✅ Tarea actualizada:\n\n${icon} *${selectedTask.title}*\nEstado: ${statusText}`
+        });
+
+        // Si la tarea se bloqueó, verificar dependencias y notificar
+        if (targetStatus === 'blocked') {
+            await checkAndNotifyTaskDependencies(selectedTask.id, selectedTask.title, user, sock);
+        }
+        
+        setChatState(senderNumber, 'IDLE');
+
+    } catch (error: any) {
+        console.error('Error en handleTaskSelectionForStatus:', error);
+        await sock.sendMessage(senderNumber, {
+            text: `❌ Error al actualizar la tarea: ${error?.message || 'Error desconocido'}`
+        });
+        setChatState(senderNumber, 'IDLE');
+    }
+}
+
+async function findTaskByIdentifier(identifier: string, userId: string): Promise<any | null> {
+    try {
+        // Obtener todas las obras del usuario
+        const sites = await api.SiteService.getSitesByUser(userId);
+        if (!sites || sites.length === 0) {
+            return null;
+        }
+
+        // Buscar en todas las obras
+        for (const site of sites) {
+            try {
+                const tasks = await api.TaskService.getTasksBySite(site.id);
+                
+                // Si el identificador es un número, buscar por ID completo o parcial
+                const numMatch = identifier.match(/^\d+$/);
+                if (numMatch) {
+                    const taskById = tasks.find((t: any) => 
+                        t.id === identifier || t.id.startsWith(identifier)
+                    );
+                    if (taskById) return taskById;
+                }
+                
+                // Buscar por título (case insensitive, parcial)
+                const taskByTitle = tasks.find((t: any) => 
+                    t.title.toLowerCase().includes(identifier.toLowerCase()) ||
+                    identifier.toLowerCase().includes(t.title.toLowerCase())
+                );
+                if (taskByTitle) return taskByTitle;
+                
+                // Buscar por ID completo o parcial
+                const taskById = tasks.find((t: any) => 
+                    t.id === identifier || t.id.startsWith(identifier)
+                );
+                if (taskById) return taskById;
+            } catch (error) {
+                console.error(`Error buscando tarea en obra ${site.id}:`, error);
+            }
+        }
+        
+        return null;
+    } catch (error) {
+        console.error('Error en findTaskByIdentifier:', error);
+        return null;
+    }
+}
+
+// --------------------
+// Búsqueda y filtrado de tareas
+// --------------------
+async function handleTaskSearchCommand(
+    messageText: string,
+    user: Profile,
+    senderNumber: string,
+    sock: WASocket
+) {
+    try {
+        const lower = messageText.trim().toLowerCase();
+        
+        // Detectar tipo de búsqueda
+        let filterType: 'category' | 'status' | 'date' | 'text' | null = null;
+        let filterValue: string = '';
+        
+        if (lower.startsWith('buscar tarea') || lower.startsWith('buscar tareas')) {
+            // Extraer el término de búsqueda
+            filterValue = messageText.replace(/^buscar\s+tareas?\s+/i, '').trim();
+            if (filterValue) {
+                // Verificar si es una categoría
+                const categories = ['pintura', 'construccion', 'electricidad', 'plomeria'];
+                const categoryMatch = categories.find(cat => filterValue.toLowerCase().includes(cat));
+                if (categoryMatch) {
+                    filterType = 'category';
+                    filterValue = categoryMatch;
+                } else {
+                    filterType = 'text';
+                }
+            } else {
+                await sock.sendMessage(senderNumber, {
+                    text: '⚠️ Especificá qué buscar. Ejemplos:\n• "buscar tarea pintura"\n• "buscar tarea instalación"'
+                });
+                return;
+            }
+        } else if (lower.startsWith('tareas bloqueadas')) {
+            filterType = 'status';
+            filterValue = 'blocked';
+        } else if (lower.startsWith('tareas pendientes')) {
+            filterType = 'status';
+            filterValue = 'pending';
+        } else if (lower.startsWith('tareas completadas')) {
+            filterType = 'status';
+            filterValue = 'completed';
+        } else if (lower.startsWith('tareas en progreso')) {
+            filterType = 'status';
+            filterValue = 'in_progress';
+        } else if (lower.startsWith('tareas esta semana')) {
+            filterType = 'date';
+            filterValue = 'week';
+        } else if (lower.startsWith('tareas esta mes') || lower.startsWith('tareas este mes')) {
+            filterType = 'date';
+            filterValue = 'month';
+        } else if (lower.startsWith('tareas hoy')) {
+            filterType = 'date';
+            filterValue = 'today';
+        } else if (lower.startsWith('tareas mañana')) {
+            filterType = 'date';
+            filterValue = 'tomorrow';
+        }
+
+        if (!filterType) {
+            await sock.sendMessage(senderNumber, {
+                text: '⚠️ Comando no reconocido. Usa:\n• "buscar tarea [categoría/texto]"\n• "tareas bloqueadas"\n• "tareas esta semana"'
+            });
+            return;
+        }
+
+        // Obtener todas las tareas del usuario
+        const sites = await api.SiteService.getSitesByUser(user.id);
+        if (!sites || sites.length === 0) {
+            await sock.sendMessage(senderNumber, {
+                text: '😕 No tenés obras asignadas.'
+            });
+            return;
+        }
+
+        const allTasks: Array<{ task: any; site: any }> = [];
+        for (const site of sites) {
+            try {
+                const tasks = await api.TaskService.getTasksBySite(site.id);
+                tasks.forEach((task: any) => {
+                    allTasks.push({ task, site });
+                });
+            } catch (error) {
+                console.error(`Error obteniendo tareas para obra ${site.id}:`, error);
+            }
+        }
+
+        // Aplicar filtros
+        let filteredTasks = allTasks;
+
+        if (filterType === 'category') {
+            filteredTasks = allTasks.filter(({ task }) => 
+                task.category?.toLowerCase() === filterValue.toLowerCase()
+            );
+        } else if (filterType === 'status') {
+            filteredTasks = allTasks.filter(({ task }) => 
+                task.status === filterValue
+            );
+        } else if (filterType === 'date') {
+            const now = new Date();
+            const { start, end } = getDateRange(filterValue, now);
+            
+            filteredTasks = allTasks.filter(({ task }) => {
+                if (!task.start_date && !task.end_date) return false;
+                
+                const taskStart = task.start_date ? new Date(task.start_date) : null;
+                const taskEnd = task.end_date ? new Date(task.end_date) : null;
+                
+                // Verificar si la tarea se solapa con el rango
+                if (taskStart && taskEnd) {
+                    return (taskStart <= end && taskEnd >= start);
+                } else if (taskStart) {
+                    return (taskStart >= start && taskStart <= end);
+                } else if (taskEnd) {
+                    return (taskEnd >= start && taskEnd <= end);
+                }
+                return false;
+            });
+        } else if (filterType === 'text') {
+            const searchTerm = filterValue.toLowerCase();
+            filteredTasks = allTasks.filter(({ task }) => 
+                task.title?.toLowerCase().includes(searchTerm) ||
+                task.description?.toLowerCase().includes(searchTerm)
+            );
+        }
+
+        if (filteredTasks.length === 0) {
+            const filterDesc = getFilterDescription(filterType, filterValue);
+            await sock.sendMessage(senderNumber, {
+                text: `😕 No encontré tareas ${filterDesc}.`
+            });
+            return;
+        }
+
+        // Mostrar resultados (paginados)
+        await displayTaskSearchResults(filteredTasks, filterType, filterValue, senderNumber, sock);
+
+    } catch (error: any) {
+        console.error('Error en handleTaskSearchCommand:', error);
+        await sock.sendMessage(senderNumber, {
+            text: `❌ Error al buscar tareas: ${error?.message || 'Error desconocido'}`
+        });
+    }
+}
+
+function getDateRange(range: string, now: Date): { start: Date; end: Date } {
+    const start = new Date(now);
+    const end = new Date(now);
+
+    if (range === 'today') {
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+    } else if (range === 'tomorrow') {
+        start.setDate(start.getDate() + 1);
+        start.setHours(0, 0, 0, 0);
+        end.setDate(end.getDate() + 1);
+        end.setHours(23, 59, 59, 999);
+    } else if (range === 'week') {
+        // Esta semana (lunes a domingo)
+        const day = start.getDay();
+        const diff = start.getDate() - day + (day === 0 ? -6 : 1); // Ajustar al lunes
+        start.setDate(diff);
+        start.setHours(0, 0, 0, 0);
+        end.setDate(diff + 6);
+        end.setHours(23, 59, 59, 999);
+    } else if (range === 'month') {
+        start.setDate(1);
+        start.setHours(0, 0, 0, 0);
+        end.setMonth(end.getMonth() + 1);
+        end.setDate(0);
+        end.setHours(23, 59, 59, 999);
+    }
+
+    return { start, end };
+}
+
+function getFilterDescription(filterType: string, filterValue: string): string {
+    if (filterType === 'category') {
+        return `de categoría "${filterValue}"`;
+    } else if (filterType === 'status') {
+        const statusMap: Record<string, string> = {
+            'blocked': 'bloqueadas',
+            'pending': 'pendientes',
+            'completed': 'completadas',
+            'in_progress': 'en progreso'
+        };
+        return statusMap[filterValue] || `con estado "${filterValue}"`;
+    } else if (filterType === 'date') {
+        const dateMap: Record<string, string> = {
+            'today': 'para hoy',
+            'tomorrow': 'para mañana',
+            'week': 'de esta semana',
+            'month': 'de este mes'
+        };
+        return dateMap[filterValue] || `en el rango "${filterValue}"`;
+    } else if (filterType === 'text') {
+        return `que coincidan con "${filterValue}"`;
+    }
+    return '';
+}
+
+async function displayTaskSearchResults(
+    tasks: Array<{ task: any; site: any }>,
+    filterType: string,
+    filterValue: string,
+    senderNumber: string,
+    sock: WASocket,
+    page: number = 0
+) {
+    const pageSize = 10;
+    const startIndex = page * pageSize;
+    const endIndex = startIndex + pageSize;
+    const pageTasks = tasks.slice(startIndex, endIndex);
+    const totalPages = Math.ceil(tasks.length / pageSize);
+
+    const lines: string[] = [];
+    const filterDesc = getFilterDescription(filterType, filterValue);
+    lines.push(`🔍 *Resultados de búsqueda* (${tasks.length} tarea${tasks.length > 1 ? 's' : ''} ${filterDesc})`);
+    lines.push('');
+
+    pageTasks.forEach(({ task, site }, index) => {
+        const num = startIndex + index + 1;
+        const icon = categoryIcon(task.category);
+        const status = statusBadge(String(task.status));
+        const siteName = site.address || 'Sin obra';
+        
+        lines.push(`${num}. ${icon} *${task.title}*`);
+        lines.push(`   Estado: ${status}`);
+        lines.push(`   Obra: ${siteName}`);
+        if (task.start_date || task.end_date) {
+            const start = task.start_date ? timeStrWithDate(task.start_date) : '';
+            const end = task.end_date ? timeStrWithDate(task.end_date) : '';
+            if (start || end) {
+                lines.push(`   Fecha: ${start && end ? `${start} - ${end}` : (start || end)}`);
+            }
+        }
+        lines.push('');
+    });
+
+    if (tasks.length > pageSize) {
+        lines.push(`📄 Página ${page + 1} de ${totalPages}`);
+        if (page < totalPages - 1) {
+            lines.push('💡 Escribí "siguiente" para ver más resultados.');
+        }
+        if (page > 0) {
+            lines.push('💡 Escribí "anterior" para volver.');
+        }
+    }
+
+    lines.push('💡 Escribí el número de la tarea para ver más detalles.');
+
+    await sock.sendMessage(senderNumber, { text: lines.join('\n') });
+
+    // Guardar contexto para paginación y ver detalles
+    setChatState(senderNumber, 'VIEWING_TASK_SEARCH_RESULTS', {
+        tasks,
+        filterType,
+        filterValue,
+        page,
+        totalPages
+    });
+}
+
+async function handleTaskSearchResultsInteraction(
+    messageText: string,
+    context: any,
+    user: Profile,
+    senderNumber: string,
+    sock: WASocket
+) {
+    try {
+        const { tasks, page, totalPages } = context;
+        const input = messageText.trim().toLowerCase();
+
+        // Manejar paginación
+        if (input === 'siguiente' || input === 'siguiente página' || input === 'next') {
+            if (page < totalPages - 1) {
+                await displayTaskSearchResults(tasks, context.filterType, context.filterValue, senderNumber, sock, page + 1);
+            } else {
+                await sock.sendMessage(senderNumber, {
+                    text: 'ℹ️ Ya estás en la última página.'
+                });
+            }
+            return;
+        }
+
+        if (input === 'anterior' || input === 'anterior página' || input === 'prev' || input === 'previo') {
+            if (page > 0) {
+                await displayTaskSearchResults(tasks, context.filterType, context.filterValue, senderNumber, sock, page - 1);
+            } else {
+                await sock.sendMessage(senderNumber, {
+                    text: 'ℹ️ Ya estás en la primera página.'
+                });
+            }
+            return;
+        }
+
+        // Buscar tarea por número
+        const numMatch = input.match(/^\d+$/);
+        if (numMatch) {
+            const taskIndex = parseInt(numMatch[0], 10) - 1;
+            if (taskIndex >= 0 && taskIndex < tasks.length) {
+                const { task, site } = tasks[taskIndex];
+                await showTaskDetails(task, site, senderNumber, sock);
+                setChatState(senderNumber, 'IDLE');
+                return;
+            }
+        }
+
+        // Si no es un comando reconocido, volver a IDLE
+        await sock.sendMessage(senderNumber, {
+            text: '💡 Escribí el número de la tarea para ver detalles, "siguiente" para más resultados, o "cancelar" para salir.'
+        });
+
+    } catch (error: any) {
+        console.error('Error en handleTaskSearchResultsInteraction:', error);
+        await sock.sendMessage(senderNumber, {
+            text: `❌ Error: ${error?.message || 'Error desconocido'}`
+        });
+        setChatState(senderNumber, 'IDLE');
+    }
+}
+
+async function showTaskDetails(task: any, site: any, senderNumber: string, sock: WASocket) {
+    const lines: string[] = [];
+    lines.push('📋 *Detalles de la Tarea*');
+    lines.push('');
+    lines.push(`${categoryIcon(task.category)} *${task.title}*`);
+    lines.push('');
+    
+    if (task.description) {
+        lines.push(`📝 *Descripción:*`);
+        lines.push(task.description);
+        lines.push('');
+    }
+    
+    lines.push(`📊 *Estado:* ${statusBadge(String(task.status))}`);
+    lines.push(`🏷️ *Categoría:* ${titleCase(task.category || 'otro')}`);
+    lines.push(`🏗️ *Obra:* ${site.address || 'Sin obra'}`);
+    
+    if (task.start_date || task.end_date) {
+        lines.push('');
+        lines.push('📅 *Fechas:*');
+        if (task.start_date) {
+            const start = new Date(task.start_date);
+            lines.push(`   Inicio: ${start.toLocaleDateString('es-AR')} ${start.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`);
+        }
+        if (task.end_date) {
+            const end = new Date(task.end_date);
+            lines.push(`   Fin: ${end.toLocaleDateString('es-AR')} ${end.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`);
+        }
+    }
+    
+    if (task.created_at) {
+        const created = new Date(task.created_at);
+        lines.push('');
+        lines.push(`📅 Creada: ${created.toLocaleDateString('es-AR')} ${created.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`);
+    }
+
+    await sock.sendMessage(senderNumber, { text: lines.join('\n') });
+}
+
+function timeStrWithDate(iso?: string) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }) + 
+           ' ' + d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+}
+
+// --------------------
+// Clima para obra
+// --------------------
+async function handleWeatherCommand(
+    obraName: string,
+    user: Profile,
+    senderNumber: string,
+    sock: WASocket
+) {
+    try {
+        // Si no se especificó obra, listar las obras del usuario
+        if (!obraName) {
+            const sites = await api.SiteService.getSitesByUser(user.id);
+            if (!sites || sites.length === 0) {
+                await sock.sendMessage(senderNumber, {
+                    text: '😕 No tenés obras asignadas.'
+                });
+                return;
+            }
+
+            const lines: string[] = [];
+            lines.push('🌤️ *Clima por Obra*');
+            lines.push('');
+            lines.push('Escribí el nombre de la obra o el número:');
+            lines.push('');
+            sites.slice(0, 10).forEach((site: any, index: number) => {
+                lines.push(`${index + 1}. ${site.address || 'Sin nombre'}`);
+            });
+            lines.push('');
+            lines.push('Ejemplo: "clima obra 1" o "clima obra [nombre]"');
+
+            await sock.sendMessage(senderNumber, { text: lines.join('\n') });
+            setChatState(senderNumber, 'AWAITING_WEATHER_SITE_SELECTION', { sites });
+            return;
+        }
+
+        // Buscar la obra
+        const sites = await api.SiteService.getSitesByUser(user.id);
+        if (!sites || sites.length === 0) {
+            await sock.sendMessage(senderNumber, {
+                text: '😕 No tenés obras asignadas.'
+            });
+            return;
+        }
+
+        let selectedSite: any = null;
+
+        // Buscar por número
+        const numMatch = obraName.match(/^\d+$/);
+        if (numMatch) {
+            const index = parseInt(numMatch[0], 10) - 1;
+            if (index >= 0 && index < sites.length) {
+                selectedSite = sites[index];
+            }
+        }
+
+        // Si no se encontró por número, buscar por nombre
+        if (!selectedSite) {
+            const searchTerm = obraName.toLowerCase();
+            selectedSite = sites.find((site: any) => 
+                (site.address || '').toLowerCase().includes(searchTerm) ||
+                searchTerm.includes((site.address || '').toLowerCase())
+            );
+        }
+
+        if (!selectedSite) {
+            await sock.sendMessage(senderNumber, {
+                text: `❌ No encontré la obra "${obraName}".\n\nEscribí "clima obra" para ver la lista de obras.`
+            });
+            return;
+        }
+
+        // Obtener el clima para la dirección de la obra
+        await sock.sendMessage(senderNumber, {
+            text: `🌤️ Consultando el clima para "${selectedSite.address}"...`
+        });
+
+        const weatherInfo = await getWeatherForAddress(selectedSite.address);
+        
+        if (!weatherInfo) {
+            await sock.sendMessage(senderNumber, {
+                text: `❌ No pude obtener el clima para "${selectedSite.address}".\n\nVerificá que la dirección sea correcta.`
+            });
+            return;
+        }
+
+        const lines: string[] = [];
+        lines.push(`🌤️ *Clima en ${selectedSite.address}*`);
+        lines.push('');
+        lines.push(`🌡️ Temperatura: ${weatherInfo.temperature}°C`);
+        lines.push(`☁️ Condición: ${weatherInfo.condition}`);
+        if (weatherInfo.humidity) {
+            lines.push(`💧 Humedad: ${weatherInfo.humidity}%`);
+        }
+        if (weatherInfo.wind) {
+            lines.push(`💨 Viento: ${weatherInfo.wind}`);
+        }
+        if (weatherInfo.forecast) {
+            lines.push('');
+            lines.push('📅 *Pronóstico:*');
+            weatherInfo.forecast.forEach((day: string) => {
+                lines.push(`   ${day}`);
+            });
+        }
+
+        await sock.sendMessage(senderNumber, { text: lines.join('\n') });
+
+    } catch (error: any) {
+        console.error('Error en handleWeatherCommand:', error);
+        await sock.sendMessage(senderNumber, {
+            text: `❌ Error al obtener el clima: ${error?.message || 'Error desconocido'}`
+        });
+    }
+}
+
+async function getWeatherForAddress(address: string): Promise<any | null> {
+    try {
+        // Usar wttr.in que es una API gratuita y simple que acepta direcciones
+        // Formato: wttr.in/{location}?format=j1 (JSON) o sin formato para texto plano
+        const encodedAddress = encodeURIComponent(address);
+        
+        // Intentar obtener datos en formato JSON
+        const response = await fetch(`https://wttr.in/${encodedAddress}?format=j1&lang=es`, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (compatible; CimentaBot/1.0)'
+            }
+        });
+
+        if (!response.ok) {
+            // Si falla, intentar con formato de texto simple
+            const textResponse = await fetch(`https://wttr.in/${encodedAddress}?format=3&lang=es`, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (compatible; CimentaBot/1.0)'
+                }
+            });
+            
+            if (!textResponse.ok) {
+                return null;
+            }
+
+            const text = await textResponse.text();
+            // Parsear formato simple: "Buenos Aires: +25°C"
+            const match = text.match(/(.+?):\s*([+-]?\d+)°C/);
+            if (match) {
+                return {
+                    temperature: match[2],
+                    condition: 'Consultar detalles',
+                    location: match[1].trim()
+                };
+            }
+            return null;
+        }
+
+        const data = await response.json();
+        
+        if (!data || !data.current_condition || !data.current_condition[0]) {
+            return null;
+        }
+
+        const current = data.current_condition[0];
+        const temp = current.temp_C || current.tempC || 'N/A';
+        const condition = current.lang_es ? current.lang_es[0]?.value : (current.weatherDesc?.[0]?.value || 'Despejado');
+        const humidity = current.humidity || null;
+        const windSpeed = current.windspeedKmph || null;
+        const windDir = current.winddir16Point || null;
+        
+        const wind = windSpeed && windDir ? `${windSpeed} km/h ${windDir}` : (windSpeed ? `${windSpeed} km/h` : null);
+
+        // Obtener pronóstico para los próximos 3 días
+        const forecast: string[] = [];
+        if (data.weather && data.weather.length > 1) {
+            for (let i = 1; i < Math.min(4, data.weather.length); i++) {
+                const day = data.weather[i];
+                const date = day.date || '';
+                const maxTemp = day.maxtempC || day.maxtempC || 'N/A';
+                const minTemp = day.mintempC || day.mintempC || 'N/A';
+                const dayCondition = day.lang_es ? day.lang_es[0]?.value : (day.weatherDesc?.[0]?.value || 'Despejado');
+                
+                // Formatear fecha
+                let dateStr = date;
+                if (date) {
+                    try {
+                        const dateObj = new Date(date);
+                        dateStr = dateObj.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' });
+                    } catch (e) {
+                        // Mantener fecha original si falla el parseo
+                    }
+                }
+                
+                forecast.push(`${dateStr}: ${minTemp}°C - ${maxTemp}°C, ${dayCondition}`);
+            }
+        }
+
+        return {
+            temperature: temp,
+            condition: condition,
+            humidity: humidity,
+            wind: wind,
+            forecast: forecast.length > 0 ? forecast : null
+        };
+
+    } catch (error) {
+        console.error('Error obteniendo clima:', error);
+        return null;
+    }
+}
+
+async function handleWeatherSiteSelection(
+    messageText: string,
+    context: any,
+    user: Profile,
+    senderNumber: string,
+    sock: WASocket
+) {
+    try {
+        const { sites } = context;
+        if (!sites || sites.length === 0) {
+            await sock.sendMessage(senderNumber, {
+                text: '❌ No hay obras disponibles.'
+            });
+            setChatState(senderNumber, 'IDLE');
+            return;
+        }
+
+        const input = messageText.trim();
+        let selectedSite: any = null;
+
+        // Buscar por número
+        const numMatch = input.match(/^\d+$/);
+        if (numMatch) {
+            const index = parseInt(numMatch[0], 10) - 1;
+            if (index >= 0 && index < sites.length) {
+                selectedSite = sites[index];
+            }
+        }
+
+        // Si no se encontró por número, buscar por nombre
+        if (!selectedSite) {
+            const searchTerm = input.toLowerCase();
+            selectedSite = sites.find((site: any) => 
+                (site.address || '').toLowerCase().includes(searchTerm) ||
+                searchTerm.includes((site.address || '').toLowerCase())
+            );
+        }
+
+        if (!selectedSite) {
+            await sock.sendMessage(senderNumber, {
+                text: '❌ No encontré esa obra. Escribí el número de la lista o el nombre completo.'
+            });
+            return;
+        }
+
+        // Obtener el clima
+        await sock.sendMessage(senderNumber, {
+            text: `🌤️ Consultando el clima para "${selectedSite.address}"...`
+        });
+
+        const weatherInfo = await getWeatherForAddress(selectedSite.address);
+        
+        if (!weatherInfo) {
+            await sock.sendMessage(senderNumber, {
+                text: `❌ No pude obtener el clima para "${selectedSite.address}".\n\nVerificá que la dirección sea correcta.`
+            });
+            setChatState(senderNumber, 'IDLE');
+            return;
+        }
+
+        const lines: string[] = [];
+        lines.push(`🌤️ *Clima en ${selectedSite.address}*`);
+        lines.push('');
+        lines.push(`🌡️ Temperatura: ${weatherInfo.temperature}°C`);
+        lines.push(`☁️ Condición: ${weatherInfo.condition}`);
+        if (weatherInfo.humidity) {
+            lines.push(`💧 Humedad: ${weatherInfo.humidity}%`);
+        }
+        if (weatherInfo.wind) {
+            lines.push(`💨 Viento: ${weatherInfo.wind}`);
+        }
+        if (weatherInfo.forecast) {
+            lines.push('');
+            lines.push('📅 *Pronóstico:*');
+            weatherInfo.forecast.forEach((day: string) => {
+                lines.push(`   ${day}`);
+            });
+        }
+
+        await sock.sendMessage(senderNumber, { text: lines.join('\n') });
+        setChatState(senderNumber, 'IDLE');
+
+    } catch (error: any) {
+        console.error('Error en handleWeatherSiteSelection:', error);
+        await sock.sendMessage(senderNumber, {
+            text: `❌ Error al obtener el clima: ${error?.message || 'Error desconocido'}`
+        });
+        setChatState(senderNumber, 'IDLE');
+    }
+}
+
+// --------------------
+// Seguimiento de estado de compras
+// --------------------
+async function handlePurchaseTrackingCommand(
+    messageText: string,
+    user: Profile,
+    senderNumber: string,
+    sock: WASocket
+) {
+    try {
+        const lower = messageText.trim().toLowerCase();
+        
+        // Detectar tipo de comando
+        if (lower.startsWith('estado compra')) {
+            // Extraer ID de la compra
+            const purchaseId = messageText.replace(/^estado\s+compra\s+/i, '').trim();
+            if (!purchaseId) {
+                await sock.sendMessage(senderNumber, {
+                    text: '⚠️ Especificá el ID de la compra. Ejemplo: "estado compra abc123"'
+                });
+                return;
+            }
+            await showPurchaseStatus(purchaseId, user, senderNumber, sock);
+            return;
+        }
+
+        // Obtener todas las compras del usuario
+        const purchases = await api.PurchaseService.getPurchasesByUser(user.id);
+        
+        if (!purchases || purchases.length === 0) {
+            await sock.sendMessage(senderNumber, {
+                text: '😕 No tenés compras registradas.'
+            });
+            return;
+        }
+
+        let filteredPurchases = purchases;
+
+        // Aplicar filtros
+        if (lower.startsWith('compras pendientes')) {
+            filteredPurchases = purchases.filter((p: any) => p.status === 'pending');
+        } else if (lower.startsWith('compras compradas')) {
+            filteredPurchases = purchases.filter((p: any) => p.status === 'purchased');
+        } else if (lower.startsWith('compras entregadas')) {
+            filteredPurchases = purchases.filter((p: any) => p.status === 'delivered');
+        } else if (lower.startsWith('compras esta semana')) {
+            const now = new Date();
+            const day = now.getDay();
+            const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Ajustar al lunes
+            const weekStart = new Date(now.setDate(diff));
+            weekStart.setHours(0, 0, 0, 0);
+            const weekEnd = new Date(weekStart);
+            weekEnd.setDate(weekStart.getDate() + 6);
+            weekEnd.setHours(23, 59, 59, 999);
+
+            filteredPurchases = purchases.filter((p: any) => {
+                if (!p.created_at && !p.purchase_date) return false;
+                const dateStr = p.purchase_date || p.created_at;
+                if (!dateStr) return false;
+                const purchaseDate = new Date(dateStr);
+                return purchaseDate >= weekStart && purchaseDate <= weekEnd;
+            });
+        }
+
+        if (filteredPurchases.length === 0) {
+            const filterDesc = getPurchaseFilterDescription(lower);
+            await sock.sendMessage(senderNumber, {
+                text: `😕 No encontré compras ${filterDesc}.`
+            });
+            return;
+        }
+
+        // Mostrar resultados
+        await displayPurchases(filteredPurchases, senderNumber, sock);
+
+    } catch (error: any) {
+        console.error('Error en handlePurchaseTrackingCommand:', error);
+        await sock.sendMessage(senderNumber, {
+            text: `❌ Error al consultar compras: ${error?.message || 'Error desconocido'}`
+        });
+    }
+}
+
+async function showPurchaseStatus(
+    purchaseId: string,
+    user: Profile,
+    senderNumber: string,
+    sock: WASocket
+) {
+    try {
+        // Intentar obtener la compra por ID
+        let purchase: any = null;
+        try {
+            purchase = await api.PurchaseService.getPurchase(purchaseId);
+        } catch (error) {
+            // Si falla, buscar en las compras del usuario
+            const userPurchases = await api.PurchaseService.getPurchasesByUser(user.id);
+            purchase = userPurchases.find((p: any) => 
+                p.id === purchaseId || p.id.startsWith(purchaseId)
+            );
+        }
+
+        if (!purchase) {
+            await sock.sendMessage(senderNumber, {
+                text: `❌ No encontré una compra con ID "${purchaseId}".\n\nVerificá que el ID sea correcto.`
+            });
+            return;
+        }
+
+        // Verificar que la compra pertenezca al usuario
+        if (purchase.user_id !== user.id) {
+            await sock.sendMessage(senderNumber, {
+                text: '❌ No tenés acceso a esa compra.'
+            });
+            return;
+        }
+
+        // Obtener información de la obra si existe
+        let siteName = 'Sin obra';
+        if (purchase.site_id) {
+            try {
+                const sites = await api.SiteService.getSitesByUser(user.id);
+                const site = sites.find((s: any) => s.id === purchase.site_id);
+                if (site) {
+                    siteName = site.address || 'Sin nombre';
+                }
+            } catch (error) {
+                console.error('Error obteniendo obra:', error);
+            }
+        }
+
+        const lines: string[] = [];
+        lines.push('🛒 *Estado de Compra*');
+        lines.push('');
+        lines.push(`📦 *${purchase.product}*`);
+        lines.push('');
+        lines.push(`📊 *Estado:* ${getPurchaseStatusText(purchase.status)}`);
+        lines.push(`📂 *Categoría:* ${titleCase(purchase.category || 'otro')}`);
+        lines.push(`🔢 *Cantidad:* ${purchase.quantity}`);
+        if (purchase.price) {
+            lines.push(`💰 *Precio unitario:* $${purchase.price}`);
+            lines.push(`💰 *Total:* $${(purchase.price * purchase.quantity).toFixed(2)}`);
+        }
+        if (purchase.supplier) {
+            lines.push(`🏪 *Proveedor:* ${purchase.supplier}`);
+        }
+        if (purchase.description) {
+            lines.push(`📝 *Descripción:* ${purchase.description}`);
+        }
+        lines.push(`🏷️ *Obra:* ${siteName}`);
+        
+        if (purchase.purchase_date) {
+            const purchaseDate = new Date(purchase.purchase_date);
+            lines.push(`📅 *Fecha de compra:* ${purchaseDate.toLocaleDateString('es-AR')}`);
+        }
+        if (purchase.delivery_date) {
+            const deliveryDate = new Date(purchase.delivery_date);
+            lines.push(`📅 *Fecha de entrega:* ${deliveryDate.toLocaleDateString('es-AR')}`);
+        }
+        if (purchase.created_at) {
+            const createdDate = new Date(purchase.created_at);
+            lines.push(`📅 *Creada:* ${createdDate.toLocaleDateString('es-AR')}`);
+        }
+        lines.push('');
+        lines.push(`🆔 *ID:* ${purchase.id}`);
+
+        await sock.sendMessage(senderNumber, { text: lines.join('\n') });
+
+    } catch (error: any) {
+        console.error('Error en showPurchaseStatus:', error);
+        await sock.sendMessage(senderNumber, {
+            text: `❌ Error al consultar el estado de la compra: ${error?.message || 'Error desconocido'}`
+        });
+    }
+}
+
+async function displayPurchases(
+    purchases: any[],
+    senderNumber: string,
+    sock: WASocket
+) {
+    try {
+        // Ordenar por fecha de creación (más recientes primero)
+        purchases.sort((a, b) => {
+            const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+            const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+            return dateB - dateA;
+        });
+
+        // Limitar a las primeras 20
+        const purchasesToShow = purchases.slice(0, 20);
+
+        const lines: string[] = [];
+        lines.push(`🛒 *Compras* (${purchases.length} encontrada${purchases.length > 1 ? 's' : ''})`);
+        lines.push('');
+
+        purchasesToShow.forEach((purchase, index) => {
+            const num = index + 1;
+            const status = getPurchaseStatusText(purchase.status);
+            const date = purchase.created_at ? new Date(purchase.created_at).toLocaleDateString('es-AR') : 'Sin fecha';
+            
+            lines.push(`${num}. 📦 *${purchase.product}*`);
+            lines.push(`   Estado: ${status}`);
+            lines.push(`   Cantidad: ${purchase.quantity}`);
+            if (purchase.price) {
+                lines.push(`   Precio: $${purchase.price} (Total: $${(purchase.price * purchase.quantity).toFixed(2)})`);
+            }
+            lines.push(`   Fecha: ${date}`);
+            lines.push('');
+        });
+
+        if (purchases.length > 20) {
+            lines.push(`... y ${purchases.length - 20} compras más`);
+            lines.push('');
+        }
+
+        lines.push('💡 Escribí "estado compra [ID]" para ver detalles de una compra específica.');
+
+        await sock.sendMessage(senderNumber, { text: lines.join('\n') });
+
+    } catch (error: any) {
+        console.error('Error en displayPurchases:', error);
+        await sock.sendMessage(senderNumber, {
+            text: `❌ Error al mostrar compras: ${error?.message || 'Error desconocido'}`
+        });
+    }
+}
+
+function getPurchaseStatusText(status: string): string {
+    const statusMap: Record<string, string> = {
+        'pending': '🕒 Pendiente',
+        'purchased': '🛒 Comprada',
+        'delivered': '📦 Entregada'
+    };
+    return statusMap[status] || status;
+}
+
+function getPurchaseFilterDescription(command: string): string {
+    if (command.includes('pendientes')) {
+        return 'pendientes';
+    } else if (command.includes('compradas')) {
+        return 'compradas';
+    } else if (command.includes('entregadas')) {
+        return 'entregadas';
+    } else if (command.includes('esta semana')) {
+        return 'de esta semana';
+    }
+    return '';
 }
 
 // Función para enviar notificación cuando una tarea pasa a blocked
@@ -2262,6 +3730,353 @@ function createNotificationServer() {
 
 // Iniciar el servidor de notificaciones
 createNotificationServer();
+
+// --------------------
+// Notificaciones Diarias Automáticas
+// --------------------
+
+function setupDailyNotifications(sock: WASocket) {
+    console.log('📅 Configurando notificaciones diarias a las 9:00 AM...');
+    
+    // Verificar cada minuto si es la hora de enviar notificaciones
+    setInterval(async () => {
+        const now = new Date();
+        const hour = now.getHours();
+        const minute = now.getMinutes();
+        
+        // Enviar a las 9:00 AM
+        if (hour === 9 && minute === 0) {
+            console.log('🌅 Es hora de enviar notificaciones diarias (9:00 AM)');
+            await sendDailyNotifications(sock);
+        }
+    }, 60000); // Verificar cada minuto
+}
+
+async function sendDailyNotifications(sock: WASocket) {
+    try {
+        console.log('📨 Iniciando envío de notificaciones diarias...');
+        
+        // Obtener el número permitido si está configurado
+        const allowedNumber = process.env.ALLOWED_WHATSAPP_NUMBER;
+        if (!allowedNumber) {
+            console.log('⚠️ No hay ALLOWED_WHATSAPP_NUMBER configurado. No se enviarán notificaciones automáticas.');
+            return;
+        }
+
+        // Obtener usuario por número de WhatsApp
+        const user = await getVerifiedUser(allowedNumber);
+        if (!user) {
+            console.log('⚠️ No se encontró usuario para el número permitido.');
+            return;
+        }
+
+        // Enviar notificación diaria al usuario
+        await sendDailyNotificationToUser(user, sock);
+        
+    } catch (error: any) {
+        console.error('❌ Error enviando notificaciones diarias:', error);
+    }
+}
+
+async function sendDailyNotificationToUser(user: Profile, sock: WASocket) {
+    try {
+        const userJid = user.whatsapp_jid || process.env.ALLOWED_WHATSAPP_NUMBER;
+        if (!userJid) {
+            console.log(`⚠️ Usuario ${user.id} no tiene WhatsApp configurado.`);
+            return;
+        }
+
+        console.log(`📨 Enviando notificación diaria a ${user.name} (${userJid})...`);
+
+        // Obtener todas las obras del usuario
+        const sites = await api.SiteService.getSitesByUser(user.id);
+        if (!sites || sites.length === 0) {
+            await safeSendMessage(sock, userJid, 
+                '🌅 Buenos días!\n\n😕 No tenés obras asignadas para hoy.'
+            );
+            return;
+        }
+
+        const today = new Date();
+        const todayStr = today.toLocaleDateString('es-AR', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+        });
+
+        const lines: string[] = [];
+        lines.push(`🌅 *Buenos días, ${user.name}!*`);
+        lines.push('');
+        lines.push(`📅 ${todayStr.charAt(0).toUpperCase() + todayStr.slice(1)}`);
+        lines.push('');
+        lines.push('━━━━━━━━━━━━━━━━━━━━');
+        lines.push('');
+
+        // Para cada obra: clima y tareas del día
+        for (const site of sites) {
+            lines.push(`🏗️ *${site.address || 'Sin nombre'}*`);
+            lines.push('');
+
+            // Obtener clima para la obra
+            try {
+                const weather = await getWeatherForAddress(site.address || '');
+                if (weather) {
+                    lines.push(`🌤️ *Clima:*`);
+                    lines.push(`   ${weather.temperature}°C - ${weather.condition}`);
+                    if (weather.humidity) lines.push(`   💧 Humedad: ${weather.humidity}%`);
+                    if (weather.windSpeed) lines.push(`   💨 Viento: ${weather.windSpeed} km/h`);
+                    lines.push('');
+                }
+            } catch (error) {
+                console.error(`Error obteniendo clima para ${site.address}:`, error);
+            }
+
+            // Obtener tareas del día para esta obra
+            try {
+                const tasks = await api.TaskService.getTasksBySite(site.id);
+                const todayUTCStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate(), 0, 0, 0, 0));
+                const todayUTCEnd = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate(), 23, 59, 59, 999));
+
+                const todayTasks = tasks.filter((t: any) => {
+                    if (!t.start_date) return false;
+                    const start = new Date(t.start_date);
+                    const end = t.end_date ? new Date(t.end_date) : null;
+                    return end ? (start <= todayUTCEnd && end >= todayUTCStart) : sameDayUTC(start, todayUTCStart);
+                });
+
+                if (todayTasks.length > 0) {
+                    lines.push(`📋 *Tareas de hoy (${todayTasks.length}):*`);
+                    todayTasks.slice(0, 5).forEach((task: any) => {
+                        const taskTime = task.start_date ? timeStr(task.start_date) : '';
+                        const timePrefix = taskTime ? `${taskTime} - ` : '';
+                        lines.push(`   ${timePrefix}${categoryIcon(task.category)} ${task.title} · ${statusBadge(String(task.status))}`);
+                    });
+                    if (todayTasks.length > 5) {
+                        lines.push(`   ... y ${todayTasks.length - 5} más`);
+                    }
+                    lines.push('');
+                } else {
+                    lines.push('📋 Sin tareas programadas para hoy');
+                    lines.push('');
+                }
+            } catch (error) {
+                console.error(`Error obteniendo tareas para ${site.address}:`, error);
+            }
+
+            lines.push('━━━━━━━━━━━━━━━━━━━━');
+            lines.push('');
+        }
+
+        // Obtener compras con prioridad alta y compras antiguas
+        try {
+            const allPurchases = await api.PurchaseService.getPurchasesByUser(user.id);
+            
+            // Compras con prioridad alta o urgente (según el campo priority de la tabla purchases)
+            // La tabla tiene: priority (purchase_priority) con valores: 'alta', 'normal', 'urgente'
+            const highPriorityPurchases = allPurchases.filter((p: any) => {
+                // Verificar si tiene el campo priority y si es 'alta' o 'urgente'
+                const priority = (p.priority || '').toLowerCase();
+                return (priority === 'alta' || priority === 'urgente') && p.status === 'pending';
+            });
+
+            // Compras creadas hace más de una semana (independientemente de la prioridad)
+            // Usar created_at (timestamptz) de la tabla purchases
+            const oneWeekAgo = new Date();
+            oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+            oneWeekAgo.setHours(0, 0, 0, 0);
+            
+            const oldPurchases = allPurchases.filter((p: any) => {
+                // Verificar que tenga created_at (campo de la tabla purchases)
+                if (!p.created_at) return false;
+                const createdDate = new Date(p.created_at);
+                createdDate.setHours(0, 0, 0, 0);
+                return createdDate < oneWeekAgo && p.status === 'pending';
+            });
+
+            // Combinar y eliminar duplicados
+            const urgentPurchases = [...highPriorityPurchases];
+            oldPurchases.forEach((old: any) => {
+                if (!urgentPurchases.find((p: any) => p.id === old.id)) {
+                    urgentPurchases.push(old);
+                }
+            });
+
+            if (urgentPurchases.length > 0) {
+                lines.push('🚨 *Compras que requieren atención:*');
+                lines.push('');
+                urgentPurchases.slice(0, 10).forEach((purchase: any) => {
+                    const daysOld = purchase.created_at ? 
+                        Math.floor((today.getTime() - new Date(purchase.created_at).getTime()) / (1000 * 60 * 60 * 24)) : 0;
+                    const daysText = daysOld > 0 ? ` (${daysOld} días)` : '';
+                    
+                    // Mostrar prioridad si existe
+                    const priority = purchase.priority || '';
+                    const priorityText = priority === 'urgente' ? ' 🔴 URGENTE' : 
+                                       priority === 'alta' ? ' 🟠 Alta' : '';
+                    
+                    const statusEmoji = purchase.status === 'pending' ? '⏳' : '📦';
+                    lines.push(`   ${statusEmoji} ${purchase.product}${priorityText}${daysText}`);
+                    if (purchase.description) {
+                        lines.push(`      ${purchase.description.substring(0, 50)}${purchase.description.length > 50 ? '...' : ''}`);
+                    }
+                });
+                if (urgentPurchases.length > 10) {
+                    lines.push(`   ... y ${urgentPurchases.length - 10} más`);
+                }
+                lines.push('');
+            }
+        } catch (error) {
+            console.error('Error obteniendo compras:', error);
+        }
+
+        lines.push('💡 Escribí "resumen" para más detalles del día.');
+        lines.push('💡 Escribí "agenda" para ver todas las tareas de hoy.');
+
+        // Enviar mensaje (puede ser largo, WhatsApp permite hasta 4096 caracteres)
+        const message = lines.join('\n');
+        await safeSendMessage(sock, userJid, message);
+        
+        console.log(`✅ Notificación diaria enviada a ${user.name}`);
+
+    } catch (error: any) {
+        console.error(`❌ Error enviando notificación diaria a usuario ${user.id}:`, error);
+    }
+}
+
+// --------------------
+// Verificación de Dependencias de Tareas
+// --------------------
+
+/**
+ * Obtiene las tareas que dependen de una tarea bloqueada
+ * La tabla task_dependencies tiene: blocker_id (tarea que bloquea) y blocked_id (tarea bloqueada)
+ * Cuando una tarea se bloquea, buscamos todas las tareas donde blocker_id = tarea bloqueada
+ * 
+ * Nota: La relación es: blocker_id bloquea a blocked_id
+ * Entonces si la tarea X se bloquea, buscamos donde blocker_id = X para encontrar las tareas que X bloquea
+ */
+async function getDependentTasks(blockedTaskId: string): Promise<Array<{ task: any; site: any }>> {
+    try {
+        // Intentar obtener dependencias desde un endpoint de la API
+        // Si no existe el endpoint, intentar obtener todas las tareas y filtrar manualmente
+        let dependencies: Array<{ blocker_id: string; blocked_id: string }> = [];
+        
+        try {
+            // Obtener dependencias desde el endpoint de la API
+            const depsResponse = await fetchJSON<Array<{ blocked_id: string }>>(
+                `/tasks/dependencies?blocker_id=${blockedTaskId}`
+            );
+            // El endpoint devuelve solo blocked_id, necesitamos mapearlo al formato esperado
+            dependencies = depsResponse.map((d: { blocked_id: string }) => ({
+                blocker_id: blockedTaskId,
+                blocked_id: d.blocked_id
+            }));
+        } catch (error) {
+            console.log('No se pudo obtener dependencias desde la API:', error);
+            return [];
+        }
+
+        if (!dependencies || dependencies.length === 0) {
+            return [];
+        }
+
+        // Obtener las tareas bloqueadas (blocked_id son las que están siendo bloqueadas por blocker_id)
+        const blockedTaskIds = dependencies.map(d => d.blocked_id);
+        const dependentTasks: Array<{ task: any; site: any }> = [];
+
+        // Obtener información de cada tarea dependiente
+        for (const blockedId of blockedTaskIds) {
+            try {
+                const task = await api.TaskService.getTask(blockedId);
+                if (task) {
+                    // Obtener la obra de la tarea
+                    let site = null;
+                    if (task.site_id) {
+                        try {
+                            // Obtener todas las obras y buscar la que corresponde
+                            const allSites = await api.SiteService.getSitesByUser(task.user_id || '');
+                            site = allSites?.find((s: any) => s.id === task.site_id) || null;
+                        } catch (e) {
+                            console.error(`Error obteniendo obra para tarea ${blockedId}:`, e);
+                        }
+                    }
+                    dependentTasks.push({ task, site: site || { address: 'Obra no especificada' } });
+                }
+            } catch (error) {
+                console.error(`Error obteniendo tarea dependiente ${blockedId}:`, error);
+            }
+        }
+
+        return dependentTasks;
+    } catch (error: any) {
+        console.error('Error obteniendo tareas dependientes:', error);
+        return [];
+    }
+}
+
+/**
+ * Verifica las dependencias cuando una tarea se bloquea y notifica al usuario
+ */
+async function checkAndNotifyTaskDependencies(
+    blockedTaskId: string,
+    blockedTaskTitle: string,
+    user: Profile,
+    sock: WASocket
+) {
+    try {
+        console.log(`🔍 Verificando dependencias para tarea bloqueada: ${blockedTaskTitle} (${blockedTaskId})`);
+        
+        const dependentTasks = await getDependentTasks(blockedTaskId);
+        
+        if (dependentTasks.length === 0) {
+            console.log(`   No hay tareas que dependan de "${blockedTaskTitle}"`);
+            return;
+        }
+
+        console.log(`   ⚠️ Encontradas ${dependentTasks.length} tarea(s) que dependen de esta tarea bloqueada`);
+
+        const userJid = user.whatsapp_jid || process.env.ALLOWED_WHATSAPP_NUMBER;
+        if (!userJid) {
+            console.log(`   ⚠️ Usuario ${user.id} no tiene WhatsApp configurado`);
+            return;
+        }
+
+        const lines: string[] = [];
+        lines.push('⚠️ *Atención: Tarea Bloqueada*');
+        lines.push('');
+        lines.push(`La tarea "${blockedTaskTitle}" ha sido bloqueada.`);
+        lines.push('');
+        lines.push(`🔗 *Tareas afectadas (${dependentTasks.length}):*`);
+        lines.push('');
+
+        dependentTasks.forEach(({ task, site }, index) => {
+            const num = index + 1;
+            const icon = categoryIcon(task.category);
+            const status = statusBadge(String(task.status));
+            const siteName = site?.address || 'Obra no especificada';
+            
+            lines.push(`${num}. ${icon} *${task.title}*`);
+            lines.push(`   Estado: ${status}`);
+            lines.push(`   Obra: ${siteName}`);
+            if (task.description) {
+                const desc = task.description.length > 60 ? task.description.substring(0, 60) + '...' : task.description;
+                lines.push(`   ${desc}`);
+            }
+            lines.push('');
+        });
+
+        lines.push('💡 Estas tareas pueden verse afectadas por la tarea bloqueada.');
+        lines.push('💡 Revisá las dependencias y considerá desbloquear la tarea cuando sea posible.');
+
+        await safeSendMessage(sock, userJid, lines.join('\n'));
+        console.log(`   ✅ Notificación de dependencias enviada a ${user.name}`);
+
+    } catch (error: any) {
+        console.error(`❌ Error verificando dependencias para tarea ${blockedTaskId}:`, error);
+        // No lanzar el error para no interrumpir el flujo principal
+    }
+}
 
 // Conectar a WhatsApp
 connectToWhatsApp();

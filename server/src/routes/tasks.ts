@@ -5,7 +5,8 @@ import {
     createTask, 
     updateTaskById, 
     deleteTaskById, 
-    getTasksBySite 
+    getTasksBySite,
+    getTaskDependencies
 } from '../controllers/tasksController';
 
 const tasksRouter = express.Router();
@@ -23,6 +24,9 @@ DELETE /task:id (elimina un task con el id indicado)
 tasksRouter.get("/", getAllTasks);
 
 tasksRouter.get("/site/:siteId", getTasksBySite);
+
+// Ruta para obtener dependencias de tareas (debe ir antes de /:id para evitar conflictos)
+tasksRouter.get("/dependencies", getTaskDependencies);
 
 tasksRouter.get("/:id", getTaskById);
 

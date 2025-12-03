@@ -166,6 +166,10 @@ async function notifyTaskBlocked(task: Task) {
     
     try {
         // Obtener el perfil del dueño de la tarea
+        if (!task.user_id) {
+            console.log(`Tarea ${task.id} no tiene user_id, no se enviará notificación`);
+            return;
+        }
         const profile = await getProfileById(task.user_id);
         
         if (!profile.whatsapp_jid) {
@@ -195,6 +199,29 @@ async function notifyTaskBlocked(task: Task) {
         console.log(`Notificación enviada a ${profile.whatsapp_jid} por tarea bloqueada ${task.id}`);
     } catch (error: any) {
         console.error('Error en notifyTaskBlocked:', error.message);
+        throw error;
+    }
+}
+
+/**
+ * Obtiene las tareas que dependen de una tarea bloqueada
+ * La tabla task_dependencies tiene: blocker_id (tarea que bloquea) y blocked_id (tarea bloqueada)
+ * Cuando una tarea se bloquea, buscamos todas las tareas donde blocker_id = tarea bloqueada
+ */
+export async function getTaskDependenciesService(blockerId: string) {
+    try {
+        const { data, error } = await supabase
+            .from('task_dependencies')
+            .select('blocked_id')
+            .eq('blocker_id', blockerId);
+
+        if (error) {
+            throw new AppError(error.message, 500);
+        }
+
+        return data || [];
+    } catch (error: any) {
+        console.error('Error obteniendo dependencias de tarea:', error);
         throw error;
     }
 }
