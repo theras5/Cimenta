@@ -82,11 +82,16 @@ export default function SummaryPage() {
 
       setSiteName(siteAddress || "Obra");
 
-      // Obtener todas las tareas de la obra
+      // Obtener todas las tareas de la obra usando la API route
       const tasksResponse = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/tasks/site/${siteId}`
+        `/api/tasks?site_id=${siteId}`
       );
-      if (!tasksResponse.ok) throw new Error("Error al obtener tareas");
+      
+      if (!tasksResponse.ok) {
+        console.error("Error al obtener tareas:", tasksResponse.status);
+        throw new Error("Error al obtener tareas: " + tasksResponse.status);
+      }
+      
       const tasks = await tasksResponse.json();
 
       // Calcular estadísticas de tareas
@@ -119,11 +124,16 @@ export default function SummaryPage() {
             : 0;
       });
 
-      // Obtener compras de la obra
+      // Obtener compras de la obra usando la API route
       const purchasesResponse = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/purchases/site/${siteId}`
+        `/api/purchases?site_id=${siteId}`
       );
-      if (!purchasesResponse.ok) throw new Error("Error al obtener compras");
+      
+      if (!purchasesResponse.ok) {
+        console.error("Error al obtener compras:", purchasesResponse.status);
+        throw new Error("Error al obtener compras: " + purchasesResponse.status);
+      }
+      
       const purchases = await purchasesResponse.json();
 
       const totalPurchases = purchases.length;
@@ -152,7 +162,8 @@ export default function SummaryPage() {
       });
     } catch (error) {
       console.error("Error al cargar resumen:", error);
-      setError("No se pudo cargar el resumen de la obra");
+      const errorMessage = error instanceof Error ? error.message : "No se pudo cargar el resumen de la obra";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

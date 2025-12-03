@@ -55,6 +55,8 @@ export function InviteUserModal({ siteId, siteName, trigger }: InviteUserModalPr
     }
 
     setLoading(true);
+    console.log("Enviando invitación...", { email, siteId, role });
+    
     try {
       const response = await fetch("/api/invitations", {
         method: "POST",
@@ -68,7 +70,9 @@ export function InviteUserModal({ siteId, siteName, trigger }: InviteUserModalPr
         }),
       });
 
+      console.log("Respuesta recibida:", response.status);
       const data = await response.json();
+      console.log("Datos:", data);
 
       if (!response.ok) {
         throw new Error(data.error || "Error al enviar la invitación");
@@ -84,6 +88,7 @@ export function InviteUserModal({ siteId, siteName, trigger }: InviteUserModalPr
       setRole("client");
       setIsOpen(false);
     } catch (error) {
+      console.error("Error al enviar invitación:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Error al enviar la invitación";
       toast({

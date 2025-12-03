@@ -83,7 +83,10 @@ export default function PerfilPage() {
 
     try {
       const token = localStorage.getItem('auth_token');
-      if (!token) return;
+      if (!token) {
+        // Si no hay token, simplemente no cargar el avatar
+        return;
+      }
 
       const response = await fetch(`/api/user-profile/${user.id}`, {
         headers: {
@@ -92,16 +95,21 @@ export default function PerfilPage() {
       });
 
       if (!response.ok) {
-        console.error("Error al cargar el perfil");
+        // Solo loguear, no mostrar error al usuario
+        console.log("No se pudo cargar el perfil, usando avatar por defecto");
         return;
       }
 
       const data = await response.json();
-      if (data.avatar_url) {
-        setAvatarUrl(data.avatar_url);
+      if (data?.avatar_url) {
+        // Construir la URL pública de Supabase Storage
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://bbydxzfxfuihwshrqxcu.supabase.co';
+        const publicUrl = `${supabaseUrl}/storage/v1/object/public/avatars/${data.avatar_url}`;
+        setAvatarUrl(publicUrl);
       }
     } catch (error) {
-      console.error("Error al cargar el avatar:", error);
+      // Capturar errores silenciosamente para no romper la UI
+      console.log("Avatar no disponible, usando avatar por defecto");
     }
   };
 

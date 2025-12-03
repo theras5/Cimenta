@@ -7,8 +7,20 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ArrowLeft, Loader2, Package, Calendar, Building2, FileText } from "lucide-react";
+import { ArrowLeft, Loader2, Package, Calendar, Building2, FileText, Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import Sidebar from "@/components/SideBar";
+import { usePurchases } from "@/hooks/usePurchases";
 
 interface Purchase {
   id: string;
@@ -103,50 +115,69 @@ const getUnityLabel = (unity: string) => {
 export default function PurchaseDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { deletePurchase } = usePurchases();
   const [purchase, setPurchase] = useState<Purchase | null>(null);
   const [images, setImages] = useState<PurchaseImage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
-
-  useEffect(() => {
-    loadPurchaseDetails();
-  }, [params.id]);
 
   const loadPurchaseDetails = async () => {
     try {
       setLoading(true);
-      const API_URL = process.env.NEXT_PUBLIC_API_URL;
+      setError("");
       
-      const response = await fetch(`${API_URL}/purchases/${params.id}`);
-      if (!response.ok) throw new Error('No se pudo cargar la compra');
+      console.log('📥 Cargando detalles de compra:', params.id);
+      
+      // Usar la API route de Next.js en vez de llamar directamente al backend
+      const response = await fetch(`/api/purchases/${params.id}`);
+      
+      if (!response.ok) {
+        throw new Error('No se pudo cargar la compra');
+      }
       
       const data = await response.json();
+      console.log('✅ Compra cargada:', data);
       setPurchase(data);
 
       // Cargar imágenes
       try {
-        const API_URL = process.env.NEXT_PUBLIC_API_URL;
-        console.log('Cargando imágenes para purchase:', params.id);
-        console.log('URL:', `${API_URL}/purchases/${params.id}/images`);
+        console.log('📥 Cargando imágenes de compra:', params.id);
         
-        const imagesResponse = await fetch(`${API_URL}/purchases/${params.id}/images`);
-        console.log('Response status:', imagesResponse.status);
+        const imagesResponse = await fetch(`/api/purchases/${params.id}/images`);
         
         if (imagesResponse.ok) {
           const imagesData = await imagesResponse.json();
-          console.log('Imágenes cargadas:', imagesData);
+          console.log('✅ Imágenes cargadas:', imagesData.length);
           setImages(imagesData);
         } else {
-          const errorText = await imagesResponse.text();
-          console.log('Error response:', errorText);
+          console.log('⚠️ No se pudieron cargar las imágenes');
         }
       } catch (imgError) {
-        console.log('Error al cargar imágenes:', imgError);
+        console.log('⚠️ Error al cargar imágenes:', imgError);
       }
     } catch (err) {
+      console.error('❌ Error cargando detalles:', err);
       setError(err instanceof Error ? err.message : 'Error al cargar los detalles');
     } finally {
       setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPurchaseDetails();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.id]);
+
+  const handleDelete = async () => {
+    try {
+      setDeleting(true);
+      await deletePurchase(params.id as string);
+      router.push('/purchases');
+    } catch (err) {
+      console.error('Error eliminando compra:', err);
+      setError('Error al eliminar la solicitud');
+      setDeleting(false);
     }
   };
 
@@ -201,9 +232,37 @@ export default function PurchaseDetailPage() {
               <p className="text-sm text-gray-500">Detalle de la solicitud</p>
             </div>
           </div>
-          <Badge className={`${getStatusColor(purchase.status)} text-white`}>
-            {getStatusLabel(purchase.status)}
-          </Badge>
+          <div className="flex items-center gap-3">
+            <Badge className={`${getStatusColor(purchase.status)} text-white`}>
+              {getStatusLabel(purchase.status)}
+            </Badge>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm" className="gap-2" disabled={deleting}>
+                  <Trash2 className="w-4 h-4" />
+                  Eliminar
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>¿Eliminar solicitud de compra?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta acción no se puede deshacer. Se eliminará permanentemente la solicitud de compra &ldquo;{purchase.product}&rdquo;.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction 
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    {deleting ? 'Eliminando...' : 'Eliminar'}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         </div>
 
         {/* Content */}

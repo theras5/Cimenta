@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import { Plus, Clipboard, RefreshCw, Package } from "lucide-react";
+import { Plus, Clipboard, RefreshCw, Package, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,6 +23,32 @@ import Sidebar from "@/components/SideBar";
 import { usePurchases, Purchase } from "@/hooks/usePurchases";
 import { useAuth } from "@/hooks/useAuth";
 import { PurchaseCard } from "@/components/PurchaseCard";
+
+// Categorías con colores
+const categories = [
+  { value: "materiales", label: "MATERIALES", color: "bg-amber-500 hover:bg-amber-600" },
+  { value: "herramientas", label: "HERRAMIENTAS", color: "bg-emerald-500 hover:bg-emerald-600" },
+  { value: "equipamiento", label: "EQUIPAMIENTO", color: "bg-blue-500 hover:bg-blue-600" },
+  { value: "seguridad", label: "SEGURIDAD", color: "bg-red-500 hover:bg-red-600" },
+  { value: "oficina", label: "OFICINA", color: "bg-purple-500 hover:bg-purple-600" },
+  { value: "otros", label: "OTROS", color: "bg-gray-500 hover:bg-gray-600" },
+];
+
+const priorities = [
+  { value: "baja", label: "baja", color: "bg-green-500 hover:bg-green-600" },
+  { value: "normal", label: "normal", color: "bg-blue-500 hover:bg-blue-600" },
+  { value: "alta", label: "alta", color: "bg-orange-500 hover:bg-orange-600" },
+  { value: "urgente", label: "urgente", color: "bg-red-500 hover:bg-red-600" },
+];
+
+const units = [
+  { value: "u", label: "UNIDADES" },
+  { value: "m", label: "METROS" },
+  { value: "kg", label: "KG" },
+  { value: "l", label: "LITROS" },
+  { value: "m2", label: "M²" },
+  { value: "m3", label: "M³" },
+];
 
 const categoryColors = {
   MATERIALES: "bg-gray-500",
@@ -80,6 +106,7 @@ const PurchaseSection = ({
   purchases,
   onStatusChange,
   onEdit,
+  onDelete,
 }: {
   title: string;
   purchases: Purchase[];
@@ -88,6 +115,7 @@ const PurchaseSection = ({
     newStatus: Purchase["status"]
   ) => Promise<void>;
   onEdit: (purchaseId: string, updatedPurchase: Partial<Purchase>) => Promise<void>;
+  onDelete: (purchaseId: string) => Promise<void>;
 }) => {
   if (purchases.length === 0) {
     return null;
@@ -105,6 +133,7 @@ const PurchaseSection = ({
             purchase={purchase}
             onStatusChange={onStatusChange}
             onEdit={onEdit}
+            onDelete={onDelete}
           />
         ))}
       </div>
@@ -123,18 +152,23 @@ export default function ComprasPage() {
     createPurchase,
     updatePurchase,
     updatePurchaseStatus,
+    deletePurchase,
   } = usePurchases();
 
   const [selectedSiteId, setSelectedSiteId] = useState<string>("");
   const [showModal, setShowModal] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [newPurchase, setNewPurchase] = useState({
     product: "",
     description: "",
     quantity: 1,
+    unity: "u",
     price: 0,
     supplier: "",
     category: "",
+    priority: "normal",
     status: "pending" as Purchase["status"],
     site_id: "",
     user_id: "",
@@ -202,10 +236,105 @@ export default function ComprasPage() {
     }
   };
 
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    
+    if (files.length + selectedImages.length > 5) {
+      alert("Máximo 5 imágenes permitidas");
+      return;
+    }
+
+    // Validar cada archivo
+    for (const file of files) {
+      if (!file.type.startsWith("image/")) {
+        alert("Solo se permiten imágenes");
+        return;
+      }
+      
+      if (file.size > 10 * 1024 * 1024) {
+        alert("Las imágenes no deben superar los 10MB");
+        return;
+      }
+    }
+
+    // Crear previews
+    const newPreviews: string[] = [];
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        newPreviews.push(reader.result as string);
+        if (newPreviews.length === files.length) {
+          setPreviewUrls(prev => [...prev, ...newPreviews]);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+
+    setSelectedImages(prev => [...prev, ...files]);
+  };
+
+  const removeImage = (index: number) => {
+    setSelectedImages(prev => prev.filter((_, i) => i !== index));
+    setPreviewUrls(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      
+      img.onload = () => {
+        const MAX_WIDTH = 1200;
+        const scale = Math.min(1, MAX_WIDTH / img.width);
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext("2d");
+        
+        if (!ctx) {
+          reject(new Error("No se pudo crear el canvas"));
+          return;
+        }
+        
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        resolve(canvas.toDataURL("image/jpeg", 0.7));
+      };
+      
+      img.onerror = () => reject(new Error("Error al cargar la imagen"));
+      img.src = url;
+    });
+  };
+
+  const uploadPurchaseImages = async (purchaseId: string, images: File[]) => {
+    try {
+      for (let i = 0; i < images.length; i++) {
+        const imageBase64 = await compressImage(images[i]);
+        
+        const response = await fetch(`/api/purchases/${purchaseId}/images`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            image_data: imageBase64,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Error al subir imagen ${i + 1}`);
+        }
+      }
+    } catch (error) {
+      console.error("Error al subir imágenes:", error);
+      throw error;
+    }
+  };
+
   const handleAddPurchase = async () => {
     if (newPurchase.product && newPurchase.category) {
       try {
-        await createPurchase({
+        const createdPurchase = await createPurchase({
           ...newPurchase,
           // Aseguramos que tenga site_id y user_id
           site_id:
@@ -213,18 +342,32 @@ export default function ComprasPage() {
           user_id: newPurchase.user_id || user?.id || "",
         });
 
+        // Subir imágenes si hay alguna seleccionada
+        if (selectedImages.length > 0 && createdPurchase.id) {
+          try {
+            await uploadPurchaseImages(createdPurchase.id, selectedImages);
+          } catch (imageError) {
+            console.error("Error al subir imágenes:", imageError);
+            alert("La compra se creó correctamente pero hubo un problema al subir las imágenes.");
+          }
+        }
+
         // Resetear el formulario
         setNewPurchase({
           product: "",
           description: "",
           quantity: 1,
+          unity: "u",
           price: 0,
           supplier: "",
           category: "",
+          priority: "normal",
           status: "pending",
           site_id: localStorage.getItem("selectedSiteId") || "",
           user_id: user?.id || "",
         });
+        setSelectedImages([]);
+        setPreviewUrls([]);
 
         setShowModal(false);
       } catch (error) {
@@ -254,6 +397,15 @@ const handleStatusChange = async (
     console.error("Error al editar compra:", error);
   }
 };
+
+  const handleDelete = async (purchaseId: string) => {
+    try {
+      await deletePurchase(purchaseId);
+      // El estado se actualiza automáticamente en el hook
+    } catch (error) {
+      console.error("Error al eliminar compra:", error);
+    }
+  };
 
   // Group purchases by status
   const paraComprar = purchases.filter((p) => p.status === "pending");
@@ -291,80 +443,234 @@ const handleStatusChange = async (
 
         {/* Modal */}
         <Dialog open={showModal} onOpenChange={setShowModal}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="text-center text-xl">
                 Crear Solicitud de Compra
               </DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
-              <Input
-                placeholder="Nombre del producto"
-                value={newPurchase.product}
-                onChange={(e) =>
-                  setNewPurchase({ ...newPurchase, product: e.target.value })
-                }
-              />
-              <Textarea
-                placeholder="Descripción detallada"
-                value={newPurchase.description}
-                onChange={(e) =>
-                  setNewPurchase({
-                    ...newPurchase,
-                    description: e.target.value,
-                  })
-                }
-              />
-              <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-4 py-4">
+              {/* Nombre del artículo */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Nombre del artículo</label>
                 <Input
-                  type="number"
-                  placeholder="Cantidad"
-                  value={newPurchase.quantity}
+                  placeholder="Ej: Cemento Portland"
+                  value={newPurchase.product}
                   onChange={(e) =>
-                    setNewPurchase({
-                      ...newPurchase,
-                      quantity: Number.parseInt(e.target.value) || 1,
-                    })
-                  }
-                />
-                <Input
-                  type="number"
-                  placeholder="Precio estimado"
-                  value={newPurchase.price}
-                  onChange={(e) =>
-                    setNewPurchase({
-                      ...newPurchase,
-                      price: Number.parseFloat(e.target.value) || 0,
-                    })
+                    setNewPurchase({ ...newPurchase, product: e.target.value })
                   }
                 />
               </div>
-              <Input
-                placeholder="Proveedor"
-                value={newPurchase.supplier}
-                onChange={(e) =>
-                  setNewPurchase({ ...newPurchase, supplier: e.target.value })
-                }
-              />
-              <Select
-                value={newPurchase.category}
-                onValueChange={(value) =>
-                  setNewPurchase({ ...newPurchase, category: value })
-                }
+
+              {/* Cantidad y Unidad */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Cantidad</label>
+                  <Input
+                    type="number"
+                    min="1"
+                    placeholder="Ej: 50"
+                    value={newPurchase.quantity}
+                    onChange={(e) =>
+                      setNewPurchase({
+                        ...newPurchase,
+                        quantity: Number.parseInt(e.target.value) || 1,
+                      })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Unidad</label>
+                  <Select
+                    value={newPurchase.unity}
+                    onValueChange={(value) =>
+                      setNewPurchase({ ...newPurchase, unity: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar unidad" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {units.map((unit) => (
+                        <SelectItem key={unit.value} value={unit.value}>
+                          {unit.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Categoría */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Categoría</label>
+                <div className="flex flex-wrap gap-2">
+                  {categories.map((cat) => (
+                    <Button
+                      key={cat.value}
+                      type="button"
+                      onClick={() => setNewPurchase({ ...newPurchase, category: cat.value })}
+                      className={`px-3 py-1.5 text-xs font-medium ${
+                        newPurchase.category === cat.value
+                          ? cat.color + " text-white"
+                          : "bg-gray-200 hover:bg-gray-300 text-gray-800"
+                      }`}
+                    >
+                      {cat.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Descripción/Especificaciones */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Descripción/Especificaciones</label>
+                <Textarea
+                  placeholder="Especificaciones técnicas, marca preferida, etc."
+                  value={newPurchase.description}
+                  onChange={(e) =>
+                    setNewPurchase({
+                      ...newPurchase,
+                      description: e.target.value,
+                    })
+                  }
+                  rows={4}
+                />
+              </div>
+
+              {/* Proveedor sugerido */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Proveedor sugerido (opcional)</label>
+                <Input
+                  placeholder="Nombre del proveedor"
+                  value={newPurchase.supplier}
+                  onChange={(e) =>
+                    setNewPurchase({ ...newPurchase, supplier: e.target.value })
+                  }
+                />
+              </div>
+
+              {/* Precio estimado */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Precio estimado (opcional)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="15000"
+                    className="pl-7"
+                    value={newPurchase.price || ""}
+                    onChange={(e) =>
+                      setNewPurchase({
+                        ...newPurchase,
+                        price: Number.parseFloat(e.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
+                <p className="text-xs text-gray-500">Monto en pesos argentinos</p>
+              </div>
+
+              {/* Prioridad */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Prioridad</label>
+                <div className="flex flex-wrap gap-2">
+                  {priorities.map((pri) => (
+                    <Button
+                      key={pri.value}
+                      type="button"
+                      onClick={() => setNewPurchase({ ...newPurchase, priority: pri.value })}
+                      className={`px-3 py-1.5 text-xs font-medium capitalize ${
+                        newPurchase.priority === pri.value
+                          ? pri.color + " text-white"
+                          : "bg-gray-200 hover:bg-gray-300 text-gray-800"
+                      }`}
+                    >
+                      {pri.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Imágenes adjuntas */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Imágenes adjuntas</label>
+                <p className="text-xs text-gray-500 mb-3">
+                  Máximo 5 imágenes. Tamaño máximo 10MB cada una.
+                </p>
+                
+                {/* File Input */}
+                <div className="flex items-center gap-2">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleFileSelect}
+                    disabled={selectedImages.length >= 5}
+                    className="hidden"
+                    id="image-upload-modal"
+                  />
+                  <label htmlFor="image-upload-modal">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={selectedImages.length >= 5}
+                      className="gap-2 cursor-pointer"
+                      asChild
+                    >
+                      <span>
+                        <Upload className="w-4 h-4" />
+                        Seleccionar imágenes
+                      </span>
+                    </Button>
+                  </label>
+                  {selectedImages.length > 0 && (
+                    <span className="text-sm text-gray-500">
+                      {selectedImages.length} / 5 imágenes seleccionadas
+                    </span>
+                  )}
+                </div>
+
+                {/* Image Previews */}
+                {previewUrls.length > 0 && (
+                  <div className="grid grid-cols-3 gap-3 mt-3">
+                    {previewUrls.map((url, index) => (
+                      <div
+                        key={index}
+                        className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden group"
+                      >
+                        <img
+                          src={url}
+                          alt={`Preview ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeImage(index)}
+                          className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1.5 shadow-lg"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex gap-4 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => setShowModal(false)}
+                className="flex-1"
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar categoría" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="materiales">Materiales</SelectItem>
-                  <SelectItem value="herramientas">Herramientas</SelectItem>
-                  <SelectItem value="equipamiento">Equipamiento</SelectItem>
-                  <SelectItem value="seguridad">Seguridad</SelectItem>
-                  <SelectItem value="oficina">Oficina</SelectItem>
-                  <SelectItem value="otros">Otros</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button onClick={handleAddPurchase} className="w-full">
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleAddPurchase}
+                className="flex-1 bg-blue-600 hover:bg-blue-700"
+              >
                 Crear Solicitud
               </Button>
             </div>
@@ -396,6 +702,7 @@ const handleStatusChange = async (
                 purchases={paraComprar}
                 onStatusChange={handleStatusChange}
                 onEdit={handleEdit}
+                onDelete={handleDelete}
               />
 
               <PurchaseSection
@@ -403,6 +710,7 @@ const handleStatusChange = async (
                 purchases={comprado}
                 onStatusChange={handleStatusChange}
                 onEdit={handleEdit}
+                onDelete={handleDelete}
               />
 
               <PurchaseSection
@@ -410,6 +718,7 @@ const handleStatusChange = async (
                 purchases={recibido}
                 onStatusChange={handleStatusChange}
                 onEdit={handleEdit}
+                onDelete={handleDelete}
               />
             </div>
           )}

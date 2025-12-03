@@ -433,7 +433,6 @@ export default function NewPurchase() {
             keyboardType="numeric"
             className="bg-white p-4 rounded-xl border border-gray-200"
           />
-          <Text className="text-gray-500 text-xs mt-1">Monto en pesos argentinos</Text>
         </View>
 
         {/* Prioridad */}

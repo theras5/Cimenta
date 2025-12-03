@@ -9,6 +9,8 @@ import {
   ShoppingCartIcon,
   BarChart3,
   UserPlus,
+  TrendingUp,
+  Calendar,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -227,6 +229,22 @@ export default function CimentaDashboard() {
                 </button>
               )}
 
+              {/* Subir Avance - SIEMPRE VISIBLE */}
+              <button
+                onClick={() => router.push("/updates/new-update")}
+                className="group flex flex-col items-center p-6 bg-white rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 transition-all duration-200 hover:shadow-md"
+              >
+                <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center mb-3 group-hover:bg-indigo-200 transition-colors">
+                  <TrendingUp className="w-6 h-6 text-indigo-600" />
+                </div>
+                <h3 className="text-md font-semibold text-gray-900 text-center mb-1">
+                  Subir Avance
+                </h3>
+                <p className="text-xs text-gray-500 text-center">
+                  Registrar progreso del proyecto
+                </p>
+              </button>
+
               {/* Crear solicitud de compra - SIEMPRE VISIBLE */}
               <button
                 onClick={() => router.push("/purchases/new-purchase")}
@@ -240,6 +258,22 @@ export default function CimentaDashboard() {
                 </h3>
                 <p className="text-xs text-gray-500 text-center">
                   Solicitar materiales o equipos
+                </p>
+              </button>
+
+              {/* Diagrama de Gantt - SIEMPRE VISIBLE */}
+              <button
+                onClick={() => router.push("/gantt")}
+                className="group flex flex-col items-center p-6 bg-white rounded-xl border border-gray-200 hover:border-violet-300 hover:bg-violet-50 transition-all duration-200 hover:shadow-md"
+              >
+                <div className="w-12 h-12 bg-violet-100 rounded-xl flex items-center justify-center mb-3 group-hover:bg-violet-200 transition-colors">
+                  <Calendar className="w-6 h-6 text-violet-600" />
+                </div>
+                <h3 className="text-md font-semibold text-gray-900 text-center mb-1">
+                  Diagrama de Gantt
+                </h3>
+                <p className="text-xs text-gray-500 text-center">
+                  Visualizar cronograma de tareas
                 </p>
               </button>
 

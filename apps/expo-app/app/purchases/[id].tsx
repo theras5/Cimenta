@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Ima
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import { getPurchaseById } from '@/services/purchaseService';
+import { getPurchaseById, deletePurchase } from '@/services/purchaseService';
 
 interface Purchase {
   id: string;
@@ -100,6 +100,7 @@ export default function PurchaseDetails() {
   const [purchase, setPurchase] = useState<Purchase | null>(null);
   const [images, setImages] = useState<PurchaseImage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     loadPurchaseDetails();
@@ -151,6 +152,37 @@ export default function PurchaseDetails() {
     }
   };
 
+  const handleEdit = () => {
+    router.push(`/purchases/edit-purchase?id=${id}`);
+  };
+
+  const handleDelete = () => {
+    Alert.alert(
+      'Eliminar solicitud',
+      `¿Estás seguro de que deseas eliminar "${purchase?.product}"?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setDeleting(true);
+              await deletePurchase(id);
+              Alert.alert('Éxito', 'Solicitud eliminada correctamente');
+              router.back();
+            } catch (error) {
+              Alert.alert('Error', 'No se pudo eliminar la solicitud');
+              console.error('Error al eliminar:', error);
+            } finally {
+              setDeleting(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   if (loading) {
     return (
       <SafeAreaView className="flex-1 bg-white">
@@ -182,13 +214,31 @@ export default function PurchaseDetails() {
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
       {/* Header */}
-      <View className="flex-row items-center px-4 py-3 bg-white border-b border-gray-200">
-        <TouchableOpacity className="mr-4" onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={24} color="#374151" />
-        </TouchableOpacity>
-        <Text className="text-gray-800 font-bold text-xl flex-1" numberOfLines={1}>
-          {purchase.product}
-        </Text>
+      <View className="flex-row items-center justify-between px-4 py-3 bg-white border-b border-gray-200">
+        <View className="flex-row items-center flex-1">
+          <TouchableOpacity className="mr-4" onPress={() => router.back()}>
+            <Ionicons name="chevron-back" size={24} color="#374151" />
+          </TouchableOpacity>
+          <Text className="text-gray-800 font-bold text-xl flex-1" numberOfLines={1}>
+            {purchase.product}
+          </Text>
+        </View>
+        <View className="flex-row gap-2">
+          <TouchableOpacity 
+            onPress={handleEdit}
+            className="bg-blue-500 px-3 py-2 rounded-lg"
+            disabled={deleting}
+          >
+            <Ionicons name="create-outline" size={20} color="white" />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={handleDelete}
+            className="bg-red-500 px-3 py-2 rounded-lg"
+            disabled={deleting}
+          >
+            <Ionicons name="trash-outline" size={20} color="white" />
+          </TouchableOpacity>
+        </View>
       </View>
       
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
