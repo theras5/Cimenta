@@ -10,7 +10,9 @@ import clients from "./routes/clients";
 import userRole from "./routes/userRole";
 import summary from "./routes/summary";
 import invitations from "./routes/invitations";
-import suppliers from "./routes/supplier"
+import suppliers from "./routes/supplier";
+import workers from "./routes/workers";
+import assignedToRoutes from "./routes/assignedTo";
 
 // server/src/app.ts
 import cors from "cors";
@@ -53,6 +55,10 @@ app.use("/invitations", invitations);
 // Middleware de manejo de errores (DEBE IR AL FINAL)
 app.use(errorMiddleware);
 app.use("/suppliers", suppliers);
+
+app.use("/workers", workers);
+
+app.use("/assigned-to", assignedToRoutes);
 
 app.use(errorMiddleware); // esto tiene que ir siempre al final
 

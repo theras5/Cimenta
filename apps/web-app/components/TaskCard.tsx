@@ -1,7 +1,8 @@
 "use client"
 
 import React, { useEffect, useRef, useState } from "react"
-import { Edit2 } from "lucide-react"
+import { Edit2, Users } from "lucide-react"
+import { useAssignedTo } from "@/hooks/useAssignedTo"
 
 interface Task {
   id: string
@@ -18,6 +19,7 @@ interface TaskCardProps {
   task: Task
   changes?: boolean
   onEdit?: (task: Task) => void
+  onAssignWorkers?: (task: Task) => void
 }
 
 const getStatusBgColor = (status: Task["status"]) => {
@@ -60,13 +62,31 @@ const getCategoryColor = (category: string) => {
   }
 }
 
-const TaskCard: React.FC<TaskCardProps> = ({ task, changes, onEdit }) => {
-  const handleClick = () => {
-    console.log(`Clicked task ${task.id}`, changes ? "changes" : "tasks")
-  }
+const TaskCard: React.FC<TaskCardProps> = ({ task, changes, onEdit, onAssignWorkers }) => {
+  const { getWorkersByTask } = useAssignedTo();
+  const [assignedCount, setAssignedCount] = useState(0);
+  const [loadingWorkers, setLoadingWorkers] = useState(true);
 
   const descRef = useRef<HTMLParagraphElement | null>(null);
   const [descOverflow, setDescOverflow] = useState(false);
+
+  // Cargar el número de workers asignados
+  useEffect(() => {
+    const loadAssignedWorkers = async () => {
+      try {
+        setLoadingWorkers(true);
+        const workers = await getWorkersByTask(task.id);
+        setAssignedCount(workers.length);
+      } catch (error) {
+        console.error("Error loading assigned workers:", error);
+        setAssignedCount(0);
+      } finally {
+        setLoadingWorkers(false);
+      }
+    };
+
+    loadAssignedWorkers();
+  }, [task.id, getWorkersByTask]);
 
   useEffect(() => {
     const measure = () => {
@@ -79,55 +99,99 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, changes, onEdit }) => {
     return () => window.removeEventListener('resize', measure);
   }, [task.description]);
 
+  const handleClick = () => {
+    console.log(`Clicked task ${task.id}`, changes ? "changes" : "tasks")
+  }
+
   const handleEdit = (e: React.MouseEvent) => {
-    e.stopPropagation() // Prevenir que se dispare el click del card
+    e.stopPropagation()
     if (onEdit) {
       onEdit(task)
     }
   }
 
+  const handleAssignWorkers = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (onAssignWorkers) {
+      onAssignWorkers(task)
+    }
+  }
+
   return (
     <div
-      className={`${getStatusBgColor(task.status)} rounded-2xl p-5 w-72 h-40 flex-shrink-0 cursor-pointer hover:shadow-lg transition-shadow relative`}
+      className={`${getStatusBgColor(task.status)} rounded-2xl p-5 w-72 min-h-[200px] flex-shrink-0 cursor-pointer hover:shadow-lg transition-shadow relative`}
       onClick={handleClick}
     >
       <div className="flex flex-col h-full">
         {/* Content */}
-        <div className="flex-1">
+        <div className="flex-1 mb-12">
           <h3 className="text-gray-800 font-semibold text-lg mb-2 line-clamp-1">{task.title}</h3>
-          <p ref={descRef} className="text-gray-600 text-sm leading-5 line-clamp-2">{task.description}</p>
+          <p ref={descRef} className="text-gray-600 text-sm leading-5 line-clamp-2 mb-2">{task.description}</p>
+          
           {/* Date/time info */}
           {(task.start_date || task.end_date) && !descOverflow && (
-            <div className="text-xs text-gray-500 mt-2">
+            <div className="text-xs text-gray-500 mt-2 space-y-1">
               {task.start_date && (
-                <div>Inicio: {new Date(task.start_date).toLocaleString()}</div>
+                <div>Inicio: {new Date(task.start_date).toLocaleString('es-ES', { 
+                  day: '2-digit', 
+                  month: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}</div>
               )}
               {task.end_date && (
-                <div>Fin: {new Date(task.end_date).toLocaleString()}</div>
+                <div>Fin: {new Date(task.end_date).toLocaleString('es-ES', { 
+                  day: '2-digit', 
+                  month: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}</div>
               )}
+            </div>
+          )}
+
+          {/* Assigned Workers Badge */}
+          {!loadingWorkers && assignedCount > 0 && !changes && (
+            <div className="mt-2 inline-flex items-center bg-blue-500/20 px-2 py-1 rounded-full">
+              <Users className="w-3 h-3 text-blue-600 mr-1" />
+              <span className="text-xs font-medium text-blue-600">
+                {assignedCount} trabajador{assignedCount !== 1 ? 'es' : ''}
+              </span>
             </div>
           )}
         </div>
 
-        {/* Footer */}
-        <div className="flex justify-between items-center mt-4">
-          <div className="flex items-center gap-2">
-            {task.assignedMembers && task.assignedMembers.length > 0 && (
-              <span className="text-gray-500 text-xs">{task.assignedMembers.length} miembro(s)</span>
-            )}
+        {/* Footer - Action Buttons */}
+        <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
+          <div className="flex gap-1">
             {onEdit && (
               <button
-                onClick={(e) => { e.stopPropagation(); handleEdit(e); }}
-                className="p-1 rounded-md hover:bg-white/50 transition-colors opacity-70 hover:opacity-100 absolute left-3 bottom-3"
+                onClick={handleEdit}
+                className="p-2 rounded-md hover:bg-white/50 transition-colors opacity-70 hover:opacity-100"
                 title="Editar tarea"
                 aria-label="Editar tarea"
               >
-                <Edit2 className="w-3 h-3 text-gray-600" />
+                <Edit2 className="w-3.5 h-3.5 text-gray-600" />
+              </button>
+            )}
+            
+            {onAssignWorkers && !changes && (
+              <button
+                onClick={handleAssignWorkers}
+                className="p-2 rounded-md hover:bg-white/50 transition-colors opacity-70 hover:opacity-100"
+                title={assignedCount > 0 ? "Reasignar trabajadores" : "Asignar trabajadores"}
+                aria-label={assignedCount > 0 ? "Reasignar trabajadores" : "Asignar trabajadores"}
+              >
+                <Users className="w-3.5 h-3.5 text-gray-600" />
               </button>
             )}
           </div>
 
-          <div style={{ backgroundColor: getCategoryColor(task.category) }} className="px-3 py-1 rounded-full absolute bottom-3 right-3">
+          {/* Category Badge */}
+          <div 
+            style={{ backgroundColor: getCategoryColor(task.category) }} 
+            className="px-3 py-1 rounded-full"
+          >
             <span className="text-white text-xs font-medium">{task.category}</span>
           </div>
         </div>

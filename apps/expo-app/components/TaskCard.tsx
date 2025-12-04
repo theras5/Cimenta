@@ -1,7 +1,10 @@
 import type React from "react";
-import { Text, TouchableOpacity, View } from "react-native";
+import { Text, TouchableOpacity, View, ActivityIndicator } from "react-native";
 import { router } from "expo-router";
 import { Task } from "@/services/taskService";
+import { Ionicons } from "@expo/vector-icons";
+import { useEffect, useState } from "react";
+import { useAssignedTo } from "@/hooks/useAssignedTo";
 
 export interface Category{
   name: string;
@@ -49,7 +52,35 @@ const getCategoryColor = (category: string) => {
   }
 };
 
+
 const TaskCard: React.FC<TaskCardProps> = ({ task, changes, routePrefix }) => {
+
+  const { getWorkersByTask } = useAssignedTo();
+  const [assignedWorkersCount, setAssignedWorkersCount] = useState<number>(0);
+  const [loadingWorkers, setLoadingWorkers] = useState(true);
+
+  useEffect(() => {
+    const loadAssignedWorkers = async () => {
+      if (!task?.id) {
+        setLoadingWorkers(false);
+        return;
+      }
+
+      try {
+        setLoadingWorkers(true);
+        const workers = await getWorkersByTask(task.id);
+        setAssignedWorkersCount(workers.length);
+      } catch (error) {
+        console.error("Error loading assigned workers for task:", task.id, error);
+        setAssignedWorkersCount(0);
+      } finally {
+        setLoadingWorkers(false);
+      }
+    };
+
+    loadAssignedWorkers();
+  }, [task?.id, getWorkersByTask]);
+
   return (
     <TouchableOpacity
       className={`${getStatusBgColor(task.status)} rounded-2xl p-5 mb-3 mr-3 w-72 h-40`}
@@ -89,14 +120,31 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, changes, routePrefix }) => {
 
         {/* Footer fijo en la parte inferior */}
         <View className="flex-row justify-between items-center">
-          <View className="flex-row">
-            {task.assignedMembers && task.assignedMembers.length > 0 && (
-              <Text className="text-gray-500 text-xs">
-                {task.assignedMembers.length} miembro(s)
-              </Text>
-            )}
-          </View>
+          {/* Workers asignados */}
 
+          {/* Para implementar esta propiedad tengo que ver de que cuando voy para la pantalla de tasks después de editar una tarea se actualice la info de la TaskCard */}
+
+          {/* <View className="flex-row items-center">
+            {loadingWorkers ? (
+              <ActivityIndicator size="small" color="#6B7280" />
+            ) : assignedWorkersCount > 0 ? (
+              <View className="flex-row items-center bg-white/50 px-2 py-1 rounded-full">
+                <Ionicons name="people" size={14} color="#6B7280" />
+                <Text className="text-gray-700 text-xs font-medium ml-1">
+                  {assignedWorkersCount}
+                </Text>
+              </View>
+            ) : (
+              <View className="flex-row items-center opacity-50">
+                <Ionicons name="people-outline" size={14} color="#9CA3AF" />
+                <Text className="text-gray-400 text-xs ml-1">
+                  Sin asignar
+                </Text>
+              </View>
+            )}
+          </View> */}
+
+          {/* Categoría */}
           <View
             className="px-3 py-1 rounded-full"
             style={{ backgroundColor: task.categoryColor || getCategoryColor(task.category) }}

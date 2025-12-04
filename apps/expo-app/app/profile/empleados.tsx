@@ -16,22 +16,31 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
-import { employeeService, type Employee } from '../../services/employeeService';
+import { useWorkers } from '../../hooks/useWorkers';
 
 const Empleados = () => {
   const { user, loading: authLoading } = useAuth();
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [loading, setLoading] = useState(false);
+  
+  // Usar el hook useWorkers
+  const {
+    workers,
+    isLoading,
+    error: workersError,
+    createWorker,
+    deleteWorker,
+    clearError,
+  } = useWorkers(user?.id);
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    phone: '',
+    fullName: '',
+    cellNumber: '',
+    profession: '',
   });
   const [errors, setErrors] = useState({
-    firstName: '',
-    lastName: '',
-    phone: '',
+    fullName: '',
+    cellNumber: '',
+    profession: '',
   });
 
   useEffect(() => {
@@ -40,81 +49,63 @@ const Empleados = () => {
     }
   }, [user, authLoading]);
 
+  // Mostrar errores del hook
   useEffect(() => {
-    if (user?.id) {
-      loadEmployees();
+    if (workersError) {
+      Alert.alert('Error', workersError);
+      clearError();
     }
-  }, [user?.id]);
-
-  const loadEmployees = async () => {
-    if (!user?.id) return;
-
-    setLoading(true);
-    try {
-      const data = await employeeService.getUserEmployees(user.id);
-      setEmployees(data);
-    } catch (error) {
-      Alert.alert('Error', 'No se pudieron cargar los empleados');
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [workersError, clearError]);
 
   const validateForm = () => {
     const newErrors = {
-      firstName: '',
-      lastName: '',
-      phone: '',
+      fullName: '',
+      cellNumber: '',
+      profession: '',
     };
 
-    if (!formData.firstName.trim()) {
-      newErrors.firstName = 'El nombre es obligatorio';
+    if (!formData.fullName.trim()) {
+      newErrors.fullName = 'El nombre completo es obligatorio';
     }
 
-    if (!formData.lastName.trim()) {
-      newErrors.lastName = 'El apellido es obligatorio';
+    if (!formData.cellNumber.trim()) {
+      newErrors.cellNumber = 'El número de celular es obligatorio';
+    } else if (!/^\+?[\d\s-]{8,}$/.test(formData.cellNumber)) {
+      newErrors.cellNumber = 'El número de celular no es válido';
     }
 
-    if (!formData.phone.trim()) {
-      newErrors.phone = 'El número de celular es obligatorio';
-    } else if (!/^\+?[\d\s-]{8,}$/.test(formData.phone)) {
-      newErrors.phone = 'El número de celular no es válido';
+    if (!formData.profession.trim()) {
+      newErrors.profession = 'La profesión es obligatoria';
     }
 
     setErrors(newErrors);
     return !Object.values(newErrors).some((error) => error !== '');
   };
 
-  const handleAddEmployee = async () => {
+  const handleAddWorker = async () => {
     if (!validateForm() || !user?.id) return;
 
-    setLoading(true);
     try {
-      await employeeService.createEmployee({
-        first_name: formData.firstName,
-        last_name: formData.lastName,
-        phone: formData.phone,
-        user_id: user.id,
+      await createWorker({
+        worker_fullname: formData.fullName,
+        worker_cellnumber: formData.cellNumber,
+        profession: formData.profession,
+        employer_id: user.id,
       });
 
-      Alert.alert('Éxito', 'Empleado agregado correctamente');
+      Alert.alert('Éxito', 'Trabajador agregado correctamente');
 
-      setFormData({ firstName: '', lastName: '', phone: '' });
-      setErrors({ firstName: '', lastName: '', phone: '' });
+      setFormData({ fullName: '', cellNumber: '', profession: '' });
+      setErrors({ fullName: '', cellNumber: '', profession: '' });
       setIsDialogOpen(false);
-
-      // Recargar la lista
-      await loadEmployees();
     } catch (error) {
-      Alert.alert('Error', 'No se pudo agregar el empleado');
-    } finally {
-      setLoading(false);
+      Alert.alert('Error', 'No se pudo agregar el trabajador');
     }
   };
 
-  const handleDeleteEmployee = async (id: string, name: string) => {
+  const handleDeleteWorker = async (id: string, name: string) => {
     Alert.alert(
-      'Eliminar Empleado',
+      'Eliminar Trabajador',
       `¿Estás seguro de que quieres eliminar a ${name}?`,
       [
         {
@@ -125,15 +116,11 @@ const Empleados = () => {
           text: 'Eliminar',
           style: 'destructive',
           onPress: async () => {
-            setLoading(true);
             try {
-              await employeeService.deleteEmployee(id);
-              Alert.alert('Éxito', 'Empleado eliminado correctamente');
-              await loadEmployees();
+              await deleteWorker(id);
+              Alert.alert('Éxito', 'Trabajador eliminado correctamente');
             } catch (error) {
-              Alert.alert('Error', 'No se pudo eliminar el empleado');
-            } finally {
-              setLoading(false);
+              Alert.alert('Error', 'No se pudo eliminar el trabajador');
             }
           },
         },
@@ -162,7 +149,7 @@ const Empleados = () => {
           >
             <Ionicons name="arrow-back" size={24} color="#111827" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Mis Empleados</Text>
+          <Text style={styles.headerTitle}>Mis Trabajadores</Text>
           <TouchableOpacity
             style={styles.addButton}
             onPress={() => setIsDialogOpen(true)}
@@ -172,43 +159,49 @@ const Empleados = () => {
         </View>
 
         <View style={styles.content}>
-          <Text style={styles.subtitle}>Gestión de equipo y colaboradores</Text>
+          <Text style={styles.subtitle}>Gestión de trabajadores y colaboradores</Text>
 
-          {/* Employees List */}
-          {loading && employees.length === 0 ? (
+          {/* Workers List */}
+          {isLoading && workers.length === 0 ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#2563EB" />
             </View>
-          ) : employees.length === 0 ? (
+          ) : workers.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Ionicons name="people-outline" size={64} color="#D1D5DB" />
-              <Text style={styles.emptyText}>No tienes empleados registrados</Text>
+              <Text style={styles.emptyText}>No tienes trabajadores registrados</Text>
               <Text style={styles.emptySubtext}>
-                Agrega tu primer empleado para comenzar
+                Agrega tu primer trabajador para comenzar
               </Text>
             </View>
           ) : (
-            <View style={styles.employeesContainer}>
-              {employees.map((employee) => (
-                <View key={employee.id} style={styles.employeeCard}>
-                  <View style={styles.employeeIconContainer}>
-                    <Ionicons name="person" size={24} color="#2563EB" />
-                  </View>
-                  <View style={styles.employeeInfo}>
-                    <Text style={styles.employeeName}>
-                      {employee.first_name} {employee.last_name}
+            <View style={styles.workersContainer}>
+              {workers.map((worker) => (
+                <View key={worker.worker_id} style={styles.workerCard}>
+                  <View style={styles.workerIconContainer}>
+                    <Text style={styles.workerInitial}>
+                      {worker.worker_fullname.charAt(0).toUpperCase()}
                     </Text>
-                    <View style={styles.phoneRow}>
+                  </View>
+                  <View style={styles.workerInfo}>
+                    <Text style={styles.workerName}>
+                      {worker.worker_fullname}
+                    </Text>
+                    <View style={styles.detailRow}>
+                      <Ionicons name="briefcase-outline" size={14} color="#6B7280" />
+                      <Text style={styles.workerProfession}>{worker.profession}</Text>
+                    </View>
+                    <View style={styles.detailRow}>
                       <Ionicons name="call-outline" size={14} color="#6B7280" />
-                      <Text style={styles.employeePhone}>{employee.phone}</Text>
+                      <Text style={styles.workerPhone}>{worker.worker_cellnumber}</Text>
                     </View>
                   </View>
                   <TouchableOpacity
                     style={styles.deleteButton}
                     onPress={() =>
-                      handleDeleteEmployee(
-                        employee.id,
-                        `${employee.first_name} ${employee.last_name}`
+                      handleDeleteWorker(
+                        worker.worker_id,
+                        worker.worker_fullname
                       )
                     }
                   >
@@ -221,7 +214,7 @@ const Empleados = () => {
         </View>
       </ScrollView>
 
-      {/* Add Employee Modal */}
+      {/* Add Worker Modal */}
       <Modal
         visible={isDialogOpen}
         transparent
@@ -234,58 +227,58 @@ const Empleados = () => {
         >
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Agregar Nuevo Empleado</Text>
+              <Text style={styles.modalTitle}>Agregar Nuevo Trabajador</Text>
               <TouchableOpacity
                 onPress={() => {
                   setIsDialogOpen(false);
-                  setFormData({ firstName: '', lastName: '', phone: '' });
-                  setErrors({ firstName: '', lastName: '', phone: '' });
+                  setFormData({ fullName: '', cellNumber: '', profession: '' });
+                  setErrors({ fullName: '', cellNumber: '', profession: '' });
                 }}
               >
                 <Ionicons name="close" size={24} color="#6B7280" />
               </TouchableOpacity>
             </View>
 
-            <View style={styles.modalBody}>
+            <ScrollView style={styles.modalBody}>
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>
-                  Nombre <Text style={styles.required}>*</Text>
+                  Nombre Completo <Text style={styles.required}>*</Text>
                 </Text>
                 <TextInput
                   style={[
                     styles.input,
-                    errors.firstName && styles.inputError,
+                    errors.fullName && styles.inputError,
                   ]}
-                  placeholder="Nombre del empleado"
-                  value={formData.firstName}
+                  placeholder="Ej: Juan Pérez"
+                  value={formData.fullName}
                   onChangeText={(text) => {
-                    setFormData({ ...formData, firstName: text });
-                    setErrors({ ...errors, firstName: '' });
+                    setFormData({ ...formData, fullName: text });
+                    setErrors({ ...errors, fullName: '' });
                   }}
                 />
-                {errors.firstName ? (
-                  <Text style={styles.errorText}>{errors.firstName}</Text>
+                {errors.fullName ? (
+                  <Text style={styles.errorText}>{errors.fullName}</Text>
                 ) : null}
               </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>
-                  Apellido <Text style={styles.required}>*</Text>
+                  Profesión <Text style={styles.required}>*</Text>
                 </Text>
                 <TextInput
                   style={[
                     styles.input,
-                    errors.lastName && styles.inputError,
+                    errors.profession && styles.inputError,
                   ]}
-                  placeholder="Apellido del empleado"
-                  value={formData.lastName}
+                  placeholder="Ej: Electricista, Plomero, Albañil"
+                  value={formData.profession}
                   onChangeText={(text) => {
-                    setFormData({ ...formData, lastName: text });
-                    setErrors({ ...errors, lastName: '' });
+                    setFormData({ ...formData, profession: text });
+                    setErrors({ ...errors, profession: '' });
                   }}
                 />
-                {errors.lastName ? (
-                  <Text style={styles.errorText}>{errors.lastName}</Text>
+                {errors.profession ? (
+                  <Text style={styles.errorText}>{errors.profession}</Text>
                 ) : null}
               </View>
 
@@ -296,39 +289,39 @@ const Empleados = () => {
                 <TextInput
                   style={[
                     styles.input,
-                    errors.phone && styles.inputError,
+                    errors.cellNumber && styles.inputError,
                   ]}
                   placeholder="+54 9 11 1234-5678"
-                  value={formData.phone}
+                  value={formData.cellNumber}
                   onChangeText={(text) => {
-                    setFormData({ ...formData, phone: text });
-                    setErrors({ ...errors, phone: '' });
+                    setFormData({ ...formData, cellNumber: text });
+                    setErrors({ ...errors, cellNumber: '' });
                   }}
                   keyboardType="phone-pad"
                 />
-                {errors.phone ? (
-                  <Text style={styles.errorText}>{errors.phone}</Text>
+                {errors.cellNumber ? (
+                  <Text style={styles.errorText}>{errors.cellNumber}</Text>
                 ) : null}
               </View>
-            </View>
+            </ScrollView>
 
             <View style={styles.modalFooter}>
               <TouchableOpacity
                 style={styles.cancelButton}
                 onPress={() => {
                   setIsDialogOpen(false);
-                  setFormData({ firstName: '', lastName: '', phone: '' });
-                  setErrors({ firstName: '', lastName: '', phone: '' });
+                  setFormData({ fullName: '', cellNumber: '', profession: '' });
+                  setErrors({ fullName: '', cellNumber: '', profession: '' });
                 }}
               >
                 <Text style={styles.cancelButtonText}>Cancelar</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.submitButton}
-                onPress={handleAddEmployee}
-                disabled={loading}
+                onPress={handleAddWorker}
+                disabled={isLoading}
               >
-                {loading ? (
+                {isLoading ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
                   <Text style={styles.submitButtonText}>Agregar</Text>
@@ -401,10 +394,10 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     marginTop: 8,
   },
-  employeesContainer: {
+  workersContainer: {
     gap: 12,
   },
-  employeeCard: {
+  workerCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 16,
@@ -419,30 +412,40 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
-  employeeIconContainer: {
+  workerIconContainer: {
     width: 48,
     height: 48,
-    borderRadius: 12,
+    borderRadius: 24,
     backgroundColor: '#DBEAFE',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
   },
-  employeeInfo: {
+  workerInitial: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#2563EB',
+  },
+  workerInfo: {
     flex: 1,
   },
-  employeeName: {
+  workerName: {
     fontSize: 16,
     fontWeight: '600',
     color: '#111827',
     marginBottom: 4,
   },
-  phoneRow: {
+  detailRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    marginTop: 2,
   },
-  employeePhone: {
+  workerProfession: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  workerPhone: {
     fontSize: 14,
     color: '#6B7280',
   },
@@ -459,7 +462,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingTop: 20,
-    maxHeight: '80%',
+    maxHeight: '85%',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -514,6 +517,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 20,
     paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
   },
   cancelButton: {
     flex: 1,
