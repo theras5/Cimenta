@@ -6,7 +6,8 @@ import {
     createTaskService, 
     updateTaskByIdService, 
     deleteTaskByIdService,
-    getTaskDependenciesService
+    getTaskDependenciesService,
+    updateTaskStatusService
 } from "../services/taskService";
 
 export const getAllTasks = async (req: Request, res: Response, next: NextFunction) => {
@@ -95,6 +96,23 @@ export const getTaskDependencies = async (req: Request, res: Response, next: Nex
             return res.status(400).json({ error: 'blocker_id es requerido' });
         }
         const data = await getTaskDependenciesService(blockerId);
+        res.status(200).json(data);
+    } catch (error) {
+        next(error);
+    }
+};
+
+// Actualizar solo el estado de una tarea
+export const updateTaskStatus = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const id = req.params.id;
+        const { status } = req.body;
+        
+        if (!status) {
+            return res.status(400).json({ error: 'status es requerido' });
+        }
+
+        const data = await updateTaskStatusService(id, status);
         res.status(200).json(data);
     } catch (error) {
         next(error);

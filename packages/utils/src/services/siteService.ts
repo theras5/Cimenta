@@ -67,6 +67,31 @@ export const createSiteService = (apiUrl: string, baseHeaders: Record<string, st
             throw new Error(`Error ${response.status}: ${response.statusText}`);
         }
         return await response.json();
+    },
+
+    async getAdminSitesByUser(userId: string): Promise<Site[]> {
+        const response = await fetch(`${apiUrl}/sites/user/${userId}/admin`);
+        if (!response.ok) {
+            throw new Error(`Error ${response.status}: ${response.statusText}`);
+        }
+        return await response.json();
+    },
+
+    async validateUserIsAdmin(userId: string, siteId: string): Promise<boolean> {
+        const response = await fetch(`${apiUrl}/sites/${siteId}/admin/${userId}`);
+        if (!response.ok) {
+            throw new Error(`Error ${response.status}: ${response.statusText}`);
+        }
+        const data = await response.json();
+        return data.isAdmin || false;
+    },
+
+    async getSiteAdmins(siteId: string): Promise<Array<{ id: string; name: string; whatsapp_jid: string }>> {
+        const response = await fetch(`${apiUrl}/sites/${siteId}/admins`);
+        if (!response.ok) {
+            throw new Error(`Error ${response.status}: ${response.statusText}`);
+        }
+        return await response.json();
     }
 
 });

@@ -6,7 +6,10 @@ import {
     updateSiteByIdService, 
     deleteSiteByIdService,
     createBelongsToService,
-    getSitesByUserService 
+    getSitesByUserService,
+    getAdminSitesByUserService,
+    validateUserIsAdminService,
+    getSiteAdminsService
 } from "../services/siteService";
 
 export const getAllSites = async (req: Request, res: Response, next: NextFunction) => {
@@ -82,6 +85,46 @@ export const getSitesByUser = async (req: Request, res: Response, next: NextFunc
         const sites = await getSitesByUserService(userId);
         
         res.status(200).json(sites);
+    } catch (err) {
+        next(err);
+    }
+};
+
+export const getAdminSitesByUser = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const userId = req.params.userId;        
+        const sites = await getAdminSitesByUserService(userId);
+        
+        res.status(200).json(sites);
+    } catch (err) {
+        next(err);
+    }
+};
+
+export const validateUserIsAdmin = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        // La ruta es /:id/admin/:userId, entonces:
+        // - req.params.id es el siteId
+        // - req.params.userId es el userId
+        const siteId = req.params.id;
+        const userId = req.params.userId;
+        
+        console.log(`[validateUserIsAdmin controller] Verificando si usuario ${userId} es admin del sitio ${siteId}`);
+        
+        const isAdmin = await validateUserIsAdminService(userId, siteId);
+        
+        res.status(200).json({ isAdmin });
+    } catch (err) {
+        next(err);
+    }
+};
+
+export const getSiteAdmins = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const siteId = req.params.siteId;
+        const admins = await getSiteAdminsService(siteId);
+        
+        res.status(200).json(admins);
     } catch (err) {
         next(err);
     }

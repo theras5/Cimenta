@@ -23,6 +23,7 @@ export interface CreateTaskDTO {
   status: TaskStatus;
   start_date?: string;
   end_date?: string;
+  site_id?: string;
   assignedMembers?: string[];
   mediaFiles?: string[];
 }

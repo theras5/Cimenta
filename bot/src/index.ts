@@ -11,14 +11,16 @@ import makeWASocket, {
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
 import { CreateTaskDTO, isTaskCategory, isTaskStatus, Profile, Task, TaskCategory, CreatePurchaseDTO } from '@cimenta/dtos';
-import { api, apiUrl, defaultHeaders, ALLOWED_WHATSAPP_NUMBER } from './config';
-import { createTaskDTOFromAI } from './ai';
+import { api, apiUrl, defaultHeaders, ALLOWED_WHATSAPP_NUMBERS } from './config';
+import { createTaskDTOFromAI, processAudioCommand, CommandResult } from './ai';
 import { transcribeAudioMessage } from './whisper';
 import path from 'path';
 import http from 'http';
 
 const verifiedUsersCache = new Map<string, Profile | null>();
 const chatStates = new Map<string, { state: string; context?: any }>();
+// Rastrear mensajes ya procesados para evitar loops
+const processedMessages = new Set<string>();
 
 // Variable global para almacenar el socket de WhatsApp
 let globalSock: WASocket | null = null;
@@ -106,12 +108,11 @@ async function handleAudioMessage(
         // Mostrar la transcripción al usuario
         await safeSendMessage(sock, senderNumber, `📝 Transcripción: "${transcribedText}"\n\n🧠 Procesando con IA...`);
 
-        // Procesar el texto transcrito con Gemini AI
-        // NOTA: Esta es la ÚNICA llamada a Gemini AI en todo el sistema.
-        // Solo se usa para procesar transcripciones de audio destinadas a crear tareas.
-        let dto = null;
+        // Procesar el texto transcrito con Gemini AI para ejecutar cualquier comando
+        const isAdmin = await isUserAdmin(user.id);
+        let commandResult = null;
         try {
-            dto = await createTaskDTOFromAI(transcribedText, user.id);
+            commandResult = await processAudioCommand(transcribedText, user.id, isAdmin);
         } catch (aiError: any) {
             // Manejo específico del error 429 de Gemini AI
             if (aiError.isRateLimit || aiError.message === 'GEMINI_QUOTA_EXCEEDED') {
@@ -131,49 +132,241 @@ async function handleAudioMessage(
             return;
         }
         
-        if (dto) {
-            // Intentar obtener el site_id si el usuario tiene obras
-            try {
-                const sites = await api.SiteService.getSitesByUser(user.id);
-                if (sites && sites.length > 0) {
-                    // Si hay una sola obra, usarla automáticamente
-                    if (sites.length === 1) {
-                        (dto as any).site_id = (sites[0] as any).id;
-                    } else {
-                        // Si hay múltiples obras, intentar encontrar la mencionada en el audio
-                        // o usar la primera
-                        const siteMentioned = sites.find((s: any) => 
-                            transcribedText!.toLowerCase().includes((s.address || '').toLowerCase())
-                        );
-                        if (siteMentioned) {
-                            (dto as any).site_id = (siteMentioned as any).id;
-                        } else {
-                            // Si no se mencionó ninguna obra específica, usar la primera
-                            (dto as any).site_id = (sites[0] as any).id;
-                        }
-                    }
-                }
-            } catch (e) {
-                console.error('Error obteniendo obras del usuario:', e);
-            }
-
-            await safeSendMessage(sock, senderNumber, '✅ Entendido. Creando la tarea a partir de tu audio...');
-            try {
-                await handleTaskCreation(dto, senderNumber, sock);
-                setChatState(senderNumber, 'IDLE');
-            } catch (taskError: any) {
-                console.error('Error creando tarea:', taskError.message);
-                await safeSendMessage(sock, senderNumber, `❌ Error al crear la tarea: ${taskError.message || 'Error desconocido'}`);
-            }
+        if (commandResult) {
+            // Ejecutar el comando identificado por la IA
+            await executeAudioCommand(commandResult, user, senderNumber, sock, transcribedText);
             return;
         }
 
-        // Si no se pudo parsear como tarea, mostrar mensaje de ayuda
-        await safeSendMessage(sock, senderNumber, `⚠️ No pude identificar una tarea en tu audio. Asegurate de mencionar:\n• Qué hay que hacer\n• En qué obra (si tenés varias)\n• Fecha y hora (opcional)\n\nEjemplo: "quiero crear una tarea para mi obra en gurruchaga que sea cambiar la tuberia el dia miercoles 10/12 desde la mañana hasta el mediodia"`);
+        // Si no se pudo identificar un comando, mostrar mensaje de ayuda
+        await safeSendMessage(sock, senderNumber, `⚠️ No pude identificar un comando en tu audio. Intentá ser más específico.\n\nEjemplos:\n• "quiero ver las tareas bloqueadas"\n• "crear tarea para cambiar el foco del baño"\n• "mostrar resumen"\n• "ver compras críticas"`);
     } catch (error: any) {
         console.error('Error inesperado al procesar audio:', error.message);
         // No intentar enviar mensaje si hay un error crítico, solo loguear
         // Esto evita que se cierre la sesión
+    }
+}
+
+/**
+ * Ejecuta el comando devuelto por la IA basado en el resultado del procesamiento de audio
+ */
+async function executeAudioCommand(
+    commandResult: CommandResult,
+    user: Profile,
+    senderNumber: string,
+    sock: WASocket,
+    transcribedText: string
+) {
+    const { commandType, params } = commandResult;
+    const isAdmin = await isUserAdmin(user.id);
+
+    try {
+        switch (commandType) {
+            case 'createTask': {
+                await safeSendMessage(sock, senderNumber, '✅ Entendido. Creando la tarea...');
+                
+                // Obtener site_id basado en site_address si se mencionó
+                let siteId: string | undefined = params.site_id;
+                if (!siteId && params.site_address) {
+                    const sites = await api.SiteService.getAdminSitesByUser(user.id);
+                    const matchedSite = sites.find((s: any) => 
+                        (s.address || '').toLowerCase().includes(params.site_address.toLowerCase())
+                    );
+                    if (matchedSite) siteId = matchedSite.id;
+                }
+                
+                // Si no hay site_id, intentar obtenerlo
+                if (!siteId) {
+                    const sites = await api.SiteService.getAdminSitesByUser(user.id);
+                    if (sites && sites.length > 0) {
+                        if (sites.length === 1) {
+                            siteId = sites[0].id;
+                        } else {
+                            // Buscar obra mencionada en el audio
+                            const siteMentioned = sites.find((s: any) => 
+                                transcribedText.toLowerCase().includes((s.address || '').toLowerCase())
+                            );
+                            siteId = siteMentioned?.id || sites[0].id;
+                        }
+                    }
+                }
+                
+                if (!siteId) {
+                    await safeSendMessage(sock, senderNumber, '⚠️ No encontré obras donde seas administrador. Solo podés crear tareas en obras donde tenés rol de administrador.');
+                    return;
+                }
+                
+                const dto: CreateTaskDTO = {
+                    ...params,
+                    site_id: siteId,
+                    user_id: user.id
+                };
+                
+                await handleTaskCreation(dto, senderNumber, sock, user);
+                break;
+            }
+            
+            case 'executeCommand': {
+                const command = params.command;
+                const obraName = params.obra_name || '';
+                
+                // Mapear comandos a funciones
+                switch (command) {
+                    case 'tareas':
+                        await handleListTasksCommand(obraName, user, senderNumber, sock);
+                        break;
+                    case 'tareas_bloqueadas':
+                        await handleTaskSearchCommand('tareas bloqueadas', user, senderNumber, sock);
+                        break;
+                    case 'tareas_esta_semana':
+                        await handleTaskSearchCommand('tareas esta semana', user, senderNumber, sock);
+                        break;
+                    case 'tareas_pendientes':
+                        await handleTaskSearchCommand('tareas pendientes', user, senderNumber, sock);
+                        break;
+                    case 'tareas_completadas':
+                        await handleTaskSearchCommand('tareas completadas', user, senderNumber, sock);
+                        break;
+                    case 'tareas_en_progreso':
+                        await handleTaskSearchCommand('tareas en progreso', user, senderNumber, sock);
+                        break;
+                    case 'resumen':
+                        await sendDailySummary_v2(senderNumber, sock, obraName);
+                        break;
+                    case 'agenda':
+                        await sendTodayAgenda(senderNumber, sock, obraName);
+                        break;
+                    case 'avances':
+                        await sendAdvancesToday(senderNumber, sock, obraName);
+                        break;
+                    case 'obras':
+                        await sendMySites(senderNumber, sock, user);
+                        break;
+                    case 'comparar_obras':
+                        await sendSitesComparison(senderNumber, sock, user);
+                        break;
+                    case 'compras':
+                        await handlePurchaseTrackingCommand('compras', user, senderNumber, sock);
+                        break;
+                    case 'compras_criticas':
+                        await handlePurchaseTrackingCommand('compras criticas', user, senderNumber, sock);
+                        break;
+                    default:
+                        await safeSendMessage(sock, senderNumber, `⚠️ Comando "${command}" no reconocido.`);
+                }
+                break;
+            }
+            
+            case 'changeTaskStatus': {
+                const taskIdentifier = params.task_identifier;
+                const status = params.status;
+                // Convertir status a formato esperado por el handler
+                const statusMap: Record<string, string> = {
+                    'pending': 'pendiente',
+                    'in_progress': 'en progreso',
+                    'completed': 'completada',
+                    'blocked': 'bloqueada'
+                };
+                const statusText = statusMap[status] || status;
+                await handleTaskStatusUpdateCommand(`${taskIdentifier} ${statusText}`, user, senderNumber, sock);
+                break;
+            }
+            
+            case 'changePurchaseStatus': {
+                const purchaseId = params.purchase_id;
+                const status = params.status;
+                // Convertir status a formato esperado por el handler
+                const statusMap: Record<string, string> = {
+                    'purchased': 'comprar',
+                    'delivered': 'entregar',
+                    'pending': 'pendiente'
+                };
+                const commandText = statusMap[status] || status;
+                await handlePurchaseStatusChange(`${commandText} ${purchaseId}`, user, senderNumber, sock);
+                break;
+            }
+            
+            case 'createChange': {
+                await safeSendMessage(sock, senderNumber, '✅ Entendido. Creando solicitud de cambio...');
+                
+                // Obtener site_id basado en site_address si se mencionó
+                let siteId: string | undefined = params.site_id;
+                if (!siteId && params.site_address) {
+                    const sites = await api.SiteService.getSitesByUser(user.id);
+                    const matchedSite = sites.find((s: any) => 
+                        (s.address || '').toLowerCase().includes(params.site_address.toLowerCase())
+                    );
+                    if (matchedSite) siteId = matchedSite.id;
+                }
+                
+                if (!siteId) {
+                    const sites = await api.SiteService.getSitesByUser(user.id);
+                    if (sites && sites.length > 0) {
+                        if (sites.length === 1) {
+                            siteId = sites[0].id;
+                        } else {
+                            const siteMentioned = sites.find((s: any) => 
+                                transcribedText.toLowerCase().includes((s.address || '').toLowerCase())
+                            );
+                            siteId = siteMentioned?.id || sites[0].id;
+                        }
+                    }
+                }
+                
+                if (!siteId) {
+                    await safeSendMessage(sock, senderNumber, '⚠️ No encontré obras asignadas. Contactá al administrador para que te asigne a una obra.');
+                    return;
+                }
+                
+                const changeDTO: CreateTaskDTO = {
+                    title: params.title,
+                    description: params.description || params.title || '',
+                    category: params.category,
+                    status: 'changes',
+                    user_id: user.id,
+                    site_id: siteId
+                };
+                
+                const siteAddress = params.site_address || '';
+                await handleChangeCreation(changeDTO, siteAddress, senderNumber, sock, user, undefined);
+                break;
+            }
+            
+            case 'createUpdate': {
+                if (!isAdmin) {
+                    await safeSendMessage(sock, senderNumber, '⚠️ Solo los administradores pueden crear avances.');
+                    return;
+                }
+                
+                let siteHint = params.site_address || '';
+                await createTextUpdate(user, senderNumber, sock, params.text, siteHint);
+                break;
+            }
+            
+            case 'getWeather': {
+                const obraName = params.obra_name;
+                await handleWeatherCommand(obraName, user, senderNumber, sock);
+                break;
+            }
+            
+            case 'createPurchase': {
+                if (!isAdmin) {
+                    await safeSendMessage(sock, senderNumber, '⚠️ Solo los administradores pueden crear solicitudes de compra.');
+                    return;
+                }
+                
+                // Para compras, necesitamos iniciar el flujo completo
+                // Por ahora, informamos al usuario que use el comando de texto
+                await safeSendMessage(sock, senderNumber, '⚠️ Para crear una compra completa, usá el comando de texto: "compra"');
+                break;
+            }
+            
+            default:
+                await safeSendMessage(sock, senderNumber, `⚠️ Tipo de comando "${commandType}" no reconocido.`);
+        }
+    } catch (error: any) {
+        console.error(`Error ejecutando comando ${commandType}:`, error);
+        await safeSendMessage(sock, senderNumber, `❌ Error al ejecutar el comando: ${error?.message || 'Error desconocido'}`);
     }
 }
 
@@ -203,11 +396,11 @@ async function handleMediaMessage(
             return;
         }
 
-        // Elegir obra para subir el avance
+        // Elegir obra para subir el avance (solo obras donde el usuario es admin)
         try {
-            const sites = await api.SiteService.getSitesByUser(user.id);
+            const sites = await api.SiteService.getAdminSitesByUser(user.id);
             if (!sites || sites.length === 0) {
-                await sock.sendMessage(senderNumber, { text: '⚠️ No encontré obras asociadas a tu usuario. No puedo registrar el avance.' });
+                await sock.sendMessage(senderNumber, { text: '⚠️ No encontré obras donde seas administrador. Solo podés crear avances en obras donde tenés rol de administrador.' });
                 return;
             }
             if (sites.length === 1) {
@@ -267,14 +460,22 @@ async function createTextUpdate(user: Profile, jid: string, sock: WASocket, text
     try {
         let site_id: string | undefined = undefined;
         if (siteHint && siteHint.trim()) {
-            const userSites = await api.SiteService.getSitesByUser(user.id);
+            const userSites = await api.SiteService.getAdminSitesByUser(user.id);
             const match = userSites.find(s => (s.address || '').toLowerCase().includes(siteHint.toLowerCase()));
             if (match) site_id = match.id as any;
+            if (!match) {
+                await sock.sendMessage(jid, { text: `⚠️ No encontré una obra llamada "${siteHint}" donde seas administrador. Solo podés crear avances en obras donde tenés rol de administrador.` });
+                return;
+            }
         }
         if (!site_id) {
             try {
-                const userSites = await api.SiteService.getSitesByUser(user.id);
+                const userSites = await api.SiteService.getAdminSitesByUser(user.id);
                 site_id = (userSites && (userSites[0] as any)?.id) || undefined;
+                if (!site_id) {
+                    await sock.sendMessage(jid, { text: '⚠️ No encontré obras donde seas administrador. Solo podés crear avances en obras donde tenés rol de administrador.' });
+                    return;
+                }
             } catch {}
         }
         const payload = {
@@ -296,56 +497,77 @@ async function handleIncomingMessage(m: any, sock: WASocket) {
         const msg: WAMessage | undefined = m.messages[0];
         if (!msg || !msg.message) return;
 
+        // Prevenir loops: verificar si este mensaje ya fue procesado
+        const messageId = msg.key.id;
+        if (messageId && processedMessages.has(messageId)) {
+            console.log(`⚠️ Mensaje ${messageId} ya fue procesado, ignorando para evitar loop`);
+            return;
+        }
+        // Marcar como procesado (limpiar después de 5 minutos para evitar acumulación de memoria)
+        if (messageId) {
+            processedMessages.add(messageId);
+            setTimeout(() => processedMessages.delete(messageId), 5 * 60 * 1000);
+        }
+
         const botJid = sock.user?.id;
         let senderNumber: string | null | undefined = msg.key.remoteJid;
 
-        // Función auxiliar para normalizar números (sin @s.whatsapp.net)
+        // Función auxiliar para normalizar números (sin @s.whatsapp.net, @lid, etc.)
         const normalizeJid = (jid: string | null | undefined) => {
             if (!jid) return undefined;
-            return jid.replace('@s.whatsapp.net', '').replace('@c.us', '');
+            return jid.replace('@s.whatsapp.net', '').replace('@c.us', '').replace('@lid', '');
         };
 
-        // Permitir mensajes que te escribes a ti mismo (fromMe: true) solo si son del número permitido
-        // Esto evita loops infinitos pero permite que te respondas a ti misma
-        if (msg.key.fromMe) {
-            if (ALLOWED_WHATSAPP_NUMBER) {
-                const normalizedAllowed = normalizeJid(ALLOWED_WHATSAPP_NUMBER);
-                const normalizedSender = normalizeJid(senderNumber);
-                const normalizedBotJid = normalizeJid(botJid);
-                
-                // Permitir si el mensaje es del número permitido
-                const isFromAllowedNumber = normalizedSender === normalizedAllowed || 
-                                          (normalizedBotJid === normalizedAllowed && !senderNumber);
-                
-                if (isFromAllowedNumber) {
-                    // Si senderNumber es undefined, usar el número permitido como senderNumber
-                    if (!senderNumber && ALLOWED_WHATSAPP_NUMBER) {
-                        senderNumber = ALLOWED_WHATSAPP_NUMBER;
-                    }
-                    // Continuar procesando el mensaje
-                } else {
-                    // Ignorar mensajes fromMe que no son del número permitido (evita loops)
-                    return;
-                }
-            } else {
-                // Si no hay número permitido configurado, ignorar todos los mensajes fromMe (evita loops)
-                return;
+        // Función auxiliar para verificar si un número está permitido
+        const isAllowedNumber = (jid: string | null | undefined): boolean => {
+            if (!ALLOWED_WHATSAPP_NUMBERS || ALLOWED_WHATSAPP_NUMBERS.length === 0) {
+                return true; // Si no hay restricción, permitir todos
             }
+            if (!jid) return false;
+            const normalizedJid = normalizeJid(jid);
+            return ALLOWED_WHATSAPP_NUMBERS.some(allowed => {
+                const normalizedAllowed = normalizeJid(allowed);
+                return normalizedJid === normalizedAllowed;
+            });
+        };
+
+        // CRÍTICO: Ignorar TODOS los mensajes con fromMe: true
+        // Estos son mensajes que el bot envió. Si el bot se envía un mensaje a sí mismo (remoteJid === botJid),
+        // eso es un caso especial de testing, pero normalmente no debería procesarse.
+        // Si fromMe es true y remoteJid es diferente al botJid, es un mensaje que el bot envió a otro número,
+        // y NO debe ser procesado para evitar loops infinitos.
+        if (msg.key.fromMe) {
+            const normalizedSender = normalizeJid(senderNumber);
+            const normalizedBotJid = normalizeJid(botJid);
+            
+            // Solo permitir si el bot se está enviando un mensaje a sí mismo (caso raro de testing)
+            // En todos los demás casos, ignorar para evitar loops
+            if (normalizedSender === normalizedBotJid && normalizedBotJid) {
+                console.log(`⚠️ Bot se envió un mensaje a sí mismo (${senderNumber}), ignorando para evitar loop`);
+            } else {
+                console.log(`⚠️ Mensaje fromMe ignorado: bot envió mensaje a ${senderNumber}, no procesando para evitar loop`);
+            }
+            return; // SIEMPRE ignorar mensajes fromMe
         }
         
         if (!senderNumber) {
             return;
         }
 
-        // Restricción: solo responder al número permitido (si está configurado)
-        if (ALLOWED_WHATSAPP_NUMBER) {
-            const normalizedAllowed = normalizeJid(ALLOWED_WHATSAPP_NUMBER);
-            const normalizedSender = normalizeJid(senderNumber);
-            
-            if (normalizedSender !== normalizedAllowed) {
-                console.log(`Mensaje bloqueado de: ${senderNumber} (solo se permite: ${ALLOWED_WHATSAPP_NUMBER})`);
+        // Restricción: solo responder a números permitidos (si están configurados)
+        if (ALLOWED_WHATSAPP_NUMBERS && ALLOWED_WHATSAPP_NUMBERS.length > 0) {
+            if (!isAllowedNumber(senderNumber)) {
+                console.log(`Mensaje bloqueado de: ${senderNumber} (números permitidos: ${ALLOWED_WHATSAPP_NUMBERS.join(', ')})`);
                 return;
             }
+        }
+
+        // Verificar que el remitente no sea el bot mismo (protección adicional)
+        const normalizedSender = normalizeJid(senderNumber);
+        const normalizedBot = normalizeJid(botJid);
+        if (normalizedSender === normalizedBot) {
+            console.log(`⚠️ Mensaje del bot mismo (${senderNumber}), ignorando para evitar loop`);
+            return;
         }
 
         const user = await getVerifiedUser(senderNumber);
@@ -426,10 +648,17 @@ async function handleIncomingMessage(m: any, sock: WASocket) {
         return;
     }
 
-    // Comando de resumen (solo 'resumen')
+    // Comando de resumen ('resumen' o 'res')
     const lower = messageText.trim().toLowerCase();
-    if (lower.startsWith('resumen')) {
-        const query = messageText.trim().slice(7).trim();
+    if (lower === 'resumen' || lower.startsWith('resumen ') || lower === 'res' || lower.startsWith('res ')) {
+        // Extraer el parámetro de obra (lo que viene después de "resumen" o "res")
+        let query = '';
+        if (lower.startsWith('resumen ')) {
+            query = messageText.trim().slice(8).trim(); // "resumen " tiene 8 caracteres
+        } else if (lower.startsWith('res ')) {
+            query = messageText.trim().slice(4).trim(); // "res " tiene 4 caracteres
+        }
+        // Si es solo "resumen" o "res" sin parámetro, query será vacío y mostrará resumen global
         await sendDailySummary_v2(senderNumber, sock, query);
         return;
     }
@@ -459,22 +688,27 @@ async function handleIncomingMessage(m: any, sock: WASocket) {
         return;
     }
 
-    // Comandos para actualizar estado de tareas
-    if (lower.startsWith('completar tarea') || lower.startsWith('completada tarea') || 
-        lower.startsWith('bloquear tarea') || lower.startsWith('bloqueada tarea') ||
-        lower.startsWith('en progreso tarea') || lower.startsWith('progreso tarea') ||
-        lower.startsWith('pendiente tarea')) {
+    // Comando unificado para actualizar estado: [número/título] [pendiente/bloqueada/completada/en progreso]
+    // Detectar si el mensaje termina con un estado válido
+    const statusPattern = /\s+(pendiente|bloqueada|completada|en\s+progreso|progreso)$/i;
+    if (statusPattern.test(messageText)) {
         await handleTaskStatusUpdateCommand(messageText, user, senderNumber, sock);
         return;
     }
 
-    // Comandos de búsqueda y filtrado de tareas
-    if (lower.startsWith('buscar tarea') || lower.startsWith('buscar tareas') ||
-        lower.startsWith('tareas bloqueadas') || lower.startsWith('tareas pendientes') ||
+    // Comandos de filtrado de tareas (DEBEN ir ANTES del comando genérico "tareas")
+    if (lower.startsWith('tareas bloqueadas') || lower.startsWith('tareas pendientes') ||
         lower.startsWith('tareas completadas') || lower.startsWith('tareas en progreso') ||
         lower.startsWith('tareas esta semana') || lower.startsWith('tareas esta mes') ||
-        lower.startsWith('tareas hoy') || lower.startsWith('tareas mañana')) {
+        lower.startsWith('tareas este mes') || lower.startsWith('tareas hoy') || lower.startsWith('tareas mañana')) {
         await handleTaskSearchCommand(messageText, user, senderNumber, sock);
+        return;
+    }
+
+    // Comando "tareas" o "tareas <obra>" para listar todas las tareas (genérico)
+    if (lower === 'tareas' || lower.startsWith('tareas ')) {
+        const obraName = lower === 'tareas' ? '' : messageText.replace(/^tareas\s+/i, '').trim();
+        await handleListTasksCommand(obraName, user, senderNumber, sock);
         return;
     }
 
@@ -485,26 +719,53 @@ async function handleIncomingMessage(m: any, sock: WASocket) {
         return;
     }
 
-    // Comandos de seguimiento de compras
-    if (lower.startsWith('compras pendientes') || lower.startsWith('compras esta semana') ||
-        lower.startsWith('estado compra') || lower.startsWith('compras compradas') ||
+    // Comandos de seguimiento de compras (disponible para clientes y admins)
+    if (lower === 'compras' || lower.startsWith('compras pendientes') || lower.startsWith('compras criticas') ||
+        lower.startsWith('compras compradas') ||
         lower.startsWith('compras entregadas')) {
         await handlePurchaseTrackingCommand(messageText, user, senderNumber, sock);
         return;
     }
 
-    // Comando de compra
+    // Comandos para editar estado de compras (disponible para clientes y admins)
+    if (lower.startsWith('comprar ') || lower.startsWith('entregar ') || lower.startsWith('pendiente ')) {
+        await handlePurchaseStatusChange(messageText, user, senderNumber, sock);
+        return;
+    }
+
+    // Comando de compra (solo para admins - ya manejado en handleIdleState, pero por seguridad también aquí)
     if (lower === 'compra' || lower === 'comprar' || lower === 'c') {
+        const isAdmin = await isUserAdmin(user.id);
+        if (!isAdmin) {
+            await sock.sendMessage(senderNumber, {
+                text: '⚠️ Solo los administradores pueden crear solicitudes de compra. Escribí "*compras*" para ver las compras.'
+            });
+            return;
+        }
         await startPurchaseFlow(senderNumber, sock, user);
         return;
     }
 
-    // Avances de texto: "av <texto>" o "avance <texto>" (opcional: "av <obra>: <texto>")
+    // Avances de texto: "av <texto>" o "avance <texto>" (opcional: "av <obra>: <texto>") - Solo para admins
     if (lower === 'av' || lower === 'avance') {
+        const isAdmin = await isUserAdmin(user.id);
+        if (!isAdmin) {
+            await sock.sendMessage(senderNumber, { 
+                text: '⚠️ Solo los administradores pueden crear avances. Escribí "*avances*" para ver los avances.' 
+            });
+            return;
+        }
         await sock.sendMessage(senderNumber, { text: '📝 Para subir un avance de texto, escribí: *av* <texto> o *av* <obra>: <texto>' });
         return;
     }
     if (lower.startsWith('av ') || lower.startsWith('avance ')) {
+        const isAdmin = await isUserAdmin(user.id);
+        if (!isAdmin) {
+            await sock.sendMessage(senderNumber, { 
+                text: '⚠️ Solo los administradores pueden crear avances. Escribí "*avances*" para ver los avances.' 
+            });
+            return;
+        }
         let raw = messageText.trim();
         if (raw.toLowerCase().startsWith('avance ')) raw = raw.slice(7);
         if (raw.toLowerCase().startsWith('av ')) raw = raw.slice(3);
@@ -523,11 +784,11 @@ async function handleIncomingMessage(m: any, sock: WASocket) {
             await createTextUpdate(user, senderNumber, sock, text, siteHint);
             return;
         }
-        // Si no se indicó obra, pedir selección si hay varias
+        // Si no se indicó obra, pedir selección si hay varias (solo obras donde el usuario es admin)
         try {
-            const sites = await api.SiteService.getSitesByUser(user.id);
+            const sites = await api.SiteService.getAdminSitesByUser(user.id);
             if (!sites || sites.length === 0) {
-                await createTextUpdate(user, senderNumber, sock, text);
+                await sock.sendMessage(senderNumber, { text: '⚠️ No encontré obras donde seas administrador. Solo podés crear avances en obras donde tenés rol de administrador.' });
                 return;
             }
             if (sites.length === 1) {
@@ -541,7 +802,7 @@ async function handleIncomingMessage(m: any, sock: WASocket) {
             setChatState(senderNumber, 'AWAITING_UPDATE_SITE_SELECTION', { updateKind: 'text', textContent: text, sitesOptions: sites });
             return;
         } catch {
-            await createTextUpdate(user, senderNumber, sock, text);
+            await sock.sendMessage(senderNumber, { text: '⚠️ No encontré obras donde seas administrador. Solo podés crear avances en obras donde tenés rol de administrador.' });
         }
         return;
     }
@@ -631,6 +892,10 @@ async function handleMessageByState(
             await handlePurchaseCategory(messageText, context, senderNumber, sock);
             break;
 
+        case 'AWAITING_PURCHASE_PRIORITY':
+            await handlePurchasePriority(messageText, context, senderNumber, sock);
+            break;
+
         case 'AWAITING_PURCHASE_QUANTITY':
             await handlePurchaseQuantity(messageText, context, senderNumber, sock);
             break;
@@ -659,6 +924,34 @@ async function handleMessageByState(
             await handleWeatherSiteSelection(messageText, context, user, senderNumber, sock);
             break;
 
+        case 'AWAITING_TASK_SITE_SELECTION':
+            await handleTaskSiteSelection(messageText, context, user, senderNumber, sock);
+            break;
+
+        case 'AWAITING_WORKER_ASSIGNMENT_CONFIRMATION':
+            await handleWorkerAssignmentConfirmation(messageText, context, user, senderNumber, sock);
+            break;
+
+        case 'AWAITING_WORKER_SELECTION':
+            await handleWorkerSelection(messageText, context, user, senderNumber, sock);
+            break;
+
+        case 'AWAITING_CHANGE_SITE_SELECTION':
+            await handleChangeSiteSelection(messageText, context, user, senderNumber, sock);
+            break;
+
+        case 'AWAITING_CHANGE_TITLE':
+            await handleChangeTitle(messageText, context, senderNumber, sock);
+            break;
+
+        case 'AWAITING_CHANGE_DESCRIPTION':
+            await handleChangeDescription(messageText, context, senderNumber, sock);
+            break;
+
+        case 'AWAITING_CHANGE_CATEGORY':
+            await handleChangeCategory(messageText, context, user, senderNumber, sock);
+            break;
+
         default:
             await sock.sendMessage(senderNumber, {
                 text: "Estado desconocido. Envía 'cancelar' para volver al inicio."
@@ -673,12 +966,21 @@ async function handleIdleState(
     sock: WASocket
 ) {
     const lower = messageText.trim().toLowerCase();
+    const isAdmin = await isUserAdmin(user.id);
+    
     if (lower === '!crear tarea' || lower === 'tarea' || lower === 't' || lower === 'crear tarea') {
-        // Elegir obra antes de crear tarea
+        // Solo admins pueden crear tareas
+        if (!isAdmin) {
+            await sock.sendMessage(senderNumber, { 
+                text: '⚠️ Solo los administradores pueden crear tareas. Escribí "*tareas*" para ver las tareas o "*cambio*" para solicitar un cambio.' 
+            });
+            return;
+        }
+        // Elegir obra antes de crear tarea (solo obras donde el usuario es admin)
         try {
-            const sites = await api.SiteService.getSitesByUser((await getVerifiedUser(senderNumber))!.id);
+            const sites = await api.SiteService.getAdminSitesByUser(user.id);
             if (!sites || sites.length === 0) {
-                await sock.sendMessage(senderNumber, { text: '⚠️ No encontré obras asociadas a tu usuario. Creá una obra desde la app para continuar.' });
+                await sock.sendMessage(senderNumber, { text: '⚠️ No encontré obras donde seas administrador. Solo podés crear tareas en obras donde tenés rol de administrador.' });
                 return;
             }
             if (sites.length === 1) {
@@ -696,45 +998,113 @@ async function handleIdleState(
             await sock.sendMessage(senderNumber, { text: '❌ No pude obtener tus obras. Intentá de nuevo más tarde.' });
             return;
         }
-    } else if (lower.startsWith('resumen')) {
-        const query = messageText.trim().slice(7).trim();
+    } else if (lower === 'cambio' || lower === 'cambios' || lower === 'solicitar cambio' || lower === 'solicitar cambios') {
+        // Comando para crear cambios (disponible para clientes y admins)
+        try {
+            // Usar todas las obras del usuario (no solo donde es admin)
+            const sites = await api.SiteService.getSitesByUser(user.id);
+            if (!sites || sites.length === 0) {
+                await sock.sendMessage(senderNumber, { text: '⚠️ No encontré obras asignadas. Contactá al administrador para que te asigne a una obra.' });
+                return;
+            }
+            if (sites.length === 1) {
+                setChatState(senderNumber, 'AWAITING_CHANGE_TITLE', { site_id: (sites[0] as any).id, site_address: (sites[0] as any).address });
+                await sock.sendMessage(senderNumber, { text: '🔄 ¡Vamos a solicitar un cambio!\n🏷️ Obra: ' + ((sites[0] as any).address || '') + '\n📝 Escribí el título de la solicitud de cambio (ej: "Cambiar color de pintura de la sala").' });
+                return;
+            }
+            const lines: string[] = [];
+            lines.push('🔄 Solicitud de Cambio');
+            lines.push('🏷️ ¿Para qué obra es esta solicitud? Elegí una (número o nombre):');
+            sites.slice(0, 20).forEach((s: any, idx: number) => lines.push(`${idx + 1}) ${s.address}`));
+            await sock.sendMessage(senderNumber, { text: lines.join('\n') });
+            setChatState(senderNumber, 'AWAITING_CHANGE_SITE_SELECTION', { sitesOptions: sites });
+            return;
+        } catch (e) {
+            await sock.sendMessage(senderNumber, { text: '❌ No pude obtener tus obras. Intentá de nuevo más tarde.' });
+            return;
+        }
+    } else if (lower === 'resumen' || lower.startsWith('resumen ') || lower === 'res' || lower.startsWith('res ')) {
+        // Disponible para todos
+        let query = '';
+        if (lower.startsWith('resumen ')) {
+            query = messageText.trim().slice(8).trim();
+        } else if (lower.startsWith('res ')) {
+            query = messageText.trim().slice(4).trim();
+        }
         await sendDailySummary_v2(senderNumber, sock, query);
     } else if (lower === 'compra' || lower === 'comprar' || lower === 'c') {
+        // Solo admins pueden crear compras
+        if (!isAdmin) {
+            await sock.sendMessage(senderNumber, { 
+                text: '⚠️ Solo los administradores pueden crear solicitudes de compra. Escribí "*compras*" para ver las compras.' 
+            });
+            return;
+        }
         await startPurchaseFlow(senderNumber, sock, user);
     } else {
-        // Mostrar mensaje de ayuda sin llamar a Gemini AI
-        await sock.sendMessage(senderNumber, {
-            text: `👋 Hola ${user.name}!
+        // Mostrar mensaje de ayuda según el rol
+        if (isAdmin) {
+            await sock.sendMessage(senderNumber, {
+                text: `👋 Hola ${user.name}!
 
 ✍️ Escribí "*tarea*" o "*t*" para crear una nueva tarea.
 
-🧾 Escribí "*resumen*" para ver el resumen del día (o "*resumen <obra>*" para una obra específica).
-
+🧾 Escribí "*resumen*" o "*res*" para ver el resumen del día (o "*res <obra>*" para una obra específica).
 📅 Escribí "*agenda*" para ver las tareas de hoy (o "*agenda <obra>*").
 
-📸 Escribí "*avances*" para ver los avances del día (o "*avances <obra>*").
-
+📸 Escribí "*avances*" para ver los avances de las últimas 2 semanas (o "*avances <obra>*").
 📝 Escribí "*av <texto>*" para crear un avance de texto (o enviá una foto con descripción para un avance con imagen).
 
 🏷️ Escribí "*obras*" para ver la lista de tus obras.
-
 📊 Escribí "*comparar obras*" para ver una comparativa de productividad entre tus obras.
 
-✅ Escribí "*completar tarea [número/título]*" para marcar una tarea como completada.
-⛔ Escribí "*bloquear tarea [número/título]*" para bloquear una tarea.
-🚧 Escribí "*en progreso tarea [número/título]*" para poner una tarea en progreso.
+✅ Escribí "*[número/título] [pendiente/bloqueada/completada/en progreso]*" para cambiar el estado de una tarea.
 
-🔍 Escribí "*buscar tarea [categoría/texto]*" para buscar tareas.
+📋 Escribí "*tareas*" para ver todas las tareas o "*tareas <obra>*" para una obra específica.
 📋 Escribí "*tareas bloqueadas*" o "*tareas esta semana*" para filtrar tareas.
 
 🌤️ Escribí "*clima obra [nombre]*" para ver el pronóstico del tiempo de una obra.
 
 🛒 Escribí "*compra*" o "*c*" para crear una solicitud de compra.
-📋 Escribí "*compras pendientes*" o "*compras esta semana*" para ver tus compras.
-🔍 Escribí "*estado compra [ID]*" para ver el estado de una compra específica.
+📋 Escribí "*compras*" para ver compras pendientes o "*compras criticas*" para ver las críticas.
+📋 Escribí "*comprar [ID]*", "*entregar [ID]*" o "*pendiente [ID]*" para cambiar el estado de una compra.
 
 ❌ Escribí "*cancelar*" para cancelar cualquier operación en curso.`
-        });
+            });
+        } else {
+            // Mensaje para clientes
+            await sock.sendMessage(senderNumber, {
+                text: `👋 Hola ${user.name}!
+
+📋 *Comandos disponibles:*
+
+🔄 *Solicitar Cambios:*
+   Escribí "*cambio*" o "*cambios*" para solicitar un cambio
+
+🛒 *Compras:*
+   Escribí "*compras*" para ver compras pendientes
+   Escribí "*compras criticas*" para ver compras con prioridad alta o urgente
+   Escribí "*comprar [ID]*" para marcar una compra como comprada
+   Escribí "*entregar [ID]*" para marcar una compra como entregada
+   Escribí "*pendiente [ID]*" para volver una compra a pendiente
+
+📋 *Tareas:*
+   Escribí "*tareas*" para ver todas las tareas
+   Escribí "*tareas bloqueadas*" para ver tareas bloqueadas
+   Escribí "*tareas esta semana*" para ver tareas de esta semana
+
+📸 *Avances:*
+   Escribí "*avances*" para ver los avances de las últimas 2 semanas
+
+🧾 *Resumen:*
+   Escribí "*resumen*" o "*res*" para ver el resumen del día
+
+📊 *Obras:*
+   Escribí "*comparar obras*" para ver una comparativa de productividad
+
+❌ Escribí "*cancelar*" para cancelar cualquier operación en curso.`
+            });
+        }
     }
 }
 
@@ -1026,8 +1396,13 @@ async function handleAskCalendar(messageText: string, context: any, user: Profil
     }
     if (['no', 'n'].includes(lower)) {
         await sock.sendMessage(senderNumber, { text: '🔧 Creando tarea sin fechas de calendario…' });
-        await handleTaskCreation(context as CreateTaskDTO, senderNumber, sock);
-        setChatState(senderNumber, 'IDLE');
+        const user = await getVerifiedUser(senderNumber);
+        if (user) {
+            await handleTaskCreation(context as CreateTaskDTO, senderNumber, sock, user);
+        } else {
+            await sock.sendMessage(senderNumber, { text: '❌ No se pudo identificar tu usuario.' });
+            setChatState(senderNumber, 'IDLE');
+        }
         return;
     }
     await sock.sendMessage(senderNumber, { text: 'Por favor respondé "sí" para agendar o "no" para continuar sin fechas.' });
@@ -1063,8 +1438,7 @@ async function handleEndDate(messageText: string, context: any, user: Profile, s
     }
     await sock.sendMessage(senderNumber, { text: '🔧 Creando tarea con fechas de calendario…' });
     const toCreate: CreateTaskDTO = { ...context, end_date: endISO } as CreateTaskDTO;
-    await handleTaskCreation(toCreate, senderNumber, sock);
-    setChatState(senderNumber, 'IDLE');
+    await handleTaskCreation(toCreate, senderNumber, sock, user);
 }
 
 // Helpers para botones y listas (nivel bajo)
@@ -1653,15 +2027,456 @@ async function handleUpdateSiteSelection(
     setChatState(senderNumber, 'IDLE');
 }
 
+// Manejo de selección de obra para tarea (después de crear DTO desde audio)
+async function handleTaskSiteSelection(
+    messageText: string,
+    context: any,
+    user: Profile,
+    senderNumber: string,
+    sock: WASocket
+) {
+    const taskData: CreateTaskDTO = context?.taskData;
+    if (!taskData) {
+        await sock.sendMessage(senderNumber, { text: '❌ Error: No se encontró la información de la tarea. Intentá de nuevo.' });
+        setChatState(senderNumber, 'IDLE');
+        return;
+    }
+
+    const sites = await api.SiteService.getSitesByUser(user.id);
+    if (!sites || sites.length === 0) {
+        await sock.sendMessage(senderNumber, { text: '❌ No tenés obras asignadas.' });
+        setChatState(senderNumber, 'IDLE');
+        return;
+    }
+
+    let input = messageText.trim().toLowerCase();
+    let chosen: any | null = null;
+    const num = input.match(/^\d+/);
+    if (num) {
+        const idx = parseInt(num[0], 10) - 1;
+        if (idx >= 0 && idx < sites.length) chosen = sites[idx];
+    }
+    if (!chosen) {
+        chosen = sites.find((s: any) => (s.address || '').toLowerCase().includes(input) || (s.id || '').toLowerCase() === input) || null;
+    }
+    if (!chosen) {
+        await sock.sendMessage(senderNumber, { text: '⚠️ No reconocí la obra. Respondé con el número de la lista o parte del nombre.' });
+        return;
+    }
+
+    // Asignar la obra a la tarea y crearla
+    const taskWithSite = taskData as CreateTaskDTO & { site_id?: string; site_address?: string };
+    taskWithSite.site_id = chosen.id;
+    taskWithSite.site_address = chosen.address;
+    await handleTaskCreation(taskWithSite, senderNumber, sock, user);
+}
+
+// ====================
+// Funciones para creación de CAMBIOS (para clientes)
+// ====================
+
+async function handleChangeSiteSelection(
+    messageText: string,
+    context: any,
+    user: Profile,
+    senderNumber: string,
+    sock: WASocket
+) {
+    const options: any[] = context?.sitesOptions || [];
+    if (!options.length) {
+        await sock.sendMessage(senderNumber, { text: '❌ No encontré opciones de obra. Escribí "cambio" para empezar de nuevo.' });
+        setChatState(senderNumber, 'IDLE');
+        return;
+    }
+    let input = messageText.trim().toLowerCase();
+    let chosen: any | null = null;
+    const num = input.match(/^\d+/);
+    if (num) {
+        const idx = parseInt(num[0], 10) - 1;
+        if (idx >= 0 && idx < options.length) chosen = options[idx];
+    }
+    if (!chosen) {
+        chosen = options.find((s: any) => (s.address || '').toLowerCase().includes(input) || (s.id || '').toLowerCase() === input) || null;
+    }
+    if (!chosen) {
+        await sock.sendMessage(senderNumber, { text: '⚠️ No reconocí la obra. Respondé con el número de la lista o parte del nombre.' });
+        return;
+    }
+    setChatState(senderNumber, 'AWAITING_CHANGE_TITLE', { site_id: chosen.id, site_address: chosen.address });
+    await sock.sendMessage(senderNumber, { text: `✅ Obra seleccionada: ${chosen.address}\n📝 Escribí el título de la solicitud de cambio (ej: "Cambiar color de pintura de la sala").` });
+}
+
+async function handleChangeTitle(
+    messageText: string,
+    context: any,
+    senderNumber: string,
+    sock: WASocket
+) {
+    await sock.sendMessage(senderNumber, {
+        text: '✅ Título guardado.\n🖊️ Ahora escribí una breve *descripción* (opcional, escribí "sin descripción" para omitir).'
+    });
+    setChatState(senderNumber, 'AWAITING_CHANGE_DESCRIPTION', { ...context, title: messageText });
+}
+
+async function handleChangeDescription(
+    messageText: string,
+    context: any,
+    senderNumber: string,
+    sock: WASocket
+) {
+    const description = messageText.trim().toLowerCase() === 'sin descripción' || messageText.trim().toLowerCase() === 'sin descripcion' 
+        ? '' 
+        : messageText.trim();
+    
+    const body = [
+        '📝 Descripción guardada.',
+        '',
+        'Elegí la categoría de la solicitud de cambio (respondé con número o nombre):',
+        '1) *Pintura* 🎨',
+        '2) *Construcción* 🏗️',
+        '3) *Electricidad* ⚡',
+        '4) *Plomería* 🚰',
+        '5) *Otro* 🧩',
+    ].join('\n');
+    await sock.sendMessage(senderNumber, { text: body });
+
+    setChatState(senderNumber, 'AWAITING_CHANGE_CATEGORY', {
+        ...context,
+        description: description
+    });
+}
+
+async function handleChangeCategory(
+    messageText: string,
+    context: any,
+    user: Profile,
+    senderNumber: string,
+    sock: WASocket
+) {
+    let normalized = messageText.toLowerCase().trim();
+    const numMatchCat = normalized.match(/^\d+/);
+    if (numMatchCat) normalized = numMatchCat[0];
+    const categoryMap: Record<string, string> = {
+        '1': 'pintura',
+        '2': 'construccion',
+        '3': 'electricidad',
+        '4': 'plomeria',
+        '5': 'otro',
+        'pintura': 'pintura',
+        'construcción': 'construccion',
+        'construccion': 'construccion',
+        'electricidad': 'electricidad',
+        'plomería': 'plomeria',
+        'plomeria': 'plomeria',
+        'otro': 'otro'
+    };
+    const mapped = categoryMap[normalized] || normalized;
+
+    // Validar categoría (incluyendo "otro" aunque no esté en taskCategories)
+    const validCategories = ['pintura', 'construccion', 'electricidad', 'plomeria', 'otro'];
+    if (validCategories.includes(mapped)) {
+        // Para "otro", usar 'pintura' como categoría por defecto en el DTO (la BD acepta cualquier string)
+        const categoryForDTO = mapped === 'otro' ? 'pintura' : mapped;
+        
+        // Crear el cambio directamente con status="changes"
+        const changeDTO: CreateTaskDTO = {
+            title: context.title,
+            description: context.description || context.title || '',
+            category: categoryForDTO as TaskCategory,
+            status: 'changes',
+            user_id: user.id,
+            site_id: context.site_id
+        };
+        
+        await handleChangeCreation(changeDTO, context.site_address, senderNumber, sock, user, mapped === 'otro' ? 'otro' : undefined);
+    } else {
+        await sock.sendMessage(senderNumber, {
+            text: '⚠️ Categoría no válida. Elegí entre: 1) Pintura, 2) Construcción, 3) Electricidad, 4) Plomería, 5) Otro.'
+        });
+    }
+}
+
+async function handleChangeCreation(
+    changeDTO: CreateTaskDTO,
+    siteAddress: string | undefined,
+    senderNumber: string,
+    sock: WASocket,
+    user: Profile,
+    actualCategory?: string
+) {
+    try {
+        // Asegurar que el status sea "changes"
+        changeDTO.status = 'changes';
+        
+        // Validar que tenga los campos requeridos
+        if (!changeDTO.title || !changeDTO.category) {
+            await sock.sendMessage(senderNumber, { 
+                text: '❌ Error: Faltan campos requeridos (título o categoría)' 
+            });
+            setChatState(senderNumber, 'IDLE');
+            return;
+        }
+        
+        if (!changeDTO.user_id) {
+            changeDTO.user_id = user.id;
+        }
+        
+        if (!changeDTO.site_id) {
+            await sock.sendMessage(senderNumber, { 
+                text: '❌ Error: No se seleccionó una obra. Intentá de nuevo.' 
+            });
+            setChatState(senderNumber, 'IDLE');
+            return;
+        }
+        
+        // Preparar el payload completo incluyendo site_id
+        // Necesitamos enviar todos los campos que la tabla tasks requiere
+        const taskPayload: any = {
+            title: changeDTO.title,
+            description: changeDTO.description || changeDTO.title || '',
+            // Usar la categoría real si es "otro", sino usar la del DTO
+            category: actualCategory === 'otro' ? 'otro' : changeDTO.category,
+            status: 'changes',
+            user_id: changeDTO.user_id || user.id,
+            site_id: changeDTO.site_id
+        };
+        
+        // Validar que todos los campos requeridos estén presentes
+        if (!taskPayload.title || !taskPayload.category || !taskPayload.user_id || !taskPayload.site_id) {
+            await sock.sendMessage(senderNumber, { 
+                text: `❌ Error: Faltan campos requeridos.\nTítulo: ${taskPayload.title ? '✓' : '✗'}\nCategoría: ${taskPayload.category ? '✓' : '✗'}\nUsuario: ${taskPayload.user_id ? '✓' : '✗'}\nObra: ${taskPayload.site_id ? '✓' : '✗'}` 
+            });
+            setChatState(senderNumber, 'IDLE');
+            return;
+        }
+        
+        console.log('Creando cambio con payload completo:', JSON.stringify(taskPayload, null, 2));
+        console.log('Verificación de campos:', {
+            title: !!taskPayload.title,
+            description: !!taskPayload.description,
+            category: taskPayload.category,
+            status: taskPayload.status,
+            user_id: taskPayload.user_id,
+            site_id: taskPayload.site_id
+        });
+        
+        // Llamada al service con el payload completo
+        let createdChange;
+        try {
+            createdChange = await api.TaskService.createTask(taskPayload);
+            console.log('✅ Cambio creado exitosamente:', createdChange?.id);
+        } catch (createError: any) {
+            console.error('❌ Error al crear cambio en el servicio:', createError);
+            console.error('Error completo:', JSON.stringify(createError, null, 2));
+            throw createError;
+        }
+
+        await sock.sendMessage(senderNumber, {
+            text: `✅ Solicitud de cambio creada con éxito:\n📋 Título: ${createdChange.title}\n🏷️ Obra: ${siteAddress || 'Sin obra'}\n🔄 Estado: Cambios`
+        });
+
+        // Notificar a los admins de la obra si el usuario es cliente
+        if (changeDTO.site_id) {
+            // Verificar si el usuario es admin de ESTE sitio específico, no de cualquier sitio
+            const isAdminOfThisSite = await api.SiteService.validateUserIsAdmin(user.id, changeDTO.site_id);
+            console.log(`[handleChangeCreation] Usuario ${user.name} (${user.id}) es admin del sitio ${changeDTO.site_id}: ${isAdminOfThisSite}`);
+            if (!isAdminOfThisSite) {
+                console.log(`[handleChangeCreation] Usuario es cliente de esta obra, notificando a administradores de la obra ${changeDTO.site_id}`);
+                await notifyAdminsOfChange(changeDTO.site_id, createdChange, user, siteAddress);
+            } else {
+                console.log(`[handleChangeCreation] Usuario es admin de esta obra, no se envía notificación`);
+            }
+        } else {
+            console.log(`[handleChangeCreation] No hay site_id en el cambio, no se puede notificar`);
+        }
+
+        setChatState(senderNumber, 'IDLE');
+    } catch (error: any) {
+        console.error('Error al crear el cambio:', error);
+        console.error('Stack trace:', error?.stack);
+        const errorMessage = error?.message || error?.toString() || 'Error desconocido';
+        await sock.sendMessage(senderNumber, { 
+            text: `❌ Error al crear la solicitud de cambio:\n${errorMessage}\n\nVerificá que todos los campos estén correctos.` 
+        });
+        setChatState(senderNumber, 'IDLE');
+    }
+}
+
+// Manejo de confirmación de asignación a workers
+async function handleWorkerAssignmentConfirmation(
+    messageText: string,
+    context: any,
+    user: Profile,
+    senderNumber: string,
+    sock: WASocket
+) {
+    const lower = messageText.trim().toLowerCase();
+    const { taskId, taskTitle, siteId, siteAddress } = context;
+
+    if (['si', 'sí', 's', 'yes', 'y'].includes(lower)) {
+        // Obtener workers de la obra
+        try {
+            const workers = await api.WorkerService.getWorkersBySite(siteId);
+            
+            if (!workers || workers.length === 0) {
+                await sock.sendMessage(senderNumber, {
+                    text: `⚠️ No hay trabajadores asignados a la obra "${siteAddress || 'Sin nombre'}".\n\n✅ Tarea creada sin asignar.`
+                });
+                setChatState(senderNumber, 'IDLE');
+                return;
+            }
+
+            // Mostrar lista de workers
+            const lines: string[] = [];
+            lines.push(`👷 *Trabajadores de "${siteAddress || 'Sin nombre'}":*`);
+            lines.push('');
+            lines.push('Seleccioná uno o más trabajadores (respondé con los números separados por comas, ej: "1,3" o "1 3"):');
+            lines.push('');
+            workers.forEach((worker: any, index: number) => {
+                const num = index + 1;
+                const name = `${worker.worker_name || ''} ${worker.worker_surname || ''}`.trim() || 'Sin nombre';
+                const profession = worker.profession || 'Sin profesión';
+                lines.push(`${num}) ${name} - ${profession}`);
+            });
+
+            setChatState(senderNumber, 'AWAITING_WORKER_SELECTION', {
+                taskId,
+                taskTitle,
+                siteId,
+                siteAddress,
+                workers
+            });
+
+            await sock.sendMessage(senderNumber, { text: lines.join('\n') });
+        } catch (error: any) {
+            console.error('Error obteniendo workers:', error);
+            await sock.sendMessage(senderNumber, {
+                text: `❌ Error al obtener trabajadores: ${error?.message || 'Error desconocido'}\n\n✅ Tarea creada sin asignar.`
+            });
+            setChatState(senderNumber, 'IDLE');
+        }
+    } else if (['no', 'n'].includes(lower)) {
+        await sock.sendMessage(senderNumber, {
+            text: `✅ Tarea "${taskTitle}" creada sin asignar a trabajadores.`
+        });
+        setChatState(senderNumber, 'IDLE');
+    } else {
+        await sock.sendMessage(senderNumber, {
+            text: '⚠️ Por favor respondé "sí" o "no".'
+        });
+    }
+}
+
+// Manejo de selección de workers
+async function handleWorkerSelection(
+    messageText: string,
+    context: any,
+    user: Profile,
+    senderNumber: string,
+    sock: WASocket
+) {
+    const { taskId, taskTitle, siteId, siteAddress, workers } = context;
+
+    if (!workers || workers.length === 0) {
+        await sock.sendMessage(senderNumber, { text: '❌ Error: No hay trabajadores disponibles.' });
+        setChatState(senderNumber, 'IDLE');
+        return;
+    }
+
+    // Parsear números (pueden venir como "1,3" o "1 3" o "1, 3")
+    const input = messageText.trim();
+    const numbers = input.split(/[,\s]+/).map(n => parseInt(n.trim(), 10)).filter(n => !isNaN(n) && n > 0);
+
+    if (numbers.length === 0) {
+        await sock.sendMessage(senderNumber, {
+            text: '⚠️ No reconocí los números. Respondé con los números separados por comas, ej: "1,3" o "1 3".'
+        });
+        return;
+    }
+
+    // Validar que los números estén en rango
+    const validNumbers = numbers.filter(n => n >= 1 && n <= workers.length);
+    if (validNumbers.length === 0) {
+        await sock.sendMessage(senderNumber, {
+            text: `⚠️ Los números deben estar entre 1 y ${workers.length}.`
+        });
+        return;
+    }
+
+    // Obtener los workers seleccionados (sin duplicados)
+    const selectedWorkers = Array.from(new Set(validNumbers.map(n => workers[n - 1])));
+
+    try {
+        // Asignar la tarea a los workers
+        const workerIds = selectedWorkers.map((w: any) => w.worker_id);
+        await api.WorkerService.assignTaskToWorkers(taskId, workerIds);
+
+        // Enviar mensajes por WhatsApp a cada worker
+        const workerNames: string[] = [];
+        for (const worker of selectedWorkers) {
+            const workerName = `${worker.worker_name || ''} ${worker.worker_surname || ''}`.trim() || 'Trabajador';
+            workerNames.push(workerName);
+
+            // Normalizar número de teléfono para WhatsApp
+            let phoneNumber = worker.worker_cellnumber || '';
+            // Remover espacios, guiones y paréntesis
+            phoneNumber = phoneNumber.replace(/[\s\-\(\)]/g, '');
+            // Si empieza con +, mantenerlo; si no, agregar +54
+            if (!phoneNumber.startsWith('+')) {
+                // Si empieza con 54, agregar +
+                if (phoneNumber.startsWith('54')) {
+                    phoneNumber = '+' + phoneNumber;
+                } else {
+                    // Asumir que es un número argentino sin código de país
+                    phoneNumber = '+54' + phoneNumber;
+                }
+            }
+            // Agregar @s.whatsapp.net
+            const whatsappJid = phoneNumber + '@s.whatsapp.net';
+
+            // Enviar mensaje al worker
+            const message = `👷 *Nueva Tarea Asignada*\n\n📋 *${taskTitle}*\n🏷️ Obra: ${siteAddress || 'Sin obra'}\n\nSe te ha asignado una nueva tarea. Revisá los detalles en la app.`;
+            
+            try {
+                if (globalSock) {
+                    await safeSendMessage(globalSock, whatsappJid, message);
+                    console.log(`✅ Notificación enviada a worker ${workerName} (${whatsappJid})`);
+                } else {
+                    console.error('❌ Socket de WhatsApp no disponible para enviar notificación');
+                }
+            } catch (error: any) {
+                console.error(`❌ Error enviando notificación a worker ${workerName} (${whatsappJid}):`, error);
+                // Continuar con los demás workers aunque falle uno
+            }
+        }
+
+        const workersText = selectedWorkers.length === 1 
+            ? `el trabajador ${workerNames[0]}`
+            : `los trabajadores: ${workerNames.join(', ')}`;
+
+        await sock.sendMessage(senderNumber, {
+            text: `✅ Tarea "${taskTitle}" asignada a ${workersText}.\n\n📱 Se les envió una notificación por WhatsApp.`
+        });
+
+        setChatState(senderNumber, 'IDLE');
+    } catch (error: any) {
+        console.error('Error asignando tarea a workers:', error);
+        await sock.sendMessage(senderNumber, {
+            text: `❌ Error al asignar la tarea: ${error?.message || 'Error desconocido'}`
+        });
+        setChatState(senderNumber, 'IDLE');
+    }
+}
+
 // ====================
 // Flujo de compras
 // ====================
 
 async function startPurchaseFlow(senderNumber: string, sock: WASocket, user: Profile) {
     try {
-        const sites = await api.SiteService.getSitesByUser(user.id);
+        const sites = await api.SiteService.getAdminSitesByUser(user.id);
         if (!sites || sites.length === 0) {
-            await sock.sendMessage(senderNumber, { text: '⚠️ No encontré obras asociadas a tu usuario. Creá una obra desde la app para continuar.' });
+            await sock.sendMessage(senderNumber, { text: '⚠️ No encontré obras donde seas administrador. Solo podés crear compras en obras donde tenés rol de administrador.' });
             return;
         }
         if (sites.length === 1) {
@@ -1712,12 +2527,14 @@ async function handlePurchaseProduct(messageText: string, context: any, senderNu
         return;
     }
     setChatState(senderNumber, 'AWAITING_PURCHASE_CATEGORY', { ...context, product });
-    // Categorías permitidas en la base de datos (enum task_category)
+    // Categorías permitidas en la base de datos (enum purchase_category)
     const categories = [
-        { display: 'Electricidad', value: 'electricidad' },
-        { display: 'Construcción', value: 'construccion' },
-        { display: 'Pintura', value: 'pintura' },
-        { display: 'Plomería', value: 'plomeria' }
+        { display: 'Materiales', value: 'materiales' },
+        { display: 'Herramientas', value: 'herramientas' },
+        { display: 'Equipamiento', value: 'equipamiento' },
+        { display: 'Seguridad', value: 'seguridad' },
+        { display: 'Oficina', value: 'oficina' },
+        { display: 'Otros', value: 'otros' }
     ];
     const lines: string[] = [];
     lines.push(`✅ Producto: ${product}\n`);
@@ -1727,12 +2544,14 @@ async function handlePurchaseProduct(messageText: string, context: any, senderNu
 }
 
 async function handlePurchaseCategory(messageText: string, context: any, senderNumber: string, sock: WASocket) {
-    // Categorías permitidas en la base de datos (enum task_category)
+    // Categorías permitidas en la base de datos (enum purchase_category)
     const categories = [
-        { display: 'Electricidad', value: 'electricidad' },
-        { display: 'Construcción', value: 'construccion' },
-        { display: 'Pintura', value: 'pintura' },
-        { display: 'Plomería', value: 'plomeria' }
+        { display: 'Materiales', value: 'materiales' },
+        { display: 'Herramientas', value: 'herramientas' },
+        { display: 'Equipamiento', value: 'equipamiento' },
+        { display: 'Seguridad', value: 'seguridad' },
+        { display: 'Oficina', value: 'oficina' },
+        { display: 'Otros', value: 'otros' }
     ];
     let input = messageText.trim();
     let category: string | null = null;
@@ -1753,12 +2572,57 @@ async function handlePurchaseCategory(messageText: string, context: any, senderN
         if (matched) category = matched.value;
     }
     if (!category) {
-        await sock.sendMessage(senderNumber, { text: '⚠️ Categoría no válida. Respondé con el número de la lista (1-4).' });
+        await sock.sendMessage(senderNumber, { text: '⚠️ Categoría no válida. Respondé con el número de la lista (1-6).' });
         return;
     }
     const categoryDisplay = categories.find(c => c.value === category)?.display || category;
-    setChatState(senderNumber, 'AWAITING_PURCHASE_QUANTITY', { ...context, category });
-    await sock.sendMessage(senderNumber, { text: `✅ Categoría: ${categoryDisplay}\n\n🔢 ¿Cuántas unidades necesitás? (escribí solo el número)` });
+    setChatState(senderNumber, 'AWAITING_PURCHASE_PRIORITY', { ...context, category });
+    
+    const priorities = [
+        { display: 'Baja', value: 'baja' },
+        { display: 'Normal', value: 'normal' },
+        { display: 'Alta', value: 'alta' },
+        { display: 'Urgente', value: 'urgente' }
+    ];
+    const lines: string[] = [];
+    lines.push(`✅ Categoría: ${categoryDisplay}\n`);
+    lines.push('⚡ ¿Cuál es la prioridad? (respondé con el número):');
+    priorities.forEach((pri, idx) => lines.push(`${idx + 1}) ${pri.display}`));
+    await sock.sendMessage(senderNumber, { text: lines.join('\n') });
+}
+
+async function handlePurchasePriority(messageText: string, context: any, senderNumber: string, sock: WASocket) {
+    const priorities = [
+        { display: 'Baja', value: 'baja' },
+        { display: 'Normal', value: 'normal' },
+        { display: 'Alta', value: 'alta' },
+        { display: 'Urgente', value: 'urgente' }
+    ];
+    let input = messageText.trim();
+    let priority: string | null = null;
+    const num = input.match(/^\d+/);
+    if (num) {
+        const idx = parseInt(num[0], 10) - 1;
+        if (idx >= 0 && idx < priorities.length) {
+            priority = priorities[idx].value;
+        }
+    }
+    if (!priority) {
+        // Buscar por nombre (case insensitive, sin acentos)
+        const normalizedInput = input.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const matched = priorities.find(pri => {
+            const normalizedDisplay = pri.display.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            return normalizedDisplay.includes(normalizedInput) || pri.value === normalizedInput;
+        });
+        if (matched) priority = matched.value;
+    }
+    if (!priority) {
+        await sock.sendMessage(senderNumber, { text: '⚠️ Prioridad no válida. Respondé con el número de la lista (1-4).' });
+        return;
+    }
+    const priorityDisplay = priorities.find(p => p.value === priority)?.display || priority;
+    setChatState(senderNumber, 'AWAITING_PURCHASE_QUANTITY', { ...context, priority });
+    await sock.sendMessage(senderNumber, { text: `✅ Prioridad: ${priorityDisplay}\n\n🔢 ¿Cuántas unidades necesitás? (escribí solo el número)` });
 }
 
 async function handlePurchaseQuantity(messageText: string, context: any, senderNumber: string, sock: WASocket) {
@@ -1826,19 +2690,29 @@ async function handlePurchaseDescription(messageText: string, context: any, user
         };
 
         // El servicio espera CreatePurchaseDTO pero el backend necesita site_id y user_id
+        // Asegurar que la prioridad esté presente (si no está, usar 'normal' como valor por defecto)
+        const priorityValue = context.priority && ['baja', 'normal', 'alta', 'urgente'].includes(context.priority) 
+            ? context.priority 
+            : 'normal';
+        
+        console.log(`[handlePurchaseCreation] Prioridad del contexto: ${context.priority}, prioridad final: ${priorityValue}`);
+        
         const purchasePayload: any = {
             ...purchaseData,
             site_id: context.site_id,
-            user_id: user.id
+            user_id: user.id,
+            priority: priorityValue
         };
 
         console.log('Creando compra con payload:', JSON.stringify(purchasePayload, null, 2));
         const createdPurchase = await api.PurchaseService.createPurchase(purchasePayload);
 
+        const priorityText = context.priority ? `⚡ Prioridad: ${context.priority.charAt(0).toUpperCase() + context.priority.slice(1)}` : '';
         const summary = [
             '✅ ¡Solicitud de compra creada con éxito!\n',
             `📦 Producto: ${createdPurchase.product}`,
             `📂 Categoría: ${createdPurchase.category}`,
+            priorityText,
             `🔢 Cantidad: ${createdPurchase.quantity}`,
             createdPurchase.price ? `💰 Precio unitario: $${createdPurchase.price}` : '',
             createdPurchase.supplier ? `🏪 Proveedor: ${createdPurchase.supplier}` : '',
@@ -2093,11 +2967,11 @@ async function sendSitesComparison(jid: string, sock: WASocket, user: Profile) {
 }
 
 // --------------------
-// Avances (updates) de hoy
+// Avances (updates) de las últimas dos semanas
 // --------------------
 async function sendAdvancesToday(jid: string, sock: WASocket, siteQuery?: string) {
     try {
-        await sock.sendMessage(jid, { text: '📸 Buscando avances de hoy…' });
+        await sock.sendMessage(jid, { text: '📸 Buscando avances de las últimas 2 semanas…' });
 
         const user = await getVerifiedUser(jid);
         if (!user) {
@@ -2106,8 +2980,24 @@ async function sendAdvancesToday(jid: string, sock: WASocket, siteQuery?: string
         }
 
         const now = new Date();
-        const todayUTCStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
-        const todayUTCEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
+        // Calcular fecha de hace 2 semanas (14 días)
+        const twoWeeksAgo = new Date(now);
+        twoWeeksAgo.setDate(now.getDate() - 14);
+        twoWeeksAgo.setHours(0, 0, 0, 0);
+        
+        const twoWeeksAgoUTC = new Date(Date.UTC(
+            twoWeeksAgo.getUTCFullYear(),
+            twoWeeksAgo.getUTCMonth(),
+            twoWeeksAgo.getUTCDate(),
+            0, 0, 0, 0
+        ));
+        
+        const nowUTC = new Date(Date.UTC(
+            now.getUTCFullYear(),
+            now.getUTCMonth(),
+            now.getUTCDate(),
+            23, 59, 59, 999
+        ));
 
         const sites = await api.SiteService.getSitesByUser(user.id);
         let included = sites;
@@ -2123,22 +3013,32 @@ async function sendAdvancesToday(jid: string, sock: WASocket, siteQuery?: string
 
         const updatesBySite = await Promise.all(included.map(async s => {
             const upd = await fetchJSON<Update[]>(`/updates?site_id=${s.id}`);
-            const today = upd.filter(u => {
+            // Filtrar avances de las últimas 2 semanas
+            const recent = upd.filter(u => {
                 const d = new Date(u.created_at);
-                return d >= todayUTCStart && d <= todayUTCEnd;
+                return d >= twoWeeksAgoUTC && d <= nowUTC;
             });
-            return { site: s, updates: today };
+            return { site: s, updates: recent };
         }));
 
         const all = updatesBySite.flatMap(u => u.updates.map(x => ({ ...x, site: u.site })));
         if (!all.length) {
-            await sock.sendMessage(jid, { text: '😕 No hay avances para hoy' });
+            await sock.sendMessage(jid, { text: '😕 No hay avances en las últimas 2 semanas' });
             return;
         }
 
-        const header = `📸 Avances de hoy (${now.toLocaleDateString('es-AR')})` + (q ? ` — ${q}` : '');
+        // Ordenar por fecha (más recientes primero)
+        all.sort((a, b) => {
+            const dateA = new Date(a.created_at).getTime();
+            const dateB = new Date(b.created_at).getTime();
+            return dateB - dateA;
+        });
+
+        const header = `📸 Avances de las últimas 2 semanas` + (q ? ` — ${q}` : '');
         const lines: string[] = [header, ''];
-        for (const u of all.slice(0, 5)) {
+        
+        // Mostrar más avances (hasta 20 en el resumen, luego las imágenes)
+        for (const u of all.slice(0, 20)) {
             const siteName = (u as any).site?.address || '';
             const t = (u.title || '').trim();
             const d = (u.description || '').trim();
@@ -2147,12 +3047,17 @@ async function sendAdvancesToday(jid: string, sock: WASocket, siteQuery?: string
                 if (t.toLowerCase() === d.toLowerCase()) body = t;
                 else body = `${t} — ${clip(d, 50)}`;
             } else if (t) body = t; else if (d) body = clip(d, 50); else body = '(sin título)';
-            lines.push(`• ${body}${siteName ? ` · 🏷️ ${siteName}` : ''}`);
+            
+            // Agregar fecha del avance
+            const updateDate = new Date(u.created_at);
+            const dateStr = updateDate.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+            lines.push(`• ${body}${siteName ? ` · 🏷️ ${siteName}` : ''} · 📅 ${dateStr}`);
         }
-        if (all.length > 5) lines.push(`… y ${all.length - 5} más`);
+        if (all.length > 20) lines.push(`… y ${all.length - 20} más`);
         await sock.sendMessage(jid, { text: lines.join('\n') });
 
-        for (const u of all) {
+        // Enviar las imágenes (máximo 10 para no saturar)
+        for (const u of all.slice(0, 10)) {
             if (!u.image_url) continue;
             try {
                 const t = (u.title || '').trim();
@@ -2162,6 +3067,12 @@ async function sendAdvancesToday(jid: string, sock: WASocket, siteQuery?: string
                     if (t.toLowerCase() === d.toLowerCase()) caption = t;
                     else caption = `${t} — ${clip(d, 100)}`;
                 } else if (t) caption = t; else if (d) caption = clip(d, 100);
+                
+                // Agregar fecha al caption
+                const updateDate = new Date(u.created_at);
+                const dateStr = updateDate.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                caption = caption ? `${caption} · 📅 ${dateStr}` : `📅 ${dateStr}`;
+                
                 if (u.image_url.startsWith('data:')) {
                     const base64 = u.image_url.split(',')[1];
                     const buf = Buffer.from(base64, 'base64');
@@ -2174,7 +3085,7 @@ async function sendAdvancesToday(jid: string, sock: WASocket, siteQuery?: string
             }
         }
     } catch (err: any) {
-        console.error('Error en avances de hoy:', err);
+        console.error('Error en avances:', err);
         await sock.sendMessage(jid, { text: `❌ No pude obtener avances: ${err?.message || 'Error desconocido'}` });
     }
 }
@@ -2334,21 +3245,96 @@ async function getVerifiedUser(senderNumber: string) {
     }
 }
 
-async function handleTaskCreation(task: CreateTaskDTO, senderNumber: string, sock: WASocket) {
+/**
+ * Verifica si el usuario tiene al menos una obra como administrador
+ * Retorna true si es admin, false si es solo cliente
+ */
+async function isUserAdmin(userId: string): Promise<boolean> {
     try {
+        console.log(`[isUserAdmin] Verificando si usuario ${userId} es admin...`);
+        const adminSites = await api.SiteService.getAdminSitesByUser(userId);
+        const isAdmin = adminSites && adminSites.length > 0;
+        console.log(`[isUserAdmin] Usuario ${userId} es admin: ${isAdmin} (${adminSites?.length || 0} sitios como admin)`);
+        if (adminSites && adminSites.length > 0) {
+            console.log(`[isUserAdmin] Sitios donde es admin:`, adminSites.map((s: any) => `${s.address} (${s.id})`).join(', '));
+        }
+        return isAdmin;
+    } catch (error) {
+        console.error('[isUserAdmin] Error verificando si usuario es admin:', error);
+        return false;
+    }
+}
+
+async function handleTaskCreation(task: CreateTaskDTO, senderNumber: string, sock: WASocket, user?: Profile | null) {
+    try {
+        const taskWithSite = task as CreateTaskDTO & { site_id?: string; site_address?: string };
+        
+        // Si no tiene site_id, preguntar primero por la obra
+        if (!taskWithSite.site_id) {
+            if (!user) {
+                const fetchedUser = await getVerifiedUser(senderNumber);
+                if (!fetchedUser) {
+                    await sock.sendMessage(senderNumber, { text: '❌ No se pudo identificar tu usuario.' });
+                    return;
+                }
+                user = fetchedUser;
+            }
+            
+            const sites = await api.SiteService.getAdminSitesByUser(user.id);
+            if (!sites || sites.length === 0) {
+                await sock.sendMessage(senderNumber, { text: '⚠️ No encontré obras donde seas administrador. Solo podés crear tareas en obras donde tenés rol de administrador.' });
+                return;
+            }
+            
+            if (sites.length === 1) {
+                // Si hay una sola obra, usarla automáticamente
+                taskWithSite.site_id = (sites[0] as any).id;
+                taskWithSite.site_address = (sites[0] as any).address;
+            } else {
+                // Si hay múltiples obras, pedir que seleccione
+                setChatState(senderNumber, 'AWAITING_TASK_SITE_SELECTION', { taskData: task });
+                const lines: string[] = [];
+                lines.push('🏷️ ¿Para qué obra es esta tarea? (respondé con el número):');
+                sites.slice(0, 20).forEach((s: any, idx: number) => lines.push(`${idx + 1}) ${s.address}`));
+                await sock.sendMessage(senderNumber, { text: lines.join('\n') });
+                return;
+            }
+        }
 
         console.log(task);
         // Llamada al service
-        const createdTask = await api.TaskService.createTask(task);
+        const createdTask = await api.TaskService.createTask(taskWithSite);
 
         await sock.sendMessage(senderNumber, {
-            text: `✅ Tarea creada con éxito:\nTítulo: ${createdTask.title}`
+            text: `✅ Tarea creada con éxito:\n📋 Título: ${createdTask.title}\n🏷️ Obra: ${taskWithSite.site_address || 'Sin obra'}`
         });
+
+        // Preguntar si quiere asignarla a workers
+        if (!user) {
+            const fetchedUser = await getVerifiedUser(senderNumber);
+            if (fetchedUser) {
+                user = fetchedUser;
+            }
+        }
+        if (user) {
+            setChatState(senderNumber, 'AWAITING_WORKER_ASSIGNMENT_CONFIRMATION', { 
+                taskId: createdTask.id, 
+                taskTitle: createdTask.title,
+                siteId: taskWithSite.site_id,
+                siteAddress: taskWithSite.site_address
+            });
+            await sock.sendMessage(senderNumber, {
+                text: '👷 ¿Querés asignarla a algún trabajador? (respondé "sí" o "no")'
+            });
+        } else {
+            setChatState(senderNumber, 'IDLE');
+        }
 
     } catch (error: any) {
         console.error('Error al procesar el mensaje:', error.message);
         // Enviamos el mensaje de error al usuario para que sepa qué salió mal
         await sock.sendMessage(senderNumber, { text: `❌ Error: ${error.message}` });
+        setChatState(senderNumber, 'IDLE');
     }
 }
 
@@ -2368,7 +3354,18 @@ async function handleTaskStateUpdate(taskId: string, newState: string, senderNum
 }
 
 // --------------------
-// Actualizar estado de tareas por comando
+// Función auxiliar para normalizar texto (sin tildes, case-insensitive)
+// --------------------
+function normalizeText(text: string): string {
+    return text
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // Eliminar tildes
+        .trim();
+}
+
+// --------------------
+// Actualizar estado de tareas por comando unificado: [número/título] [pendiente/bloqueada/completada/en progreso]
 // --------------------
 async function handleTaskStatusUpdateCommand(
     messageText: string,
@@ -2379,28 +3376,35 @@ async function handleTaskStatusUpdateCommand(
     try {
         const lower = messageText.trim().toLowerCase();
         
-        // Detectar el estado deseado
+        // Detectar el estado deseado al final del mensaje
         let targetStatus: Task['status'] | null = null;
-        if (lower.startsWith('completar tarea') || lower.startsWith('completada tarea')) {
-            targetStatus = 'completed';
-        } else if (lower.startsWith('bloquear tarea') || lower.startsWith('bloqueada tarea')) {
+        let statusKeyword = '';
+        
+        // Mapeo de estados en español a estados en inglés
+        if (lower.endsWith(' bloqueada') || lower.endsWith(' bloqueado')) {
             targetStatus = 'blocked';
-        } else if (lower.startsWith('en progreso tarea') || lower.startsWith('progreso tarea')) {
+            statusKeyword = lower.endsWith(' bloqueada') ? ' bloqueada' : ' bloqueado';
+        } else if (lower.endsWith(' completada') || lower.endsWith(' completado')) {
+            targetStatus = 'completed';
+            statusKeyword = lower.endsWith(' completada') ? ' completada' : ' completado';
+        } else if (lower.endsWith(' en progreso') || lower.endsWith(' progreso')) {
             targetStatus = 'in_progress';
-        } else if (lower.startsWith('pendiente tarea')) {
+            statusKeyword = lower.endsWith(' en progreso') ? ' en progreso' : ' progreso';
+        } else if (lower.endsWith(' pendiente')) {
             targetStatus = 'pending';
+            statusKeyword = ' pendiente';
         }
 
         if (!targetStatus) {
             await sock.sendMessage(senderNumber, {
-                text: '⚠️ Comando no reconocido. Usa:\n• "completar tarea [número/título]"\n• "bloquear tarea [número/título]"\n• "en progreso tarea [número/título]"\n• "pendiente tarea [número/título]"'
+                text: '⚠️ Comando no reconocido. Usa:\n• "[número/título] pendiente"\n• "[número/título] bloqueada"\n• "[número/título] completada"\n• "[número/título] en progreso"'
             });
             return;
         }
 
-        // Extraer el identificador (número o texto después de "tarea")
+        // Extraer el identificador (número o texto antes del estado)
         const taskIdentifier = messageText
-            .replace(/^(completar|completada|bloquear|bloqueada|en progreso|progreso|pendiente)\s+tarea\s+/i, '')
+            .replace(new RegExp(`${statusKeyword}$`, 'i'), '')
             .trim();
 
         // Si no hay identificador, listar tareas para seleccionar
@@ -2409,14 +3413,52 @@ async function handleTaskStatusUpdateCommand(
             return;
         }
 
-        // Buscar la tarea por ID o título
-        const task = await findTaskByIdentifier(taskIdentifier, user.id);
+        // Buscar la tarea por ID o título (con manejo de múltiples coincidencias)
+        const result = await findTaskByIdentifier(taskIdentifier, user.id);
         
-        if (!task) {
+        if (!result) {
             await sock.sendMessage(senderNumber, {
                 text: `❌ No encontré una tarea con "${taskIdentifier}".\n\nUsa el número de la lista o el título completo.`
             });
             return;
+        }
+
+        // Si hay múltiples coincidencias, mostrar lista y esperar selección
+        if (Array.isArray(result)) {
+            const state = getChatState(senderNumber);
+            setChatState(senderNumber, 'AWAITING_TASK_SELECTION_FOR_STATUS', {
+                tasks: result,
+                targetStatus: targetStatus
+            });
+            
+            const lines: string[] = [];
+            lines.push(`🔍 Encontré ${result.length} tareas que coinciden con "${taskIdentifier}":`);
+            lines.push('');
+            result.forEach((item, index) => {
+                const icon = categoryIcon(item.task.category);
+                const status = statusBadge(String(item.task.status));
+                lines.push(`${index + 1}) ${icon} *${item.task.title}*`);
+                lines.push(`   Estado: ${status} | Obra: ${item.site?.address || 'Sin obra'}`);
+            });
+            lines.push('');
+            lines.push('📝 Respondé con el número de la lista o el título completo.');
+            
+            await sock.sendMessage(senderNumber, { text: lines.join('\n') });
+            return;
+        }
+
+        // Una sola coincidencia encontrada
+        const task = result;
+
+        // Validar que el usuario sea admin de la obra a la que pertenece la tarea
+        if (task.site_id) {
+            const isAdmin = await api.SiteService.validateUserIsAdmin(user.id, task.site_id);
+            if (!isAdmin) {
+                await sock.sendMessage(senderNumber, {
+                    text: `⚠️ No podés cambiar el estado de esta tarea. Solo los administradores pueden modificar tareas.`
+                });
+                return;
+            }
         }
 
         // Verificar que el estado sea diferente
@@ -2438,9 +3480,23 @@ async function handleTaskStatusUpdateCommand(
             text: `✅ Tarea actualizada:\n\n${icon} *${task.title}*\nEstado: ${statusText}`
         });
 
-        // Si la tarea se bloqueó, verificar dependencias y notificar
+        // Si la tarea se bloqueó, verificar dependencias y notificar a admins
         if (targetStatus === 'blocked') {
             await checkAndNotifyTaskDependencies(task.id, task.title, user, sock);
+            
+            // Obtener la tarea actualizada para tener todos los datos (incluido site)
+            try {
+                const updatedTask = await api.TaskService.getTask(task.id);
+                if (updatedTask && updatedTask.site_id) {
+                    await notifyAdminsOfBlockedTask(updatedTask.site_id, updatedTask, user, (updatedTask as any).site?.address);
+                }
+            } catch (error) {
+                console.error('Error obteniendo tarea actualizada para notificación:', error);
+                // Si falla, intentar con los datos que tenemos
+                if (task.site_id) {
+                    await notifyAdminsOfBlockedTask(task.site_id, task, user, (task as any).site?.address);
+                }
+            }
         }
 
     } catch (error: any) {
@@ -2458,16 +3514,16 @@ async function listTasksForStatusUpdate(
     targetStatus: Task['status']
 ) {
     try {
-        // Obtener todas las obras del usuario
-        const sites = await api.SiteService.getSitesByUser(user.id);
+        // Obtener solo las obras donde el usuario es admin
+        const sites = await api.SiteService.getAdminSitesByUser(user.id);
         if (!sites || sites.length === 0) {
             await sock.sendMessage(senderNumber, {
-                text: '😕 No tenés obras asignadas.'
+                text: '⚠️ No encontré obras donde seas administrador. Solo podés cambiar el estado de tareas en obras donde tenés rol de administrador.'
             });
             return;
         }
 
-        // Obtener tareas de todas las obras que NO estén en el estado objetivo
+        // Obtener tareas de todas las obras (solo admin) que NO estén en el estado objetivo
         const allTasks: Array<{ task: any; site: any }> = [];
         
         for (const site of sites) {
@@ -2561,12 +3617,14 @@ async function handleTaskSelectionForStatus(
             }
         }
 
-        // Si no se encontró por número, buscar por título
+        // Si no se encontró por número, buscar por título (normalizado, case-insensitive, sin tildes)
         if (!selectedTask) {
-            const taskByTitle = tasks.find(({ task }: any) => 
-                task.title.toLowerCase().includes(input.toLowerCase()) ||
-                input.toLowerCase().includes(task.title.toLowerCase())
-            );
+            const normalizedInput = normalizeText(input);
+            const taskByTitle = tasks.find(({ task }: any) => {
+                const normalizedTitle = normalizeText(task.title || '');
+                return normalizedTitle.includes(normalizedInput) || 
+                       normalizedInput.includes(normalizedTitle);
+            });
             if (taskByTitle) {
                 selectedTask = taskByTitle.task;
             }
@@ -2577,6 +3635,19 @@ async function handleTaskSelectionForStatus(
                 text: '❌ No encontré esa tarea. Escribí el número de la lista o el título completo.'
             });
             return;
+        }
+
+        // Validar que el usuario sea admin de la obra a la que pertenece la tarea
+        const taskItem = tasks.find(({ task }: any) => task.id === selectedTask.id);
+        if (taskItem && taskItem.site?.id) {
+            const isAdmin = await api.SiteService.validateUserIsAdmin(user.id, taskItem.site.id);
+            if (!isAdmin) {
+                await sock.sendMessage(senderNumber, {
+                    text: `⚠️ No podés cambiar el estado de esta tarea. Solo los administradores pueden modificar tareas.`
+                });
+                setChatState(senderNumber, 'IDLE');
+                return;
+            }
         }
 
         // Verificar que el estado sea diferente
@@ -2599,9 +3670,23 @@ async function handleTaskSelectionForStatus(
             text: `✅ Tarea actualizada:\n\n${icon} *${selectedTask.title}*\nEstado: ${statusText}`
         });
 
-        // Si la tarea se bloqueó, verificar dependencias y notificar
+        // Si la tarea se bloqueó, verificar dependencias y notificar a admins
         if (targetStatus === 'blocked') {
             await checkAndNotifyTaskDependencies(selectedTask.id, selectedTask.title, user, sock);
+            
+            // Obtener la tarea actualizada para tener todos los datos (incluido site)
+            try {
+                const updatedTask = await api.TaskService.getTask(selectedTask.id);
+                if (updatedTask && updatedTask.site_id) {
+                    await notifyAdminsOfBlockedTask(updatedTask.site_id, updatedTask, user, (updatedTask as any).site?.address);
+                }
+            } catch (error) {
+                console.error('Error obteniendo tarea actualizada para notificación:', error);
+                // Si falla, intentar con los datos que tenemos
+                if (selectedTask.site_id) {
+                    await notifyAdminsOfBlockedTask(selectedTask.site_id, selectedTask, user, (selectedTask as any).site?.address);
+                }
+            }
         }
         
         setChatState(senderNumber, 'IDLE');
@@ -2615,46 +3700,199 @@ async function handleTaskSelectionForStatus(
     }
 }
 
-async function findTaskByIdentifier(identifier: string, userId: string): Promise<any | null> {
+// --------------------
+// Comando "tareas <obra>" para listar todas las tareas
+// --------------------
+async function handleListTasksCommand(
+    obraName: string,
+    user: Profile,
+    senderNumber: string,
+    sock: WASocket
+) {
     try {
         // Obtener todas las obras del usuario
-        const sites = await api.SiteService.getSitesByUser(userId);
+        const sites = await api.SiteService.getSitesByUser(user.id);
+        if (!sites || sites.length === 0) {
+            await sock.sendMessage(senderNumber, {
+                text: '😕 No tenés obras asignadas.'
+            });
+            return;
+        }
+
+        let targetSites = sites;
+        
+        // Si se especificó una obra, filtrar
+        if (obraName) {
+            const normalizedObraName = normalizeText(obraName);
+            targetSites = sites.filter((site: any) => 
+                normalizeText(site.address || '').includes(normalizedObraName) ||
+                normalizedObraName.includes(normalizeText(site.address || ''))
+            );
+            
+            if (targetSites.length === 0) {
+                await sock.sendMessage(senderNumber, {
+                    text: `❌ No encontré una obra que coincida con "${obraName}".\n\nObras disponibles:\n${sites.slice(0, 10).map((s: any, idx: number) => `${idx + 1}) ${s.address}`).join('\n')}`
+                });
+                return;
+            }
+        }
+
+        // Obtener todas las tareas de las obras seleccionadas
+        const allTasks: Array<{ task: any; site: any }> = [];
+        
+        for (const site of targetSites) {
+            try {
+                const tasks = await api.TaskService.getTasksBySite(site.id);
+                tasks.forEach((task: any) => {
+                    allTasks.push({ task, site });
+                });
+            } catch (error) {
+                console.error(`Error obteniendo tareas para obra ${site.id}:`, error);
+            }
+        }
+
+        if (allTasks.length === 0) {
+            const obraText = obraName ? ` de "${obraName}"` : '';
+            await sock.sendMessage(senderNumber, {
+                text: `📋 No hay tareas${obraText}.`
+            });
+            return;
+        }
+
+        // Ordenar por fecha de creación (más recientes primero)
+        allTasks.sort((a, b) => {
+            const dateA = new Date(a.task.created_at || 0).getTime();
+            const dateB = new Date(b.task.created_at || 0).getTime();
+            return dateB - dateA;
+        });
+
+        // Limitar a las primeras 50 tareas
+        const tasksToShow = allTasks.slice(0, 50);
+        
+        const lines: string[] = [];
+        if (obraName) {
+            lines.push(`📋 *Tareas de "${targetSites[0]?.address || obraName}":*`);
+        } else {
+            lines.push(`📋 *Todas las tareas (${allTasks.length}):*`);
+        }
+        lines.push('');
+
+        // Agrupar por obra si no se especificó una
+        if (!obraName && targetSites.length > 1) {
+            const tasksBySite = new Map<string, Array<{ task: any; site: any }>>();
+            tasksToShow.forEach(({ task, site }) => {
+                const siteId = site.id;
+                if (!tasksBySite.has(siteId)) {
+                    tasksBySite.set(siteId, []);
+                }
+                tasksBySite.get(siteId)!.push({ task, site });
+            });
+
+            for (const [siteId, siteTasks] of tasksBySite) {
+                const site = siteTasks[0].site;
+                lines.push(`🏷️ *${site.address || 'Sin nombre'}* (${siteTasks.length} tareas):`);
+                lines.push('');
+                
+                siteTasks.forEach(({ task }) => {
+                    const icon = categoryIcon(task.category);
+                    const status = statusBadge(String(task.status));
+                    lines.push(`   ${icon} *${task.title}*`);
+                    lines.push(`   Estado: ${status}`);
+                    lines.push('');
+                });
+            }
+        } else {
+            // Mostrar todas las tareas en una lista simple
+            tasksToShow.forEach(({ task, site }, index) => {
+                const num = index + 1;
+                const icon = categoryIcon(task.category);
+                const status = statusBadge(String(task.status));
+                
+                lines.push(`${num}. ${icon} *${task.title}*`);
+                lines.push(`   Estado: ${status}`);
+                if (task.description) {
+                    const desc = task.description.length > 50 ? task.description.substring(0, 50) + '...' : task.description;
+                    lines.push(`   ${desc}`);
+                }
+                lines.push('');
+            });
+        }
+
+        if (allTasks.length > 50) {
+            lines.push(`... y ${allTasks.length - 50} tareas más`);
+            lines.push('');
+        }
+
+        await sock.sendMessage(senderNumber, { text: lines.join('\n') });
+
+    } catch (error: any) {
+        console.error('Error en handleListTasksCommand:', error);
+        await sock.sendMessage(senderNumber, {
+            text: `❌ Error al listar tareas: ${error?.message || 'Error desconocido'}`
+        });
+    }
+}
+
+/**
+ * Busca tareas por identificador (número o título)
+ * Retorna:
+ * - Una tarea si hay una única coincidencia
+ * - Un array de tareas si hay múltiples coincidencias
+ * - null si no hay coincidencias
+ */
+async function findTaskByIdentifier(
+    identifier: string, 
+    userId: string
+): Promise<any | Array<{ task: any; site: any }> | null> {
+    try {
+        // Obtener solo las obras donde el usuario es admin
+        const sites = await api.SiteService.getAdminSitesByUser(userId);
         if (!sites || sites.length === 0) {
             return null;
         }
+
+        const normalizedIdentifier = normalizeText(identifier);
+        const allMatches: Array<{ task: any; site: any }> = [];
 
         // Buscar en todas las obras
         for (const site of sites) {
             try {
                 const tasks = await api.TaskService.getTasksBySite(site.id);
                 
-                // Si el identificador es un número, buscar por ID completo o parcial
-                const numMatch = identifier.match(/^\d+$/);
-                if (numMatch) {
-                    const taskById = tasks.find((t: any) => 
-                        t.id === identifier || t.id.startsWith(identifier)
-                    );
-                    if (taskById) return taskById;
+                for (const task of tasks) {
+                    // Si el identificador es un número, buscar por ID completo o parcial
+                    const numMatch = identifier.match(/^\d+$/);
+                    if (numMatch) {
+                        if (task.id === identifier || task.id.startsWith(identifier)) {
+                            allMatches.push({ task, site });
+                            continue;
+                        }
+                    }
+                    
+                    // Buscar por título (normalizado, case-insensitive, sin tildes, coincidencia parcial)
+                    const normalizedTitle = normalizeText(task.title || '');
+                    if (normalizedTitle.includes(normalizedIdentifier) || 
+                        normalizedIdentifier.includes(normalizedTitle)) {
+                        allMatches.push({ task, site });
+                    }
                 }
-                
-                // Buscar por título (case insensitive, parcial)
-                const taskByTitle = tasks.find((t: any) => 
-                    t.title.toLowerCase().includes(identifier.toLowerCase()) ||
-                    identifier.toLowerCase().includes(t.title.toLowerCase())
-                );
-                if (taskByTitle) return taskByTitle;
-                
-                // Buscar por ID completo o parcial
-                const taskById = tasks.find((t: any) => 
-                    t.id === identifier || t.id.startsWith(identifier)
-                );
-                if (taskById) return taskById;
             } catch (error) {
                 console.error(`Error buscando tarea en obra ${site.id}:`, error);
             }
         }
         
-        return null;
+        // Si no hay coincidencias
+        if (allMatches.length === 0) {
+            return null;
+        }
+        
+        // Si hay una única coincidencia, retornarla directamente
+        if (allMatches.length === 1) {
+            return allMatches[0].task;
+        }
+        
+        // Si hay múltiples coincidencias, retornar el array para que el usuario seleccione
+        return allMatches;
     } catch (error) {
         console.error('Error en findTaskByIdentifier:', error);
         return null;
@@ -2674,29 +3912,10 @@ async function handleTaskSearchCommand(
         const lower = messageText.trim().toLowerCase();
         
         // Detectar tipo de búsqueda
-        let filterType: 'category' | 'status' | 'date' | 'text' | null = null;
+        let filterType: 'status' | 'date' | null = null;
         let filterValue: string = '';
         
-        if (lower.startsWith('buscar tarea') || lower.startsWith('buscar tareas')) {
-            // Extraer el término de búsqueda
-            filterValue = messageText.replace(/^buscar\s+tareas?\s+/i, '').trim();
-            if (filterValue) {
-                // Verificar si es una categoría
-                const categories = ['pintura', 'construccion', 'electricidad', 'plomeria'];
-                const categoryMatch = categories.find(cat => filterValue.toLowerCase().includes(cat));
-                if (categoryMatch) {
-                    filterType = 'category';
-                    filterValue = categoryMatch;
-                } else {
-                    filterType = 'text';
-                }
-            } else {
-                await sock.sendMessage(senderNumber, {
-                    text: '⚠️ Especificá qué buscar. Ejemplos:\n• "buscar tarea pintura"\n• "buscar tarea instalación"'
-                });
-                return;
-            }
-        } else if (lower.startsWith('tareas bloqueadas')) {
+        if (lower.startsWith('tareas bloqueadas')) {
             filterType = 'status';
             filterValue = 'blocked';
         } else if (lower.startsWith('tareas pendientes')) {
@@ -2724,7 +3943,7 @@ async function handleTaskSearchCommand(
 
         if (!filterType) {
             await sock.sendMessage(senderNumber, {
-                text: '⚠️ Comando no reconocido. Usa:\n• "buscar tarea [categoría/texto]"\n• "tareas bloqueadas"\n• "tareas esta semana"'
+                text: '⚠️ Comando no reconocido. Usa:\n• "tareas bloqueadas"\n• "tareas esta semana"'
             });
             return;
         }
@@ -2753,11 +3972,7 @@ async function handleTaskSearchCommand(
         // Aplicar filtros
         let filteredTasks = allTasks;
 
-        if (filterType === 'category') {
-            filteredTasks = allTasks.filter(({ task }) => 
-                task.category?.toLowerCase() === filterValue.toLowerCase()
-            );
-        } else if (filterType === 'status') {
+        if (filterType === 'status') {
             filteredTasks = allTasks.filter(({ task }) => 
                 task.status === filterValue
             );
@@ -2781,12 +3996,6 @@ async function handleTaskSearchCommand(
                 }
                 return false;
             });
-        } else if (filterType === 'text') {
-            const searchTerm = filterValue.toLowerCase();
-            filteredTasks = allTasks.filter(({ task }) => 
-                task.title?.toLowerCase().includes(searchTerm) ||
-                task.description?.toLowerCase().includes(searchTerm)
-            );
         }
 
         if (filteredTasks.length === 0) {
@@ -2840,9 +4049,7 @@ function getDateRange(range: string, now: Date): { start: Date; end: Date } {
 }
 
 function getFilterDescription(filterType: string, filterValue: string): string {
-    if (filterType === 'category') {
-        return `de categoría "${filterValue}"`;
-    } else if (filterType === 'status') {
+    if (filterType === 'status') {
         const statusMap: Record<string, string> = {
             'blocked': 'bloqueadas',
             'pending': 'pendientes',
@@ -2858,8 +4065,6 @@ function getFilterDescription(filterType: string, filterValue: string): string {
             'month': 'de este mes'
         };
         return dateMap[filterValue] || `en el rango "${filterValue}"`;
-    } else if (filterType === 'text') {
-        return `que coincidan con "${filterValue}"`;
     }
     return '';
 }
@@ -3343,57 +4548,71 @@ async function handlePurchaseTrackingCommand(
     try {
         const lower = messageText.trim().toLowerCase();
         
-        // Detectar tipo de comando
-        if (lower.startsWith('estado compra')) {
-            // Extraer ID de la compra
-            const purchaseId = messageText.replace(/^estado\s+compra\s+/i, '').trim();
-            if (!purchaseId) {
-                await sock.sendMessage(senderNumber, {
-                    text: '⚠️ Especificá el ID de la compra. Ejemplo: "estado compra abc123"'
-                });
-                return;
-            }
-            await showPurchaseStatus(purchaseId, user, senderNumber, sock);
-            return;
-        }
-
-        // Obtener todas las compras del usuario
-        const purchases = await api.PurchaseService.getPurchasesByUser(user.id);
+        console.log(`[handlePurchaseTrackingCommand] Usuario ${user.name} (${user.id}) consultando compras con comando: "${messageText}"`);
         
-        if (!purchases || purchases.length === 0) {
+        // Obtener todas las obras del usuario (tanto como admin como cliente)
+        const userSites = await api.SiteService.getSitesByUser(user.id);
+        console.log(`[handlePurchaseTrackingCommand] Obras encontradas para usuario ${user.id}: ${userSites?.length || 0}`);
+        if (userSites && userSites.length > 0) {
+            console.log(`[handlePurchaseTrackingCommand] Obras:`, userSites.map((s: any) => `${s.address} (${s.id})`).join(', '));
+        }
+        
+        if (!userSites || userSites.length === 0) {
             await sock.sendMessage(senderNumber, {
-                text: '😕 No tenés compras registradas.'
+                text: '😕 No tenés obras asignadas.'
             });
             return;
         }
 
-        let filteredPurchases = purchases;
+        // Obtener compras de todas las obras del usuario
+        const allPurchases: any[] = [];
+        for (const site of userSites) {
+            try {
+                console.log(`[handlePurchaseTrackingCommand] Obteniendo compras de obra ${site.address} (${site.id})`);
+                const sitePurchases = await api.PurchaseService.getPurchasesBySite(site.id);
+                console.log(`[handlePurchaseTrackingCommand] Compras encontradas en obra ${site.address}: ${sitePurchases?.length || 0}`);
+                if (sitePurchases && sitePurchases.length > 0) {
+                    allPurchases.push(...sitePurchases);
+                }
+            } catch (error: any) {
+                console.error(`[handlePurchaseTrackingCommand] Error obteniendo compras de obra ${site.id}:`, error?.message || error);
+            }
+        }
+        
+        console.log(`[handlePurchaseTrackingCommand] Total de compras obtenidas: ${allPurchases.length}`);
+        
+        // Eliminar duplicados si hay
+        const uniquePurchases = Array.from(
+            new Map(allPurchases.map(p => [p.id, p])).values()
+        );
+        
+        if (!uniquePurchases || uniquePurchases.length === 0) {
+            await sock.sendMessage(senderNumber, {
+                text: '😕 No encontré compras en tus obras.'
+            });
+            return;
+        }
+
+        let filteredPurchases = uniquePurchases;
 
         // Aplicar filtros
         if (lower.startsWith('compras pendientes')) {
-            filteredPurchases = purchases.filter((p: any) => p.status === 'pending');
+            filteredPurchases = uniquePurchases.filter((p: any) => p.status === 'pending');
         } else if (lower.startsWith('compras compradas')) {
-            filteredPurchases = purchases.filter((p: any) => p.status === 'purchased');
+            filteredPurchases = uniquePurchases.filter((p: any) => p.status === 'purchased');
         } else if (lower.startsWith('compras entregadas')) {
-            filteredPurchases = purchases.filter((p: any) => p.status === 'delivered');
-        } else if (lower.startsWith('compras esta semana')) {
-            const now = new Date();
-            const day = now.getDay();
-            const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Ajustar al lunes
-            const weekStart = new Date(now.setDate(diff));
-            weekStart.setHours(0, 0, 0, 0);
-            const weekEnd = new Date(weekStart);
-            weekEnd.setDate(weekStart.getDate() + 6);
-            weekEnd.setHours(23, 59, 59, 999);
-
-            filteredPurchases = purchases.filter((p: any) => {
-                if (!p.created_at && !p.purchase_date) return false;
-                const dateStr = p.purchase_date || p.created_at;
-                if (!dateStr) return false;
-                const purchaseDate = new Date(dateStr);
-                return purchaseDate >= weekStart && purchaseDate <= weekEnd;
+            filteredPurchases = uniquePurchases.filter((p: any) => p.status === 'delivered');
+        } else if (lower.startsWith('compras criticas')) {
+            // Filtrar compras con prioridad alta o urgente
+            filteredPurchases = uniquePurchases.filter((p: any) => {
+                return p.priority === 'alta' || p.priority === 'urgente';
             });
+        } else if (lower === 'compras') {
+            // Si solo dice "compras", mostrar solo pendientes
+            filteredPurchases = uniquePurchases.filter((p: any) => p.status === 'pending');
         }
+
+        console.log(`[handlePurchaseTrackingCommand] Compras después del filtro: ${filteredPurchases.length}`);
 
         if (filteredPurchases.length === 0) {
             const filterDesc = getPurchaseFilterDescription(lower);
@@ -3403,8 +4622,8 @@ async function handlePurchaseTrackingCommand(
             return;
         }
 
-        // Mostrar resultados
-        await displayPurchases(filteredPurchases, senderNumber, sock);
+        // Mostrar resultados (permitir edición para todos)
+        await displayPurchases(filteredPurchases, senderNumber, sock, user, true);
 
     } catch (error: any) {
         console.error('Error en handlePurchaseTrackingCommand:', error);
@@ -3440,8 +4659,12 @@ async function showPurchaseStatus(
             return;
         }
 
-        // Verificar que la compra pertenezca al usuario
-        if (purchase.user_id !== user.id) {
+        // Verificar que la compra pertenezca a una obra del usuario
+        const userSites = await api.SiteService.getSitesByUser(user.id);
+        const hasAccess = purchase.user_id === user.id || 
+            (userSites && userSites.some((s: any) => s.id === purchase.site_id));
+        
+        if (!hasAccess) {
             await sock.sendMessage(senderNumber, {
                 text: '❌ No tenés acceso a esa compra.'
             });
@@ -3510,7 +4733,9 @@ async function showPurchaseStatus(
 async function displayPurchases(
     purchases: any[],
     senderNumber: string,
-    sock: WASocket
+    sock: WASocket,
+    user?: Profile,
+    allowEdit?: boolean
 ) {
     try {
         // Ordenar por fecha de creación (más recientes primero)
@@ -3531,6 +4756,7 @@ async function displayPurchases(
             const num = index + 1;
             const status = getPurchaseStatusText(purchase.status);
             const date = purchase.created_at ? new Date(purchase.created_at).toLocaleDateString('es-AR') : 'Sin fecha';
+            const siteName = purchase.site?.address || 'Sin obra';
             
             lines.push(`${num}. 📦 *${purchase.product}*`);
             lines.push(`   Estado: ${status}`);
@@ -3538,6 +4764,7 @@ async function displayPurchases(
             if (purchase.price) {
                 lines.push(`   Precio: $${purchase.price} (Total: $${(purchase.price * purchase.quantity).toFixed(2)})`);
             }
+            lines.push(`   Obra: ${siteName}`);
             lines.push(`   Fecha: ${date}`);
             lines.push('');
         });
@@ -3547,7 +4774,12 @@ async function displayPurchases(
             lines.push('');
         }
 
-        lines.push('💡 Escribí "estado compra [ID]" para ver detalles de una compra específica.');
+        if (allowEdit) {
+            lines.push('💡 Para cambiar el estado de una compra, escribí:');
+            lines.push('   *comprar [ID]* - Marcar como comprada');
+            lines.push('   *entregar [ID]* - Marcar como entregada');
+            lines.push('   *pendiente [ID]* - Volver a pendiente');
+        }
 
         await sock.sendMessage(senderNumber, { text: lines.join('\n') });
 
@@ -3575,32 +4807,347 @@ function getPurchaseFilterDescription(command: string): string {
         return 'compradas';
     } else if (command.includes('entregadas')) {
         return 'entregadas';
-    } else if (command.includes('esta semana')) {
-        return 'de esta semana';
+    } else if (command.includes('criticas')) {
+        return 'críticas';
     }
     return '';
 }
 
-// Función para enviar notificación cuando una tarea pasa a blocked
-async function notifyBlockedTask(whatsappJid: string, taskId: string, taskTitle: string, taskDescription?: string, siteAddress?: string) {
+async function handlePurchaseStatusChange(
+    messageText: string,
+    user: Profile,
+    senderNumber: string,
+    sock: WASocket
+) {
+    try {
+        const lower = messageText.trim().toLowerCase();
+        
+        // Determinar el nuevo estado y extraer el ID
+        let newStatus: 'pending' | 'purchased' | 'delivered' | null = null;
+        let purchaseId = '';
+        
+        if (lower.startsWith('comprar ')) {
+            newStatus = 'purchased';
+            purchaseId = messageText.trim().slice(8).trim();
+        } else if (lower.startsWith('entregar ')) {
+            newStatus = 'delivered';
+            purchaseId = messageText.trim().slice(9).trim();
+        } else if (lower.startsWith('pendiente ')) {
+            newStatus = 'pending';
+            purchaseId = messageText.trim().slice(10).trim();
+        }
+        
+        if (!newStatus || !purchaseId) {
+            await sock.sendMessage(senderNumber, {
+                text: '⚠️ Formato incorrecto. Usá: *comprar [ID]*, *entregar [ID]* o *pendiente [ID]*'
+            });
+            return;
+        }
+        
+        // Obtener todas las obras del usuario para verificar permisos
+        const userSites = await api.SiteService.getSitesByUser(user.id);
+        if (!userSites || userSites.length === 0) {
+            await sock.sendMessage(senderNumber, {
+                text: '😕 No tenés obras asignadas.'
+            });
+            return;
+        }
+        
+        // Buscar la compra en todas las obras del usuario
+        let purchase: any = null;
+        for (const site of userSites) {
+            try {
+                const sitePurchases = await api.PurchaseService.getPurchasesBySite(site.id);
+                purchase = sitePurchases.find((p: any) => 
+                    p.id === purchaseId || p.id.startsWith(purchaseId) || p.id.includes(purchaseId)
+                );
+                if (purchase) break;
+            } catch (error) {
+                console.error(`Error obteniendo compras de obra ${site.id}:`, error);
+            }
+        }
+        
+        if (!purchase) {
+            await sock.sendMessage(senderNumber, {
+                text: `❌ No encontré una compra con ID "${purchaseId}" en tus obras.`
+            });
+            return;
+        }
+        
+        // Actualizar el estado
+        await api.PurchaseService.updatePurchaseStatus(purchase.id, newStatus);
+        
+        const statusText = getPurchaseStatusText(newStatus);
+        await sock.sendMessage(senderNumber, {
+            text: `✅ Estado actualizado: ${purchase.product} ahora está ${statusText}`
+        });
+        
+        // Notificar a los admins de la obra si el usuario es cliente
+        if (purchase.site_id) {
+            const isAdmin = await isUserAdmin(user.id);
+            if (!isAdmin) {
+                await notifyAdminsOfPurchaseStatusChange(purchase.site_id, purchase, newStatus, user, purchase.site?.address);
+            }
+        }
+        
+    } catch (error: any) {
+        console.error('Error en handlePurchaseStatusChange:', error);
+        await sock.sendMessage(senderNumber, {
+            text: `❌ Error al cambiar el estado: ${error?.message || 'Error desconocido'}`
+        });
+    }
+}
+
+/**
+ * Notifica a los administradores de una obra cuando un cliente crea una solicitud de cambio
+ */
+async function notifyAdminsOfChange(
+    siteId: string,
+    change: Task,
+    client: Profile,
+    siteAddress?: string
+) {
+    if (!globalSock) {
+        console.error('[notifyAdminsOfChange] Socket de WhatsApp no está disponible para enviar notificación');
+        return;
+    }
+
+    try {
+        console.log(`[notifyAdminsOfChange] Iniciando notificación para obra ${siteId}, cambio: ${change.title}`);
+        // Obtener los administradores de la obra
+        const admins = await api.SiteService.getSiteAdmins(siteId);
+        
+        console.log(`[notifyAdminsOfChange] Administradores encontrados: ${admins?.length || 0}`);
+        if (!admins || admins.length === 0) {
+            console.log(`[notifyAdminsOfChange] No se encontraron administradores para la obra ${siteId}`);
+            return;
+        }
+        
+        // Log de cada admin encontrado
+        admins.forEach((admin: any, index: number) => {
+            console.log(`[notifyAdminsOfChange] Admin ${index + 1}: ${admin.name} (${admin.id}) - WhatsApp: ${admin.whatsapp_jid || 'NO CONFIGURADO'}`);
+        });
+
+        const siteName = siteAddress || 'Obra no especificada';
+        const categoryIcon = change.category === 'pintura' ? '🎨' : 
+                           change.category === 'construccion' ? '🏗️' :
+                           change.category === 'electricidad' ? '⚡' :
+                           change.category === 'plomeria' ? '🚰' : '🧩';
+
+        const message = `🔄 *Nueva Solicitud de Cambio*\n\n` +
+                       `👤 *Cliente:* ${client.name}\n` +
+                       `🏷️ *Obra:* ${siteName}\n\n` +
+                       `${categoryIcon} *${change.title}*\n` +
+                       (change.description ? `📝 ${change.description}\n` : '') +
+                       `\n💡 Revisá la solicitud en la app.`;
+
+        // Enviar notificación a cada administrador
+        for (const admin of admins) {
+            if (admin.whatsapp_jid) {
+                try {
+                    // Normalizar el JID: convertir @lid a @s.whatsapp.net si es necesario
+                    let normalizedJid = admin.whatsapp_jid;
+                    if (normalizedJid.endsWith('@lid')) {
+                        normalizedJid = normalizedJid.replace('@lid', '@s.whatsapp.net');
+                    } else if (!normalizedJid.includes('@')) {
+                        normalizedJid = normalizedJid + '@s.whatsapp.net';
+                    }
+                    
+                    console.log(`[notifyAdminsOfChange] Intentando enviar notificación a ${admin.name} (JID original: ${admin.whatsapp_jid}, normalizado: ${normalizedJid})`);
+                    const sent = await safeSendMessage(globalSock, normalizedJid, message);
+                    if (sent) {
+                        console.log(`✅ Notificación de cambio enviada a admin ${admin.name} (${normalizedJid})`);
+                    } else {
+                        console.error(`❌ No se pudo enviar notificación a admin ${admin.name} (${normalizedJid})`);
+                    }
+                } catch (error: any) {
+                    console.error(`❌ Error enviando notificación a admin ${admin.name} (${admin.whatsapp_jid}):`, error);
+                    // Continuar con los demás admins aunque falle uno
+                }
+            } else {
+                console.log(`[notifyAdminsOfChange] Admin ${admin.name} no tiene WhatsApp configurado, saltando notificación`);
+            }
+        }
+    } catch (error: any) {
+        console.error('Error notificando a administradores del cambio:', error);
+        // No lanzar el error para no interrumpir el flujo principal
+    }
+}
+
+/**
+ * Notifica a los administradores de una obra cuando un cliente cambia el estado de una compra
+ */
+async function notifyAdminsOfPurchaseStatusChange(
+    siteId: string,
+    purchase: any,
+    newStatus: 'pending' | 'purchased' | 'delivered',
+    client: Profile,
+    siteAddress?: string
+) {
     if (!globalSock) {
         console.error('Socket de WhatsApp no está disponible para enviar notificación');
         return;
     }
 
     try {
-        const message = [
-            '⛔ *Tarea Bloqueada*',
-            '',
-            `📋 *${taskTitle}*`,
-            taskDescription ? `📝 ${taskDescription}` : '',
-            siteAddress ? `🏷️ Obra: ${siteAddress}` : '',
-            '',
-            'Tu tarea ha sido marcada como bloqueada. Revisá los detalles en la app.'
-        ].filter(Boolean).join('\n');
+        // Obtener los administradores de la obra
+        const admins = await api.SiteService.getSiteAdmins(siteId);
+        
+        if (!admins || admins.length === 0) {
+            console.log(`No se encontraron administradores para la obra ${siteId}`);
+            return;
+        }
 
-        await safeSendMessage(globalSock, whatsappJid, message);
-        console.log(`Notificación de tarea bloqueada enviada a ${whatsappJid}`);
+        const siteName = siteAddress || purchase.site?.address || 'Obra no especificada';
+        const statusText = getPurchaseStatusText(newStatus);
+
+        const message = `🛒 *Estado de Compra Actualizado*\n\n` +
+                       `👤 *Cliente:* ${client.name}\n` +
+                       `🏷️ *Obra:* ${siteName}\n\n` +
+                       `📦 *${purchase.product}*\n` +
+                       `📊 *Nuevo Estado:* ${statusText}\n` +
+                       `🔢 *Cantidad:* ${purchase.quantity}\n` +
+                       `\n💡 El cliente actualizó el estado de esta compra.`;
+
+        // Enviar notificación a cada administrador
+        for (const admin of admins) {
+            if (admin.whatsapp_jid) {
+                try {
+                    // Normalizar el JID: convertir @lid a @s.whatsapp.net si es necesario
+                    let normalizedJid = admin.whatsapp_jid;
+                    if (normalizedJid.endsWith('@lid')) {
+                        normalizedJid = normalizedJid.replace('@lid', '@s.whatsapp.net');
+                    } else if (!normalizedJid.includes('@')) {
+                        normalizedJid = normalizedJid + '@s.whatsapp.net';
+                    }
+                    
+                    const sent = await safeSendMessage(globalSock, normalizedJid, message);
+                    if (sent) {
+                        console.log(`✅ Notificación de cambio de compra enviada a admin ${admin.name} (${normalizedJid})`);
+                    } else {
+                        console.error(`❌ No se pudo enviar notificación de compra a admin ${admin.name} (${normalizedJid})`);
+                    }
+                } catch (error: any) {
+                    console.error(`❌ Error enviando notificación a admin ${admin.name}:`, error);
+                    // Continuar con los demás admins aunque falle uno
+                }
+            }
+        }
+    } catch (error: any) {
+        console.error('Error notificando a administradores del cambio de compra:', error);
+        // No lanzar el error para no interrumpir el flujo principal
+    }
+}
+
+/**
+ * Notifica a los administradores de una obra cuando una tarea se bloquea
+ */
+async function notifyAdminsOfBlockedTask(
+    siteId: string,
+    task: Task,
+    blocker: Profile,
+    siteAddress?: string
+) {
+    if (!globalSock) {
+        console.error('Socket de WhatsApp no está disponible para enviar notificación');
+        return;
+    }
+
+    try {
+        // Obtener los administradores de la obra
+        const admins = await api.SiteService.getSiteAdmins(siteId);
+        
+        if (!admins || admins.length === 0) {
+            console.log(`No se encontraron administradores para la obra ${siteId}`);
+            return;
+        }
+
+        const siteName = siteAddress || 'Obra no especificada';
+        const categoryIcon = task.category === 'pintura' ? '🎨' : 
+                           task.category === 'construccion' ? '🏗️' :
+                           task.category === 'electricidad' ? '⚡' :
+                           task.category === 'plomeria' ? '🚰' : '🧩';
+
+        const message = `⛔ *Tarea Bloqueada*\n\n` +
+                       `👤 *Bloqueada por:* ${blocker.name}\n` +
+                       `🏷️ *Obra:* ${siteName}\n\n` +
+                       `${categoryIcon} *${task.title}*\n` +
+                       (task.description ? `📝 ${task.description}\n` : '') +
+                       `\n💡 Revisá la tarea bloqueada en la app.`;
+
+        // Enviar notificación a cada administrador
+        for (const admin of admins) {
+            // No notificar al mismo usuario si es administrador y bloqueó la tarea
+            if (admin.id === blocker.id) {
+                continue;
+            }
+            
+            if (admin.whatsapp_jid) {
+                try {
+                    // Normalizar el JID: convertir @lid a @s.whatsapp.net si es necesario
+                    let normalizedJid = admin.whatsapp_jid;
+                    if (normalizedJid.endsWith('@lid')) {
+                        normalizedJid = normalizedJid.replace('@lid', '@s.whatsapp.net');
+                    } else if (!normalizedJid.includes('@')) {
+                        normalizedJid = normalizedJid + '@s.whatsapp.net';
+                    }
+                    
+                    const sent = await safeSendMessage(globalSock, normalizedJid, message);
+                    if (sent) {
+                        console.log(`✅ Notificación de tarea bloqueada enviada a admin ${admin.name} (${normalizedJid})`);
+                    } else {
+                        console.error(`❌ No se pudo enviar notificación de tarea bloqueada a admin ${admin.name} (${normalizedJid})`);
+                    }
+                } catch (error: any) {
+                    console.error(`❌ Error enviando notificación a admin ${admin.name}:`, error);
+                    // Continuar con los demás admins aunque falle uno
+                }
+            }
+        }
+    } catch (error: any) {
+        console.error('Error notificando a administradores de tarea bloqueada:', error);
+        // No lanzar el error para no interrumpir el flujo principal
+    }
+}
+
+// Función para enviar notificación cuando una tarea pasa a blocked
+async function notifyBlockedTask(whatsappJid: string, taskId: string, taskTitle: string, taskDescription?: string, siteAddress?: string, blockerName?: string, isAdmin?: boolean) {
+    if (!globalSock) {
+        console.error('Socket de WhatsApp no está disponible para enviar notificación');
+        return;
+    }
+
+    try {
+        let message: string[];
+        
+        if (isAdmin) {
+            // Mensaje para administrador: informar quién bloqueó la tarea
+            message = [
+                '⛔ *Tarea Bloqueada - Notificación para Administrador*',
+                '',
+                `📋 *${taskTitle}*`,
+                taskDescription ? `📝 ${taskDescription}` : '',
+                siteAddress ? `🏷️ Obra: ${siteAddress}` : '',
+                '',
+                blockerName ? `👤 Bloqueada por: *${blockerName}*` : '👤 Una tarea ha sido bloqueada',
+                '',
+                '💡 Como administrador de esta obra, te informamos que una tarea ha sido bloqueada. Revisá los detalles en la app.'
+            ].filter(Boolean);
+        } else {
+            // Mensaje para el dueño de la tarea (quien la bloqueó)
+            message = [
+                '⛔ *Tarea Bloqueada*',
+                '',
+                `📋 *${taskTitle}*`,
+                taskDescription ? `📝 ${taskDescription}` : '',
+                siteAddress ? `🏷️ Obra: ${siteAddress}` : '',
+                '',
+                'Tu tarea ha sido marcada como bloqueada. Revisá los detalles en la app.'
+            ].filter(Boolean);
+        }
+
+        await safeSendMessage(globalSock, whatsappJid, message.join('\n'));
+        console.log(`Notificación de tarea bloqueada enviada a ${whatsappJid} (${isAdmin ? 'admin' : 'dueño'})`);
     } catch (error: any) {
         console.error('Error enviando notificación de tarea bloqueada:', error);
         throw error;
@@ -3663,7 +5210,7 @@ function createNotificationServer() {
             req.on('end', async () => {
                 try {
                     const data = JSON.parse(body);
-                    const { whatsappJid, taskId, taskTitle, taskDescription, siteAddress } = data;
+                    const { whatsappJid, taskId, taskTitle, taskDescription, siteAddress, blockerName, isAdmin } = data;
                     
                     if (!whatsappJid || !taskId || !taskTitle) {
                         res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -3671,7 +5218,7 @@ function createNotificationServer() {
                         return;
                     }
                     
-                    await notifyBlockedTask(whatsappJid, taskId, taskTitle, taskDescription, siteAddress);
+                    await notifyBlockedTask(whatsappJid, taskId, taskTitle, taskDescription, siteAddress, blockerName, isAdmin);
                     
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ success: true, message: 'Notificación enviada' }));
@@ -3757,9 +5304,12 @@ async function sendDailyNotifications(sock: WASocket) {
         console.log('📨 Iniciando envío de notificaciones diarias...');
         
         // Obtener el número permitido si está configurado
-        const allowedNumber = process.env.ALLOWED_WHATSAPP_NUMBER;
+        // Usar el primer número permitido para las notificaciones diarias
+        const allowedNumber = ALLOWED_WHATSAPP_NUMBERS && ALLOWED_WHATSAPP_NUMBERS.length > 0 
+            ? ALLOWED_WHATSAPP_NUMBERS[0] 
+            : process.env.ALLOWED_WHATSAPP_NUMBER;
         if (!allowedNumber) {
-            console.log('⚠️ No hay ALLOWED_WHATSAPP_NUMBER configurado. No se enviarán notificaciones automáticas.');
+            console.log('⚠️ No hay números permitidos configurados. No se enviarán notificaciones automáticas.');
             return;
         }
 
@@ -3780,7 +5330,7 @@ async function sendDailyNotifications(sock: WASocket) {
 
 async function sendDailyNotificationToUser(user: Profile, sock: WASocket) {
     try {
-        const userJid = user.whatsapp_jid || process.env.ALLOWED_WHATSAPP_NUMBER;
+        const userJid = user.whatsapp_jid || (ALLOWED_WHATSAPP_NUMBERS && ALLOWED_WHATSAPP_NUMBERS.length > 0 ? ALLOWED_WHATSAPP_NUMBERS[0] : undefined);
         if (!userJid) {
             console.log(`⚠️ Usuario ${user.id} no tiene WhatsApp configurado.`);
             return;
@@ -4036,7 +5586,7 @@ async function checkAndNotifyTaskDependencies(
 
         console.log(`   ⚠️ Encontradas ${dependentTasks.length} tarea(s) que dependen de esta tarea bloqueada`);
 
-        const userJid = user.whatsapp_jid || process.env.ALLOWED_WHATSAPP_NUMBER;
+        const userJid = user.whatsapp_jid || (ALLOWED_WHATSAPP_NUMBERS && ALLOWED_WHATSAPP_NUMBERS.length > 0 ? ALLOWED_WHATSAPP_NUMBERS[0] : undefined);
         if (!userJid) {
             console.log(`   ⚠️ Usuario ${user.id} no tiene WhatsApp configurado`);
             return;
@@ -4080,3 +5630,4 @@ async function checkAndNotifyTaskDependencies(
 
 // Conectar a WhatsApp
 connectToWhatsApp();
+

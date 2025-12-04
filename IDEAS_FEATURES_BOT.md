@@ -157,3 +157,4 @@ Comandos cortos para acciones frecuentes:
 - Features de IA (#11) requieren análisis de datos históricos
 - Exportación de datos requiere generación de archivos (CSV/PDF)
 
+

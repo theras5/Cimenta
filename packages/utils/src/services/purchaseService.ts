@@ -52,7 +52,7 @@ export const createPurchaseService = (apiUrl: string, baseHeaders: Record<string
 
   // Obtener compras por sitio
   async getPurchasesBySite(siteId: string): Promise<Purchase[]> {
-    const response = await fetch(`${apiUrl}/api/purchases/site/${siteId}`);
+    const response = await fetch(`${apiUrl}/purchases/site/${siteId}`);
     
     if (!response.ok) {
       throw new Error(`Error ${response.status}: ${response.statusText}`);

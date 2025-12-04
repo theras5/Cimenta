@@ -5,7 +5,10 @@ import {
     createSite, 
     updateSiteById, 
     deleteSiteById,
-    getSitesByUser 
+    getSitesByUser,
+    getAdminSitesByUser,
+    validateUserIsAdmin,
+    getSiteAdmins
 } from '../controllers/siteController';
 
 const siteRouter = express.Router();
@@ -13,6 +16,9 @@ const siteRouter = express.Router();
 
 siteRouter.get("/", getAllSites);
 siteRouter.get("/user/:userId", getSitesByUser);
+siteRouter.get("/user/:userId/admin", getAdminSitesByUser);
+siteRouter.get("/:siteId/admins", getSiteAdmins);
+siteRouter.get("/:id/admin/:userId", validateUserIsAdmin);
 siteRouter.get("/:id", getSiteById);
 siteRouter.post("/", createSite);
 siteRouter.put("/:id", updateSiteById);

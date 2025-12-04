@@ -73,6 +73,19 @@ export async function createPurchaseService(newPurchase: CreatePurchaseDTO & { u
     if (newPurchase.supplier) insertData.supplier = newPurchase.supplier;
     if (newPurchase.purchase_date) insertData.purchase_date = newPurchase.purchase_date;
     if (newPurchase.delivery_date) insertData.delivery_date = newPurchase.delivery_date;
+    
+    // Prioridad: siempre agregar si está presente (incluso si es 'normal' como valor por defecto)
+    const priorityValue = (newPurchase as any).priority;
+    if (priorityValue && ['baja', 'normal', 'alta', 'urgente'].includes(priorityValue)) {
+        insertData.priority = priorityValue;
+        console.log(`[createPurchaseService] Prioridad agregada: ${priorityValue}`);
+    } else if (priorityValue) {
+        console.warn(`[createPurchaseService] Prioridad inválida recibida: ${priorityValue}, usando 'normal' como fallback`);
+        insertData.priority = 'normal';
+    } else {
+        console.log(`[createPurchaseService] No se recibió prioridad, usando 'normal' como valor por defecto`);
+        insertData.priority = 'normal';
+    }
 
     console.log('Datos a insertar en Supabase:', JSON.stringify(insertData, null, 2));
 

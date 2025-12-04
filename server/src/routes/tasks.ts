@@ -6,7 +6,8 @@ import {
     updateTaskById, 
     deleteTaskById, 
     getTasksBySite,
-    getTaskDependencies
+    getTaskDependencies,
+    updateTaskStatus
 } from '../controllers/tasksController';
 
 const tasksRouter = express.Router();
@@ -27,6 +28,9 @@ tasksRouter.get("/site/:siteId", getTasksBySite);
 
 // Ruta para obtener dependencias de tareas (debe ir antes de /:id para evitar conflictos)
 tasksRouter.get("/dependencies", getTaskDependencies);
+
+// Ruta para actualizar solo el estado de una tarea (debe ir antes de /:id para evitar conflictos)
+tasksRouter.patch("/:id/status", updateTaskStatus);
 
 tasksRouter.get("/:id", getTaskById);
 
