@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useWorkers } from "@/hooks/useWorkers";
+import { getFullName } from "@/lib/utils/nameHelpers";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -132,9 +133,13 @@ export default function MisEmpleadosPage() {
 
     setIsSubmitting(true);
     try {
+      const [firstName, ...lastNameParts] = formData.fullname.trim().split(' ');
+      const lastName = lastNameParts.join(' ');
+
       await createWorker({
         employer_id: user.id,
-        worker_fullname: formData.fullname.trim(),
+        worker_name: firstName,
+        worker_surname: lastName || '',
         worker_cellnumber: formData.phone.trim(),
         profession: formData.profession,
       });
@@ -361,7 +366,7 @@ export default function MisEmpleadosPage() {
                     </div>
                     <div>
                       <h3 className="font-semibold text-gray-900 mb-1">
-                        {worker.worker_fullname}
+                        {getFullName(worker.worker_name, worker.worker_surname)}
                       </h3>
                       <div className="flex items-center gap-4 text-sm text-gray-600">
                         <div className="flex items-center">

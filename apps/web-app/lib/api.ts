@@ -4,7 +4,7 @@ export interface Task {
   id: string;
   title: string;
   description?: string;
-  status: "pending" | "in_progress" | "completed" | "changes" | "blocked";
+  status: "pending" | "in_progress" | "completed" | "changes" | "blocked" | "rejected";
   category: string;
 //   priority?: "low" | "medium" | "high";
   site_id?: string;

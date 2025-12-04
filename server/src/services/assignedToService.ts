@@ -61,7 +61,8 @@ export async function getWorkersByTaskService(taskId: string) {
             task_id,
             workers:worker_id (
                 worker_id,
-                worker_fullname,
+                worker_name,
+                worker_surname,
                 worker_cellnumber,
                 profession,
                 employer_id

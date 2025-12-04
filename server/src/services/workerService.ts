@@ -4,7 +4,8 @@ import { AppError } from "../errors/AppError";
 export interface Worker {
     worker_id: string;
     employer_id: string;
-    worker_fullname: string;
+    worker_name: string;
+    worker_surname: string | null;
     worker_cellnumber: string;
     profession: string;
 }
@@ -15,7 +16,7 @@ export async function getAllWorkersService() {
         .select(`
             *
         `)
-        .order('worker_fullname', { ascending: true });
+        .order('worker_name', { ascending: true });
 
     if (error) {
         throw new AppError(error.message, 500);
@@ -42,7 +43,7 @@ export async function getWorkersByEmployerService(employerId: string) {
         .from('workers')
         .select('*')
         .eq('employer_id', employerId)
-        .order('worker_fullname', { ascending: true });
+        .order('worker_name', { ascending: true });
 
     if (error) {
         throw new AppError(error.message, 500);
@@ -53,12 +54,16 @@ export async function getWorkersByEmployerService(employerId: string) {
 
 export async function createWorkerService(newWorker: Omit<Worker, 'worker_id'>) {
     // Validaciones
-    if (!newWorker.employer_id || !newWorker.worker_fullname || !newWorker.worker_cellnumber) {
-        throw new AppError("employer_id, worker_fullname y worker_cellnumber son campos obligatorios.", 400);
+    if (!newWorker.employer_id || !newWorker.worker_name || !newWorker.worker_cellnumber) {
+        throw new AppError("employer_id, worker_name y worker_cellnumber son campos obligatorios.", 400);
     }
 
-    if (newWorker.worker_fullname.length > 50) {
-        throw new AppError("worker_fullname no puede exceder 50 caracteres.", 400);
+    if (newWorker.worker_name.length > 50) {
+        throw new AppError("worker_name no puede exceder 50 caracteres.", 400);
+    }
+
+    if (newWorker.worker_surname && newWorker.worker_surname.length > 50) {
+        throw new AppError("worker_surname no puede exceder 50 caracteres.", 400);
     }
 
     if (newWorker.worker_cellnumber.length > 20) {
@@ -73,7 +78,8 @@ export async function createWorkerService(newWorker: Omit<Worker, 'worker_id'>) 
         .from('workers')
         .insert([{
             employer_id: newWorker.employer_id,
-            worker_fullname: newWorker.worker_fullname,
+            worker_name: newWorker.worker_name,
+            worker_surname: newWorker.worker_surname,
             worker_cellnumber: newWorker.worker_cellnumber,
             profession: newWorker.profession || 'other'
         }])
@@ -93,8 +99,8 @@ export async function updateWorkerByIdService(workerId: string, updatedWorker: P
     console.log(`updateWorkerByIdService - Datos recibidos:`, JSON.stringify(updatedWorker, null, 2));
     
     // Validaciones
-    if (updatedWorker.worker_fullname && updatedWorker.worker_fullname.length > 50) {
-        throw new AppError("worker_fullname no puede exceder 50 caracteres.", 400);
+    if (updatedWorker.worker_name && updatedWorker.worker_name.length > 50) {
+        throw new AppError("worker_name no puede exceder 50 caracteres.", 400);
     }
 
     if (updatedWorker.worker_cellnumber && updatedWorker.worker_cellnumber.length > 20) {
@@ -108,7 +114,8 @@ export async function updateWorkerByIdService(workerId: string, updatedWorker: P
     // Filtrar campos que existen en la tabla
     const allowedFields = {
         employer_id: updatedWorker.employer_id,
-        worker_fullname: updatedWorker.worker_fullname,
+        worker_name: updatedWorker.worker_name,
+        worker_surname: updatedWorker.worker_surname,
         worker_cellnumber: updatedWorker.worker_cellnumber,
         profession: updatedWorker.profession
     };

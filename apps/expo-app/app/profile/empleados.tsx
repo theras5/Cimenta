@@ -17,10 +17,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 import { useWorkers } from '../../hooks/useWorkers';
+import { getInitials, getFullName } from '../../utils/nameHelpers';
 
 const Empleados = () => {
   const { user, loading: authLoading } = useAuth();
-  
+
   // Usar el hook useWorkers
   const {
     workers,
@@ -86,8 +87,12 @@ const Empleados = () => {
     if (!validateForm() || !user?.id) return;
 
     try {
+      const [firstName, ...lastNameParts] = formData.fullName.trim().split(' ');
+      const lastName = lastNameParts.join(' ');
+
       await createWorker({
-        worker_fullname: formData.fullName,
+        worker_name: firstName,
+        worker_surname: lastName || '',
         worker_cellnumber: formData.cellNumber,
         profession: formData.profession,
         employer_id: user.id,
@@ -180,12 +185,12 @@ const Empleados = () => {
                 <View key={worker.worker_id} style={styles.workerCard}>
                   <View style={styles.workerIconContainer}>
                     <Text style={styles.workerInitial}>
-                      {worker.worker_fullname.charAt(0).toUpperCase()}
+                      {getInitials(worker.worker_name, worker.worker_surname)}
                     </Text>
                   </View>
                   <View style={styles.workerInfo}>
                     <Text style={styles.workerName}>
-                      {worker.worker_fullname}
+                      {getFullName(worker.worker_name, worker.worker_surname)}
                     </Text>
                     <View style={styles.detailRow}>
                       <Ionicons name="briefcase-outline" size={14} color="#6B7280" />
@@ -201,7 +206,7 @@ const Empleados = () => {
                     onPress={() =>
                       handleDeleteWorker(
                         worker.worker_id,
-                        worker.worker_fullname
+                        getFullName(worker.worker_name, worker.worker_surname)
                       )
                     }
                   >

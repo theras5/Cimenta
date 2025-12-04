@@ -22,7 +22,7 @@ interface Task {
   id: string
   title: string
   description?: string
-  status: "pending" | "in_progress" | "completed" | "blocked" | "changes"
+  status: "pending" | "in_progress" | "completed" | "blocked" | "changes" | "rejected"
   category: string
   start_date?: string | null | undefined
   end_date?: string | null | undefined

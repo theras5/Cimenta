@@ -35,6 +35,7 @@ import TaskSection from "@/components/TaskSection";
 import EditTaskModal from "@/components/EditTaskModal";
 import { useTasks } from "@/hooks/useTasks";
 import { useWorkers } from "@/hooks/useWorkers";
+import { getFullName } from "@/lib/utils/nameHelpers";
 import { useAssignedTo } from "@/hooks/useAssignedTo";
 import { Task } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
@@ -143,10 +144,10 @@ const ScrollableTaskSection = ({
         className="overflow-x-auto scrollbar-hide"
         style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
       >
-        <TaskSection 
-          title={title} 
-          tasks={tasks} 
-          changes={changes} 
+        <TaskSection
+          title={title}
+          tasks={tasks}
+          changes={changes}
           onEditTask={onEditTask}
           onAssignWorkers={onAssignWorkers}
         />
@@ -176,12 +177,12 @@ const TasksScreen = () => {
   } = useTasks();
 
   const { workers, fetchWorkersByEmployer } = useWorkers();
-  const { 
-    assignWorkerToTask, 
+  const {
+    assignWorkerToTask,
     assignMultipleWorkersToTask,
     getWorkersByTask,
     unassignWorkerFromTask,
-    loading: assignLoading 
+    loading: assignLoading
   } = useAssignedTo();
 
   const [showModal, setShowModal] = useState(false);
@@ -367,10 +368,10 @@ const TasksScreen = () => {
           description: "No se pudo crear la tarea",
           variant: "destructive",
         });
-        };
-      }
-    };
-  
+      };
+    }
+  };
+
 
   const handleAddChange = async () => {
     if (newChange.title && newChange.category) {
@@ -396,7 +397,7 @@ const TasksScreen = () => {
 
         resetChangeForm();
         setShowChangeModal(false);
-        
+
         if (selectedSiteId) {
           await fetchTasks(selectedSiteId);
         }
@@ -440,7 +441,7 @@ const TasksScreen = () => {
   const handleOpenAssignModal = async (task: Task) => {
     setTaskToAssign(task);
     setShowAssignModal(true);
-    
+
     // Cargar workers ya asignados a esta tarea
     try {
       const assigned = await getWorkersByTask(task.id);
@@ -460,7 +461,7 @@ const TasksScreen = () => {
     try {
       // Encontrar workers a agregar (están en selectedWorkers pero no en assignedWorkers)
       const workersToAdd = selectedWorkers.filter(id => !assignedWorkers.includes(id));
-      
+
       // Encontrar workers a remover (están en assignedWorkers pero no en selectedWorkers)
       const workersToRemove = assignedWorkers.filter(id => !selectedWorkers.includes(id));
 
@@ -483,7 +484,7 @@ const TasksScreen = () => {
       setTaskToAssign(null);
       setSelectedWorkers([]);
       setAssignedWorkers([]);
-      
+
       // Recargar tareas
       if (selectedSiteId) {
         await fetchTasks(selectedSiteId);
@@ -535,12 +536,12 @@ const TasksScreen = () => {
       setShowEditModal(false);
       setTaskToEdit(null);
 
-      
+
       toast({
         title: "Éxito",
         description: "Tarea actualizada correctamente",
       });
-      
+
       if (selectedSiteId) {
         await fetchTasks(selectedSiteId);
       }
@@ -771,7 +772,7 @@ const TasksScreen = () => {
                 </label>
                 {workers.length === 0 ? (
                   <p className="text-sm text-gray-500 italic">
-                    No tienes trabajadores registrados. 
+                    No tienes trabajadores registrados.
                     <a href="/profile/empleados" className="text-blue-600 hover:underline ml-1">
                       Agregar trabajadores
                     </a>
@@ -789,7 +790,7 @@ const TasksScreen = () => {
                           onCheckedChange={() => toggleWorker(worker.worker_id)}
                         />
                         <div className="flex-1">
-                          <p className="text-sm font-medium">{worker.worker_fullname}</p>
+                          <p className="text-sm font-medium">{getFullName(worker.worker_name, worker.worker_surname)}</p>
                           <p className="text-xs text-gray-500">{worker.profession}</p>
                         </div>
                       </div>
@@ -870,7 +871,7 @@ const TasksScreen = () => {
                           onCheckedChange={() => toggleWorker(worker.worker_id)}
                         />
                         <div className="flex-1">
-                          <p className="text-sm font-medium">{worker.worker_fullname}</p>
+                          <p className="text-sm font-medium">{getFullName(worker.worker_name, worker.worker_surname)}</p>
                           <p className="text-xs text-gray-500">{worker.profession}</p>
                         </div>
                       </div>
@@ -930,7 +931,7 @@ const TasksScreen = () => {
                           onCheckedChange={() => toggleWorker(worker.worker_id)}
                         />
                         <div className="flex-1">
-                          <p className="text-sm font-medium">{worker.worker_fullname}</p>
+                          <p className="text-sm font-medium">{getFullName(worker.worker_name, worker.worker_surname)}</p>
                           <p className="text-xs text-gray-500">
                             {worker.profession} • {worker.worker_cellnumber}
                           </p>

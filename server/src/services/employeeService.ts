@@ -3,7 +3,7 @@ import { supabase } from '../config/supabase';
 export interface Employee {
   worker_id?: string;
   worker_name: string;
-  worker_surname: string;
+  worker_surname: string | null;
   worker_cellnumber: string;
   employer_id: string;
   profession?: string;

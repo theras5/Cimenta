@@ -39,13 +39,13 @@ export const getWorkerById = async (req: Request, res: Response, next: NextFunct
 
 export const createWorker = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { employer_id, worker_fullname, worker_cellnumber, profession } = req.body;
+    const { employer_id, worker_name, worker_surname, worker_cellnumber, profession } = req.body;
 
     if (!employer_id) {
       return res.status(400).json({ error: "employer_id is required" });
     }
-    if (!worker_fullname) {
-      return res.status(400).json({ error: "worker_fullname is required" });
+    if (!worker_name) {
+      return res.status(400).json({ error: "worker_name is required" });
     }
     if (!worker_cellnumber) {
       return res.status(400).json({ error: "worker_cellnumber is required" });
@@ -53,7 +53,8 @@ export const createWorker = async (req: Request, res: Response, next: NextFuncti
 
     const data = await createWorkerService({ 
       employer_id, 
-      worker_fullname, 
+      worker_name, 
+      worker_surname: worker_surname || null,
       worker_cellnumber, 
       profession: profession || 'other'
     });

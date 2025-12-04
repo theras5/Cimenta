@@ -23,6 +23,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useWorkers } from "@/hooks/useWorkers";
 import { useAssignedTo } from "@/hooks/useAssignedTo";
 import { useAuth } from "@/context/AuthContext";
+import { getInitials, getFullName } from "@/utils/nameHelpers";
 
 
 // Categories with hex colors matching teamCalendar
@@ -121,13 +122,13 @@ export default function TaskDetail() {
   const [selectedStatus, setSelectedStatus] = useState<
     "changes" | "pending" | "in_progress" | "completed" | "blocked" | "rejected"
   >("pending");
-  
+
   useEffect(() => {
     if (isClient && isEditing) {
       setIsEditing(false);
     }
   }, [isClient, isEditing]);
-  
+
 
   // Estados para controlar los pickers - ya no necesarios con QuickDateSelector
 
@@ -456,16 +457,16 @@ export default function TaskDetail() {
         <View className="mb-4 flex-row justify-center">
           <View
             className={`px-3 py-1 rounded-full ${task.status === "pending"
-                ? "bg-yellow-500"
-                : task.status === "in_progress"
-                  ? "bg-blue-500"
-                  : task.status === "blocked"
-                    ? "bg-orange-500"
-                    : task.status === "rejected"
-                      ? "bg-red-500"
-                      : task.status === "changes"
-                        ? "bg-purple-500"
-                        : "bg-green-500"
+              ? "bg-yellow-500"
+              : task.status === "in_progress"
+                ? "bg-blue-500"
+                : task.status === "blocked"
+                  ? "bg-orange-500"
+                  : task.status === "rejected"
+                    ? "bg-red-500"
+                    : task.status === "changes"
+                      ? "bg-purple-500"
+                      : "bg-green-500"
               }`}
           >
             <Text className="text-white text-sm font-medium">
@@ -492,8 +493,8 @@ export default function TaskDetail() {
               <TouchableOpacity
                 onPress={() => setSelectedStatus("pending")}
                 className={`px-3 py-2 rounded-full ${selectedStatus === "pending"
-                    ? "bg-yellow-500"
-                    : "bg-yellow-100"
+                  ? "bg-yellow-500"
+                  : "bg-yellow-100"
                   }`}
                 activeOpacity={1}
               >
@@ -507,8 +508,8 @@ export default function TaskDetail() {
               <TouchableOpacity
                 onPress={() => setSelectedStatus("in_progress")}
                 className={`px-3 py-2 rounded-full ${selectedStatus === "in_progress"
-                    ? "bg-blue-500"
-                    : "bg-blue-100"
+                  ? "bg-blue-500"
+                  : "bg-blue-100"
                   }`}
                 activeOpacity={1}
               >
@@ -522,8 +523,8 @@ export default function TaskDetail() {
               <TouchableOpacity
                 onPress={() => setSelectedStatus("completed")}
                 className={`px-3 py-2 rounded-full ${selectedStatus === "completed"
-                    ? "bg-green-500"
-                    : "bg-green-100"
+                  ? "bg-green-500"
+                  : "bg-green-100"
                   }`}
                 activeOpacity={1}
               >
@@ -706,12 +707,12 @@ export default function TaskDetail() {
                   >
                     <View className="bg-blue-100 w-10 h-10 rounded-full items-center justify-center mr-3">
                       <Text className="text-blue-600 font-bold text-lg">
-                        {worker.worker_fullname.charAt(0).toUpperCase()}
+                        {getInitials(worker.worker_name, worker.worker_surname)}
                       </Text>
                     </View>
                     <View className="flex-1">
                       <Text className="text-gray-800 font-medium">
-                        {worker.worker_fullname}
+                        {getFullName(worker.worker_name, worker.worker_surname)}
                       </Text>
                       <Text className="text-gray-500 text-sm">
                         {worker.profession}
@@ -795,8 +796,8 @@ export default function TaskDetail() {
                       {/* Checkbox */}
                       <View
                         className={`w-6 h-6 rounded-md border-2 mr-3 items-center justify-center ${isSelected
-                            ? "bg-blue-500 border-blue-500"
-                            : "border-gray-300 bg-white"
+                          ? "bg-blue-500 border-blue-500"
+                          : "border-gray-300 bg-white"
                           }`}
                       >
                         {isSelected && (
@@ -807,20 +808,17 @@ export default function TaskDetail() {
                       {/* Avatar */}
                       <View className="bg-blue-100 w-12 h-12 rounded-full items-center justify-center mr-3">
                         <Text className="text-blue-600 font-bold text-lg">
-                          {worker.worker_fullname.charAt(0).toUpperCase()}
+                          {getInitials(worker.worker_name, worker.worker_surname)}
                         </Text>
                       </View>
 
                       {/* Info */}
                       <View className="flex-1">
                         <Text className="text-gray-800 font-semibold text-base">
-                          {worker.worker_fullname}
+                          {getFullName(worker.worker_name, worker.worker_surname)}
                         </Text>
                         <Text className="text-gray-500 text-sm mt-1">
-                          {worker.profession}
-                        </Text>
-                        <Text className="text-gray-400 text-xs mt-1">
-                          {worker.worker_cellnumber}
+                          {worker.profession} • {worker.worker_cellnumber}
                         </Text>
                       </View>
 

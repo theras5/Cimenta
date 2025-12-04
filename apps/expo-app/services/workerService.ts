@@ -2,7 +2,8 @@ const API_URL = /* process.env.EXPO_PUBLIC_API_URL ||  */'http://localhost:3000'
 
 export interface Worker {
   worker_id: string;
-  worker_fullname: string;
+  worker_name: string;
+  worker_surname: string | null;
   worker_cellnumber: string;
   profession: string;
   employer_id: string;
