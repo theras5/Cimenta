@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import PaywallGuard from "@/components/PaywallGuard";
 import { 
   Dialog,
   DialogContent,
@@ -103,13 +104,16 @@ export default function SelectSitePage() {
 
   if (loading) {
     return (
+      <PaywallGuard>
       <div className="flex items-center justify-center h-screen">
         <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
       </div>
+      </PaywallGuard>
     );
   }
 
   return (
+    <PaywallGuard>
     <div className="container mx-auto max-w-2xl px-4 py-12">
       <h1 className="text-3xl font-bold mb-12 text-center text-gray-800">
         Mis Obras
@@ -204,5 +208,6 @@ export default function SelectSitePage() {
         </DialogContent>
       </Dialog>
     </div>
+    </PaywallGuard>
   );
 }

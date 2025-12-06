@@ -9,6 +9,7 @@
     "dev:server": "npm run dev --workspace=server",
     "start:server": "npm run start --workspace=server",
     "dev:app": "npm run start --workspace=apps/expo-app",
+    "dev:web": "npm run dev --workspace=apps/web-app",
     "predev:app": "npm run build --workspace=packages/dtos"
   },
   "keywords": [],

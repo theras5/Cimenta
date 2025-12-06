@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, Eye, EyeOff, CheckCircle } from "lucide-react"
 import { useAuth } from "@/hooks/useAuth"
+import GuestGuard from "@/components/GuestGuard"
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -65,9 +66,9 @@ export default function RegisterPage() {
       
       setSuccess(true)
       
-      // Redirect after 2 seconds
+      // Redirect after 2 seconds to paywall for subscription
       setTimeout(() => {
-        router.push("/select-site") 
+        router.push("/paywall") 
       }, 2000)
     } catch (error) {
       // El error ya se maneja en el hook useAuth
@@ -77,6 +78,7 @@ export default function RegisterPage() {
 
   if (success) {
     return (
+      <GuestGuard>
       <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: '#cde8fe' }}>
         <Card className="w-full max-w-md shadow-xl border-0 bg-white/90 backdrop-blur-sm">
           <CardContent className="flex flex-col items-center justify-center py-12">
@@ -86,15 +88,17 @@ export default function RegisterPage() {
               Tu cuenta ha sido creada exitosamente
             </p>
             <p className="text-sm text-gray-500">
-              Redirigiendo al dashboard...
+              Redirigiendo para activar tu cuenta...
             </p>
           </CardContent>
         </Card>
       </div>
+      </GuestGuard>
     )
   }
 
   return (
+    <GuestGuard>
     <div className="min-h-screen flex">
       {/* Left Side - Image */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
@@ -285,5 +289,6 @@ export default function RegisterPage() {
         </div>
       </div>
     </div>
+    </GuestGuard>
   )
 }
