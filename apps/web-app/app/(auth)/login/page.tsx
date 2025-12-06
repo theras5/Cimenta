@@ -11,6 +11,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, Eye, EyeOff } from "lucide-react"
 import { useAuth } from "@/hooks/useAuth"
+import { supabase } from "@/lib/supabase"
+import GuestGuard from "@/components/GuestGuard"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -29,7 +31,24 @@ export default function LoginPage() {
 
     try {
       await login({ email, password })
-      router.push("/select-site") // Redirect to dashboard
+      
+      // Después de login, verificar si es premium para redirigir correctamente
+      const user = JSON.parse(localStorage.getItem('user') || '{}')
+      if (user?.id) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('is_premium')
+          .eq('id', user.id)
+          .single()
+        
+        if (profile?.is_premium) {
+          router.push("/select-site")
+        } else {
+          router.push("/paywall")
+        }
+      } else {
+        router.push("/paywall")
+      }
     } catch (error) {
       // El error ya se maneja en el hook useAuth
       console.error('Login failed:', error)
@@ -47,6 +66,7 @@ export default function LoginPage() {
   }
 
   return (
+    <GuestGuard>
     <div className="min-h-screen flex">
       {/* Left Side - Image */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
@@ -178,5 +198,6 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+    </GuestGuard>
   )
 }

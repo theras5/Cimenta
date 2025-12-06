@@ -12,7 +12,8 @@ import summary from "./routes/summary";
 import invitations from "./routes/invitations";
 import suppliers from "./routes/supplier";
 import workers from "./routes/workers";
-import assignedToRoutes from "./routes/assignedTo";
+import assignedToRoutes from "./routes/assignedTo";;
+import payments from "./routes/payments";
 
 // server/src/app.ts
 import cors from "cors";
@@ -52,6 +53,8 @@ app.use("/user-role", userRole);
 app.use("/summary", summary);
 
 app.use("/invitations", invitations);
+
+app.use("/payments", payments);
 
 // Middleware de manejo de errores (DEBE IR AL FINAL)
 app.use(errorMiddleware);
