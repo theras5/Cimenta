@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ArrowLeft, Loader2, Package, Calendar, Building2, FileText, Trash2 } from "lucide-react";
+import ClientDate from "@/components/ClientDate";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -361,11 +362,7 @@ export default function PurchaseDetailPage() {
                     <div>
                       <p className="text-sm text-gray-500">Fecha de solicitud</p>
                       <p className="font-semibold">
-                        {new Date(purchase.created_at).toLocaleDateString('es-AR', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                        })}
+                        <ClientDate iso={purchase.created_at} locale="es-AR" options={{ year: 'numeric', month: 'long', day: 'numeric' }} fallback="N/D" />
                       </p>
                     </div>
                   )}
@@ -374,11 +371,7 @@ export default function PurchaseDetailPage() {
                     <div>
                       <p className="text-sm text-gray-500">Fecha de compra</p>
                       <p className="font-semibold">
-                        {new Date(purchase.purchase_date).toLocaleDateString('es-AR', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                        })}
+                        <ClientDate iso={purchase.purchase_date} locale="es-AR" options={{ year: 'numeric', month: 'long', day: 'numeric' }} fallback="N/D" />
                       </p>
                     </div>
                   )}
@@ -387,11 +380,7 @@ export default function PurchaseDetailPage() {
                     <div>
                       <p className="text-sm text-gray-500">Fecha de entrega</p>
                       <p className="font-semibold">
-                        {new Date(purchase.delivery_date).toLocaleDateString('es-AR', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                        })}
+                        <ClientDate iso={purchase.delivery_date} locale="es-AR" options={{ year: 'numeric', month: 'long', day: 'numeric' }} fallback="N/D" />
                       </p>
                     </div>
                   )}

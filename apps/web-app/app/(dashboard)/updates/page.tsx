@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Plus, RefreshCw, Clipboard, Loader2, Upload, X, Camera, Video, AlertCircle } from "lucide-react";
+import ClientDate from "@/components/ClientDate";
 import { Button } from "@/components/ui/button";
 import VideoCard from "@/components/VideoCard";
 import NotificationCard from "@/components/NotificationCard";
@@ -546,9 +547,11 @@ const AvancesScreen = () => {
           </DetailHeader>
           <div className="space-y-4">
             <div className="text-sm text-gray-500">
-              {detailData?.created_at
-                ? new Date(detailData.created_at).toLocaleString()
-                : ""}
+              {detailData?.created_at ? (
+                <ClientDate iso={detailData.created_at} options={{ year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }} />
+              ) : (
+                ""
+              )}
             </div>
             <p className="text-gray-700 leading-6">
               {detailData ? normalizeText(detailData.description) : "Sin Descripci\u00f3n"}

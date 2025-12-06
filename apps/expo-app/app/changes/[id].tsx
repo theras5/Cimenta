@@ -12,9 +12,12 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Modal,
+  KeyboardAvoidingView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from 'expo-image-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTask } from "@/hooks/useTasks"; // Importamos el hook para obtener los datos reales
 import { useUserRole } from "@/hooks/useUserRole";
 
@@ -74,6 +77,11 @@ export default function ChangeDetail() {
   const [category, setCategory] = useState("");
   const [images, setImages] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Reject modal states
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [persistedRejectReason, setPersistedRejectReason] = useState<string | null>(null);
 
   // Carga los datos del cambio usando el hook useTask
   useEffect(() => {
@@ -114,7 +122,8 @@ export default function ChangeDetail() {
       setIsEditing(true);
     } */
   }, [id, task, taskLoading, taskError]);
-
+  
+  // Helper para obtener el color de la categorÃ­a
   // Helper para obtener el color de la categorÃ­a
   const getCategoryColor = (categoryName: string) => {
     const normalizedCategory = categoryName?.toUpperCase();
@@ -285,59 +294,86 @@ export default function ChangeDetail() {
       return;
     }
 
-    Alert.alert(
-      "Rechazar cambio",
-      "Â¿EstÃ¡s seguro de que quieres rechazar esta solicitud de cambio? Se moverÃ¡ a la secciÃ³n de cambios rechazados.",
-      [
-        {
-          text: "Cancelar",
-          style: "cancel",
-        },
-        {
-          text: "Rechazar",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              setIsLoading(true);
-
-              
-              if (id && updateTask) {
-                // Cambiamos el estado del cambio a 'rejected' en lugar de eliminarlo
-                const result = await updateTask({
-                  status: 'rejected',
-                });
-                
-                if (result) {
-
-                  
-                  // Actualizar los datos para reflejar el cambio
-                  await fetchTask();
-                  
-                  Alert.alert("Ã‰xito", "Solicitud de cambio rechazada y movida a cambios rechazados");
-                  router.back();
-                } else {
-                  throw new Error("No se pudo rechazar el cambio");
-                }
-              } else {
-                // Modo demo si no hay API
-
-                setTimeout(() => {
-                  Alert.alert("Ã‰xito", "Solicitud de cambio rechazada y movida a cambios rechazados (modo demo)");
-                  router.back();
-                }, 1000);
-              }
-            } catch (error) {
-              console.error("Error al rechazar el cambio:", error);
-              Alert.alert("Error", "No se pudo rechazar la solicitud de cambio");
-            } finally {
-              setIsLoading(false);
-            }
-          },
-        },
-      ]
-    );
+    // Abrir el modal para pedir la razón
+    setShowRejectModal(true);
   };
 
+  const handleConfirmReject = async () => {
+    if (!rejectReason.trim()) {
+      Alert.alert("Razón requerida", "Por favor, ingresa una razón para rechazar este cambio.");
+      return;
+    }
+
+    setShowRejectModal(false);
+
+    try {
+      setIsLoading(true);
+
+      if (id && updateTask) {
+        // Cambiamos el estado del cambio a 'rejected' en lugar de eliminarlo
+        // Aquí podrías también guardar la razón del rechazo si el backend lo soporta
+        const result = await updateTask({
+          status: 'rejected',
+          // rejection_reason: rejectReason, // Descomentar si el backend lo soporta
+        });
+        
+        if (result) {
+          // Actualizar los datos para reflejar el cambio
+          await fetchTask();
+          // Guardar la razón localmente si el backend no la almacena
+          try {
+            if (id) {
+              await AsyncStorage.setItem(`rejectionReason:${id}`, rejectReason);
+              setPersistedRejectReason(rejectReason);
+            }
+          } catch (e) {
+            console.error('Error saving rejection reason locally', e);
+          }
+
+          Alert.alert("Éxito", "Solicitud de cambio rechazada y movida a cambios rechazados");
+          setRejectReason(""); // Limpiar la razón
+          router.back();
+        } else {
+          throw new Error("No se pudo rechazar el cambio");
+        }
+      } else {
+        // Modo demo si no hay API
+        try {
+          if (id) {
+            await AsyncStorage.setItem(`rejectionReason:${id}`, rejectReason);
+            setPersistedRejectReason(rejectReason);
+          }
+        } catch (e) {
+          console.error('Error saving rejection reason locally (demo)', e);
+        }
+
+        setTimeout(() => {
+          Alert.alert("Éxito", "Solicitud de cambio rechazada y movida a cambios rechazados (modo demo)");
+          setRejectReason(""); // Limpiar la razón
+          router.back();
+        }, 1000);
+      }
+    } catch (error) {
+      console.error("Error al rechazar el cambio:", error);
+      Alert.alert("Error", "No se pudo rechazar la solicitud de cambio");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Cargar la razón de rechazo almacenada localmente (si existe)
+  useEffect(() => {
+    const loadReason = async () => {
+      if (!id) return;
+      try {
+        const val = await AsyncStorage.getItem(`rejectionReason:${id}`);
+        if (val) setPersistedRejectReason(val);
+      } catch (e) {
+        console.error('Error loading rejection reason', e);
+      }
+    };
+    loadReason();
+  }, [id]);
   // FunciÃ³n para alternar entre modos de ediciÃ³n y vista
   const toggleEditMode = () => {
     if (isAdmin && isChange) {
@@ -465,6 +501,16 @@ export default function ChangeDetail() {
             </View>
           )}
         </View>
+
+        {/* Mostrar razón de rechazo si existe */}
+        {!isEditing && persistedRejectReason ? (
+          <View className="mb-4">
+            <Text className="text-gray-700 font-medium mb-2">Razón del rechazo</Text>
+            <View className="bg-white p-4 rounded-xl border border-gray-200">
+              <Text className="text-gray-800">{persistedRejectReason}</Text>
+            </View>
+          </View>
+        ) : null}
 
         {/* CategorÃ­a */}
         <View className="mb-4">
@@ -597,8 +643,67 @@ export default function ChangeDetail() {
         )}
       </View>
       </ScrollView>
-
       )}
+
+      {/* Modal para pedir razón del rechazo */}
+      <Modal
+        visible={showRejectModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowRejectModal(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 24, width: '100%', maxWidth: 400 }}>
+            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#111827', marginBottom: 8 }}>
+              Rechazar cambio
+            </Text>
+            <Text style={{ color: '#4B5563', marginBottom: 16 }}>
+              Por favor, indica la razón por la cual se rechaza esta solicitud de cambio:
+            </Text>
+            
+            <TextInput
+              value={rejectReason}
+              onChangeText={setRejectReason}
+              placeholder="Escribe la razón del rechazo..."
+              placeholderTextColor="#9CA3AF"
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+              style={{ 
+                borderWidth: 1, 
+                borderColor: '#D1D5DB', 
+                borderRadius: 12, 
+                padding: 12, 
+                marginBottom: 16, 
+                minHeight: 100,
+                color: '#111827'
+              }}
+            />
+            
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowRejectModal(false);
+                  setRejectReason("");
+                }}
+                style={{ flex: 1, backgroundColor: '#E5E7EB', paddingVertical: 12, borderRadius: 12, alignItems: 'center' }}
+              >
+                <Text style={{ color: '#1F2937', fontWeight: '500' }}>Cancelar</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                onPress={handleConfirmReject}
+                disabled={isLoading}
+                style={{ flex: 1, backgroundColor: '#EF4444', paddingVertical: 12, borderRadius: 12, alignItems: 'center' }}
+              >
+                <Text style={{ color: 'white', fontWeight: '500' }}>
+                  {isLoading ? "Rechazando..." : "Rechazar"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

@@ -38,7 +38,7 @@ interface EditTaskModalProps {
   isChange?: boolean
   showApproveReject?: boolean
   onApproveChange?: (id: string) => Promise<void>
-  onRejectChange?: (id: string) => Promise<void>
+  onRejectChange?: (id: string, reason?: string) => Promise<void>
 }
 
 const categories = [
@@ -69,6 +69,9 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
   })
   const [selectedMembers, setSelectedMembers] = useState<string[]>([])
   const [isSaving, setIsSaving] = useState(false)
+  const [showRejectModal, setShowRejectModal] = useState(false)
+  const [rejectReason, setRejectReason] = useState("")
+  const [persistedRejectReason, setPersistedRejectReason] = useState<string | null>(null)
 
   // Actualizar el formulario cuando cambie la tarea
   useEffect(() => {
@@ -85,6 +88,17 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
       })
       setSelectedMembers(task.assignedMembers || [])
     }
+    // Load persisted rejection reason from localStorage
+    const loadReason = () => {
+      if (!task) return
+      try {
+        const val = localStorage.getItem(`rejectionReason:${task.id}`)
+        if (val) setPersistedRejectReason(val)
+      } catch (e) {
+        console.error("Error loading rejection reason", e)
+      }
+    }
+    loadReason()
   }, [task])
 
   const handleSave = async () => {
@@ -123,11 +137,29 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
     }
   }
 
+  // Open reject modal to capture reason
   const handleReject = async () => {
     if (!task || !onRejectChange) return
+    setRejectReason("")
+    setShowRejectModal(true)
+  }
+
+  const handleConfirmReject = async () => {
+    if (!task || !onRejectChange) return
+    if (!rejectReason.trim()) {
+      // simple client-side validation
+      return
+    }
+    setShowRejectModal(false)
     setIsSaving(true)
     try {
-      await onRejectChange(task.id)
+      await onRejectChange(task.id, rejectReason.trim())
+      try {
+        localStorage.setItem(`rejectionReason:${task.id}`, rejectReason.trim())
+        setPersistedRejectReason(rejectReason.trim())
+      } catch (e) {
+        console.error('Error saving rejection reason to localStorage', e)
+      }
     } finally {
       setIsSaving(false)
     }
@@ -179,6 +211,14 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
             }
             rows={3}
           />
+
+          {/* Mostrar razón del rechazo si existe y la tarea está rechazada */}
+          {task.status === "rejected" && persistedRejectReason ? (
+            <div className="bg-red-50 border border-red-200 rounded-md p-3">
+              <div className="text-sm font-medium text-gray-700 mb-1">Razón del rechazo</div>
+              <div className="text-sm text-gray-800">{persistedRejectReason}</div>
+            </div>
+          ) : null}
 
           {/* Categoría */}
           <Select
@@ -293,6 +333,42 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
           </div>
         </div>
       </DialogContent>
+
+      {/* Modal para capturar la razón de rechazo */}
+      <Dialog open={showRejectModal} onOpenChange={setShowRejectModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-center text-lg">Rechazar cambio</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Textarea
+              placeholder="Escribe la razón del rechazo..."
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              rows={4}
+            />
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowRejectModal(false)
+                  setRejectReason("")
+                }}
+                className="flex-1"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleConfirmReject}
+                className="flex-1 bg-red-600 hover:bg-red-700"
+                disabled={!rejectReason.trim() || isSaving}
+              >
+                {isSaving ? "Rechazando..." : "Rechazar"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   )
 }

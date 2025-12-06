@@ -23,7 +23,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
+        {/* suppressHydrationWarning: prevent noisy hydration mismatch warnings
+          caused by browser extensions (e.g. Grammarly) or other client-only DOM mutations */}
+        <body suppressHydrationWarning className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
           <Suspense fallback={<div className="p-6">Cargando…</div>}>
           <AuthProvider>
             {children}
