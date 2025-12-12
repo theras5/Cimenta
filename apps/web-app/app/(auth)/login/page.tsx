@@ -32,23 +32,9 @@ export default function LoginPage() {
     try {
       await login({ email, password })
       
-      // Después de login, verificar si es premium para redirigir correctamente
-      const user = JSON.parse(localStorage.getItem('user') || '{}')
-      if (user?.id) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('is_premium')
-          .eq('id', user.id)
-          .single()
-        
-        if (profile?.is_premium) {
-          router.push("/select-site")
-        } else {
-          router.push("/paywall")
-        }
-      } else {
-        router.push("/paywall")
-      }
+      // Después de login, ir a select-site
+      // El PaywallGuard se encargará de redirigir a paywall si no es premium
+      router.push("/select-site")
     } catch (error) {
       // El error ya se maneja en el hook useAuth
       console.error('Login failed:', error)

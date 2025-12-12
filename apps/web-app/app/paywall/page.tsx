@@ -1,15 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { authService } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
+import { userService } from '@/lib/paymentService';
 import AuthGuard from '@/components/AuthGuard';
 
 export default function PaywallPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isSubscribing, setIsSubscribing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [checkingPayment, setCheckingPayment] = useState(false);
   const [user, setUser] = useState<{ id: string; email: string } | null>(null);
 
   useEffect(() => {
@@ -23,29 +25,52 @@ export default function PaywallPage() {
           return;
         }
 
-        // Verificar si ya es premium
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('is_premium')
-          .eq('id', savedUser.id)
-          .single();
+        // Verificar si viene de MP (tiene parámetros de retorno)
+        const preapprovalId = searchParams.get('preapproval_id');
+        const status = searchParams.get('status');
+        
+        if (preapprovalId || status) {
+          // Viene de Mercado Pago, verificar estado del pago
+          setCheckingPayment(true);
+          
+          // Esperar un poco para que el webhook procese
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
 
-        if (profile?.is_premium) {
-          // Ya es premium, redirigir al dashboard
-          router.push('/select-site');
+        // Verificar si ya es premium usando el backend
+        const isPremium = await userService.checkPremiumStatus(savedUser.id);
+
+        if (isPremium) {
+          // Ya es premium, redirigir al dashboard (replace para no volver atrás)
+          router.replace('/select-site');
           return;
         }
 
+        // Si venía de MP y no es premium aún, reintentar
+        if (preapprovalId && !isPremium) {
+          // Reintentar después de unos segundos
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          
+          const isPremiumRetry = await userService.checkPremiumStatus(savedUser.id);
+
+          if (isPremiumRetry) {
+            router.replace('/select-site');
+            return;
+          }
+        }
+
         setUser({ id: savedUser.id, email: savedUser.email || '' });
+        setCheckingPayment(false);
       } catch (error) {
         console.error('Error verificando usuario:', error);
+        setCheckingPayment(false);
       } finally {
         setLoading(false);
       }
     };
 
     checkUser();
-  }, [router]);
+  }, [router, searchParams]);
 
   const handleSubscribe = async () => {
     if (!user) return;
@@ -53,25 +78,10 @@ export default function PaywallPage() {
     setIsSubscribing(true);
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/payments/subscribe`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: user.id,
-          email: user.email,
-        }),
-      });
+      const paymentUrl = await userService.startSubscription(user.id, user.email);
 
-      if (!response.ok) {
-        throw new Error('Error al crear suscripción');
-      }
-
-      const data = await response.json();
-
-      if (data.data?.initPoint) {
-        window.location.href = data.data.initPoint;
+      if (paymentUrl) {
+        window.location.href = paymentUrl;
       } else {
         throw new Error('No se recibió el link de pago');
       }
@@ -88,17 +98,27 @@ export default function PaywallPage() {
     router.push('/login');
   };
 
-  if (loading) {
+  if (loading || checkingPayment) {
     return (
-      <AuthGuard>
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-blue-600 mb-4"></div>
-          <p className="text-gray-600 text-lg">Cargando...</p>
+          <p className="text-gray-600 text-lg">
+            {checkingPayment ? 'Verificando tu pago...' : 'Cargando...'}
+          </p>
+          {checkingPayment && (
+            <p className="text-gray-500 text-sm mt-2">
+              Esto puede tomar unos segundos
+            </p>
+          )}
         </div>
       </div>
-      </AuthGuard>
     );
+  }
+
+  // Si no hay usuario después de cargar, no mostrar nada (se está redirigiendo)
+  if (!user) {
+    return null;
   }
 
   return (
