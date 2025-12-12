@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { authService } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
+import { userService } from '@/lib/paymentService';
 
 interface PaywallGuardProps {
   children: React.ReactNode;
@@ -26,21 +26,10 @@ export default function PaywallGuard({ children }: PaywallGuardProps) {
           return;
         }
 
-        // Consultar estado premium en la tabla profiles
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('is_premium')
-          .eq('id', user.id)
-          .single();
+        // Consultar estado premium usando el backend
+        const isPremium = await userService.checkPremiumStatus(user.id);
 
-        if (profileError) {
-          console.error('Error obteniendo perfil:', profileError);
-          // Si no hay perfil o hay error, redirigir al paywall
-          router.push('/paywall');
-          return;
-        }
-
-        if (!profile?.is_premium) {
+        if (!isPremium) {
           // No es premium, redirigir al paywall
           router.push('/paywall');
           return;

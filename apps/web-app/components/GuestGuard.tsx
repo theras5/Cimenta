@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { authService } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
 
 interface GuestGuardProps {
   children: React.ReactNode;
@@ -11,9 +10,8 @@ interface GuestGuardProps {
 
 /**
  * Protege rutas de invitados (login, register)
- * Si está logueado:
- *   - Si es premium → /select-site
- *   - Si no es premium → /paywall
+ * Si está logueado → redirige a /select-site
+ * El PaywallGuard en /select-site se encarga de verificar premium
  */
 export default function GuestGuard({ children }: GuestGuardProps) {
   const router = useRouter();
@@ -27,20 +25,9 @@ export default function GuestGuard({ children }: GuestGuardProps) {
         const user = authService.getUser();
 
         if (token && user) {
-          // Usuario ya autenticado, verificar si es premium
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('is_premium')
-            .eq('id', user.id)
-            .single();
-
-          if (profile?.is_premium) {
-            // Es premium, ir a seleccionar sitio
-            router.push('/select-site');
-          } else {
-            // No es premium, ir al paywall
-            router.push('/paywall');
-          }
+          // Usuario ya autenticado, ir a select-site
+          // El PaywallGuard ahí decidirá si redirigir a paywall
+          router.replace('/select-site');
           return;
         }
 
@@ -57,15 +44,9 @@ export default function GuestGuard({ children }: GuestGuardProps) {
     checkAuth();
   }, [router]);
 
+  // No mostrar nada mientras verifica
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-10 w-10 border-4 border-gray-300 border-t-blue-600 mb-3"></div>
-          <p className="text-gray-600">Cargando...</p>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   if (isGuest) {
