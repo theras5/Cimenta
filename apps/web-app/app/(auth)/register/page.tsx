@@ -68,7 +68,7 @@ export default function RegisterPage() {
       
       // Redirect after 2 seconds - PaywallGuard decidirá si va a paywall
       setTimeout(() => {
-        router.push("/paywall") 
+        router.push("/select-site") 
       }, 2000)
     } catch (error) {
       // El error ya se maneja en el hook useAuth
