@@ -12,14 +12,31 @@
       "enabled": false
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.cimenta.demo",
+      "associatedDomains": ["applinks:cimenta-api.ngrok.io"]
     },
     "android": {
+      "package": "com.cimenta.demo",
       "adaptiveIcon": {
         "foregroundImage": "./assets/icons/icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "cimenta-api.ngrok.io",
+              "pathPrefix": "/payments/mobile-callback"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "bundler": "metro",

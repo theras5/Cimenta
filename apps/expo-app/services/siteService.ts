@@ -16,6 +16,15 @@ export interface UpdateSiteRequest {
   role?: string;
   user_id?: string;}
 
+// Obtener URL base sin trailing slash
+const getApiUrl = () => (process.env.EXPO_PUBLIC_API_URL || '').replace(/\/$/, '');
+
+// Headers comunes para evitar página de interstitial de ngrok
+const getHeaders = (contentType = false) => ({
+  ...(contentType && { 'Content-Type': 'application/json' }),
+  'ngrok-skip-browser-warning': 'true',
+});
+
 const handleApiError = (error: any): never => {
   console.error('API Error:', error);
   Alert.alert(
@@ -28,7 +37,9 @@ const handleApiError = (error: any): never => {
 export const SiteService = {
   async getSites(): Promise<Site[]> {
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/sites`); 
+      const response = await fetch(`${getApiUrl()}/sites`, {
+        headers: getHeaders(),
+      }); 
       
       if (!response.ok) {
         throw new Error(`Error ${response.status}: ${response.statusText}`);
@@ -42,7 +53,9 @@ export const SiteService = {
   
   async getSite(id: string): Promise<Site> {
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/sites/${id}`);
+      const response = await fetch(`${getApiUrl()}/sites/${id}`, {
+        headers: getHeaders(),
+      });
       
       if (!response.ok) {
         throw new Error(`Error ${response.status}: ${response.statusText}`);
@@ -56,11 +69,9 @@ export const SiteService = {
   
   async createSite(site: CreateSiteRequest): Promise<Site> {
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/sites`, {
+      const response = await fetch(`${getApiUrl()}/sites`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getHeaders(true),
         body: JSON.stringify(site),
       });
       
@@ -76,11 +87,9 @@ export const SiteService = {
   
   async updateSite(id: string, site: UpdateSiteRequest): Promise<Site> {
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/sites/${id}`, {
+      const response = await fetch(`${getApiUrl()}/sites/${id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getHeaders(true),
         body: JSON.stringify(site),
       });
       
@@ -96,8 +105,9 @@ export const SiteService = {
   
   async deleteSite(id: string): Promise<boolean> {
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/sites/${id}`, {
+      const response = await fetch(`${getApiUrl()}/sites/${id}`, {
         method: 'DELETE',
+        headers: getHeaders(),
       });
       
       if (!response.ok) {
@@ -113,7 +123,9 @@ export const SiteService = {
 
 async getSitesForUser(userId: string): Promise<Site[]> {
   try {
-    const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/sites/user/${userId}`);
+    const response = await fetch(`${getApiUrl()}/sites/user/${userId}`, {
+      headers: getHeaders(),
+    });
     if (!response.ok) {
       throw new Error(`Error ${response.status}: ${response.statusText}`);
     }
