@@ -205,13 +205,13 @@ const createTaskTool: FunctionDeclaration = {
 // Tool para ejecutar comandos simples (sin parámetros complejos)
 const executeCommandTool: FunctionDeclaration = {
     name: "executeCommand",
-    description: "Ejecutar un comando simple del bot",
+    description: "Ejecutar un comando simple del bot. Si el usuario dice 'tareas bloqueadas', 'quiero ver las tareas bloqueadas', 'mostrar tareas bloqueadas', o cualquier variación similar, usa command='tareas_bloqueadas'. Si dice 'tareas', usa command='tareas'. Si dice 'resumen', usa command='resumen'. Etc.",
     parameters: {
         type: Type.OBJECT,
         properties: {
             command: {
                 type: Type.STRING,
-                description: "Nombre del comando a ejecutar",
+                description: "Nombre del comando a ejecutar. IMPORTANTE: Si el usuario dice 'tareas bloqueadas' (en cualquier variación: 'Tareas bloqueadas', 'quiero ver las tareas bloqueadas', etc.), usa 'tareas_bloqueadas'. Si dice 'tareas', usa 'tareas'. Si dice 'resumen', usa 'resumen'. Si dice 'compras', usa 'compras'. Si dice 'compras criticas' o 'compras críticas', usa 'compras_criticas'.",
                 enum: [
                     "tareas",
                     "tareas_bloqueadas",
@@ -332,13 +332,13 @@ const createUpdateTool: FunctionDeclaration = {
 // Tool para ver clima
 const getWeatherTool: FunctionDeclaration = {
     name: "getWeather",
-    description: "Obtener pronóstico del tiempo de una obra. Si no se especifica obra, se mostrará la lista de obras disponibles.",
+    description: "Obtener pronóstico del tiempo de una obra. IMPORTANTE: Si el usuario dice 'quiero saber el clima', 'quiero saber cuál es el clima', 'quiero saber el clima en mi obra', 'clima en mi obra', o cualquier variación similar SIN especificar el nombre de la obra, usa getWeather SIN obra_name (o con obra_name vacío). Si menciona un nombre específico de obra, úsalo como obra_name.",
     parameters: {
         type: Type.OBJECT,
         properties: {
             obra_name: {
                 type: Type.STRING,
-                description: "Nombre o dirección de la obra (opcional). Si no se especifica, se mostrará la lista de obras."
+                description: "Nombre o dirección de la obra (opcional). Si el usuario dice 'mi obra' sin especificar cuál, o 'quiero saber el clima' sin mencionar obra, NO incluyas este campo o déjalo vacío. Solo inclúyelo si el usuario menciona un nombre específico de obra."
             }
         },
         required: []
@@ -422,7 +422,7 @@ Analizar la transcripción del audio e identificar qué comando quiere ejecutar 
 IMPORTANTE: Si el usuario menciona "crear tarea", "crear una tarea", "quiero crear una tarea", o cualquier variación similar, SIEMPRE debes usar la herramienta createTask. No importa qué tan simple o complejo sea el comando, si menciona crear una tarea, usa createTask.
 
 REGLAS CRÍTICAS:
-1. **Identificar la intención:** Analiza qué comando quiere ejecutar el usuario basándote en los comandos disponibles. Reconoce variaciones como "crear tarea", "quiero crear una tarea", "necesito crear una tarea", "clima", "quiero saber el clima", etc.
+1. **Identificar la intención:** Analiza qué comando quiere ejecutar el usuario basándote en los comandos disponibles. Reconoce variaciones como "crear tarea", "quiero crear una tarea", "necesito crear una tarea", "clima", "quiero saber el clima", "quiero saber cuál es el clima en mi obra", etc. Si el usuario menciona "clima" o "pronóstico" o "el tiempo", SIEMPRE usa getWeather, incluso si no especifica una obra (en ese caso, no incluyas obra_name).
 2. **Usar la herramienta correcta:** Cada comando tiene una herramienta específica. Úsala según corresponda.
 3. **Extraer TODOS los parámetros:** De la transcripción, extrae TODOS los parámetros mencionados. Si el usuario dice "Crea una tarea para mi obra 'Gurruchaga 500' que se llame 'Comprar tornillos', sea de la categoría pintura, esté pendiente", extrae: title="Comprar tornillos", category="pintura", status="pending", site_address="Gurruchaga 500".
 4. **Mapear obras:** Si el usuario menciona una obra, intenta mapearla con las obras disponibles del usuario usando match parcial o por similitud. Por ejemplo, si dice "gurruchaga" y hay una obra "Gurruchaga 500", usa "Gurruchaga 500" como site_address.
@@ -457,13 +457,18 @@ EJEMPLOS DE USO:
 - Usuario dice "marcar la compra 123 como entregada" → usar changePurchaseStatus con purchase_id="123" y status="delivered"
 - Usuario dice "solicitar cambio para pintar la sala de otro color" → usar createChange con title, category
 - Usuario dice "quiero saber el clima" o "clima" o "pronóstico del tiempo" → usar getWeather sin obra_name (se mostrará lista de obras)
-- Usuario dice "clima de gurruchaga" o "quiero saber el clima de mi obra" → usar getWeather con obra_name="gurruchaga" (mapear con las obras del usuario)
+- Usuario dice "quiero saber cuál es el clima en mi obra" o "quiero saber el clima en mi obra" o "clima en mi obra" → usar getWeather SIN obra_name (se mostrará lista de obras para que el usuario seleccione)
+- Usuario dice "clima de gurruchaga" o "quiero saber el clima de gurruchaga" → usar getWeather con obra_name="gurruchaga" (mapear con las obras del usuario)
+- Usuario dice "clima en gurruchaga" o "pronóstico en gurruchaga" → usar getWeather con obra_name="gurruchaga" (mapear con las obras del usuario)
 
 VARIACIONES DE COMANDOS IMPORTANTES:
 - "crear tarea", "crear una tarea", "quiero crear una tarea", "necesito crear una tarea", "Crear una tarea para...", "Crear tarea para..." → SIEMPRE usar createTask
 - "crear compra", "crear una compra", "crear solicitud de compra", "solicitud de compra", "compra" → SIEMPRE usar createPurchase
-- "clima", "quiero saber el clima", "pronóstico", "pronóstico del tiempo", "el tiempo" → getWeather
-- "tareas bloqueadas", "quiero ver las tareas bloqueadas", "mostrar tareas bloqueadas" → executeCommand con command="tareas_bloqueadas"
+- "clima", "quiero saber el clima", "quiero saber cuál es el clima", "quiero saber el clima en mi obra", "clima en mi obra", "pronóstico", "pronóstico del tiempo", "el tiempo", "pronóstico en mi obra" → SIEMPRE usar getWeather (sin obra_name si no se especifica obra, con obra_name si se menciona una obra específica)
+- "tareas bloqueadas", "Tareas bloqueadas", "quiero ver las tareas bloqueadas", "mostrar tareas bloqueadas", "ver tareas bloqueadas" → SIEMPRE usar executeCommand con command="tareas_bloqueadas"
+- "tareas", "quiero ver las tareas", "mostrar tareas" → executeCommand con command="tareas"
+- "compras", "quiero ver las compras", "mostrar compras" → executeCommand con command="compras"
+- "compras criticas", "compras críticas", "quiero ver las compras críticas" → executeCommand con command="compras_criticas"
 
 NOTAS IMPORTANTES:
 - Si el usuario dice "no tenga descripción" o "sin descripción", NO incluyas el campo description o déjalo vacío.

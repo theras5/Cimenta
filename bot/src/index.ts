@@ -399,7 +399,8 @@ async function executeAudioCommand(
             }
             
             case 'getWeather': {
-                const obraName = params.obra_name || '';
+                // Si obra_name es undefined, null, o string vacío, pasar string vacío para mostrar lista
+                const obraName = (params.obra_name && params.obra_name.trim() !== '') ? params.obra_name.trim() : '';
                 await handleWeatherCommand(obraName, user, senderNumber, sock);
                 break;
             }
@@ -4670,9 +4671,22 @@ async function handleWeatherCommand(
         }
 
         if (!selectedSite) {
-            await sock.sendMessage(senderNumber, {
-                text: `❌ No encontré la obra "${obraName}".\n\nEscribí "clima" para ver la lista de obras.`
+            // Si no se encontró la obra, mostrar la lista de obras disponibles
+            const lines: string[] = [];
+            lines.push(`🌤️ *Clima por Obra*`);
+            lines.push('');
+            lines.push(`⚠️ No encontré la obra "${obraName}".`);
+            lines.push('');
+            lines.push('Escribí el nombre de la obra o el número:');
+            lines.push('');
+            sites.slice(0, 10).forEach((site: any, index: number) => {
+                lines.push(`${index + 1}. ${site.address || 'Sin nombre'}`);
             });
+            lines.push('');
+            lines.push('Ejemplo: "clima 1" o "clima [nombre]"');
+
+            await sock.sendMessage(senderNumber, { text: lines.join('\n') });
+            setChatState(senderNumber, 'AWAITING_WEATHER_SITE_SELECTION', { sites });
             return;
         }
 
