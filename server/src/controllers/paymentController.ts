@@ -11,7 +11,7 @@ import {
  */
 export const createSubscription = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { userId, email } = req.body;
+    const { userId, email, platform } = req.body;
 
     if (!userId || !email) {
       return res.status(400).json({
@@ -19,9 +19,9 @@ export const createSubscription = async (req: Request, res: Response, next: Next
       });
     }
 
-    console.log('🚀 Creando suscripción para:', { userId, email });
+    console.log('🚀 Creando suscripción para:', { userId, email, platform });
 
-    const subscription = await createSubscriptionService({ userId, email });
+    const subscription = await createSubscriptionService({ userId, email, platform });
 
     res.status(201).json({
       success: true,

@@ -12,8 +12,9 @@ import summary from "./routes/summary";
 import invitations from "./routes/invitations";
 import suppliers from "./routes/supplier";
 import workers from "./routes/workers";
-import assignedToRoutes from "./routes/assignedTo";;
+import assignedToRoutes from "./routes/assignedTo";
 import payments from "./routes/payments";
+import wellKnown from "./routes/wellKnown";
 
 // server/src/app.ts
 import cors from "cors";
@@ -53,6 +54,9 @@ app.use("/user-role", userRole);
 app.use("/summary", summary);
 
 app.use("/invitations", invitations);
+
+// App Links / Universal Links verification
+app.use("/.well-known", wellKnown);
 
 app.use("/payments", payments);
 

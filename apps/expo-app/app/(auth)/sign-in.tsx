@@ -50,11 +50,23 @@ const SignIn = () => {
 
     setIsLoading(true);
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/auth/login`, {
+      // Asegurar que no haya doble slash en la URL
+      const baseUrl = (process.env.EXPO_PUBLIC_API_URL || '').replace(/\/$/, '');
+      const response = await fetch(`${baseUrl}/auth/login`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "ngrok-skip-browser-warning": "true",
+        },
         body: JSON.stringify({ email, password }),
       });
+      
+      // Verificar si la respuesta es JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        console.error('Respuesta no es JSON:', await response.text());
+        throw new Error('El servidor no responde correctamente. Verifica la conexión.');
+      }
      
       if (!response.ok) {
       const errorData = await response.json();

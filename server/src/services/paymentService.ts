@@ -18,6 +18,7 @@ const SUBSCRIPTION_CONFIG = {
 export interface CreateSubscriptionRequest {
   userId: string;
   email: string;
+  platform?: 'web' | 'mobile';
 }
 
 export interface SubscriptionResponse {
@@ -30,21 +31,41 @@ export interface SubscriptionResponse {
  * Crea una suscripción de Mercado Pago para un usuario
  * @param userId - ID del usuario en la base de datos
  * @param email - Email del usuario para la suscripción
+ * @param platform - Plataforma desde donde se origina (web o mobile)
  * @returns URL de pago (init_point) y datos de la suscripción
  */
-export const createSubscriptionService = async ({ userId, email }: CreateSubscriptionRequest): Promise<SubscriptionResponse> => {
+export const createSubscriptionService = async ({ userId, email, platform = 'web' }: CreateSubscriptionRequest): Promise<SubscriptionResponse> => {
   try {
-    console.log('📧 Creando suscripción para:', { userId, email });
+    console.log('📧 Creando suscripción para:', { userId, email, platform });
     console.log('💰 Config:', SUBSCRIPTION_CONFIG);
     
     const isTestMode = process.env.MP_ACCESS_TOKEN?.startsWith('TEST-');
-    const backUrl = process.env.MP_BACK_URL || 'http://localhost:3001/paywall';
+    
+    // Para mobile, usamos el callback que redirige a la app via App Links
+    // Para web, usamos la URL del frontend
+    let backUrl: string;
+    if (platform === 'mobile') {
+      // Usar la URL del backend (ngrok en dev) + callback path
+      const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:3000';
+      backUrl = `${apiBaseUrl}/payments/mobile-callback`;
+    } else {
+      backUrl = process.env.MP_BACK_URL || 'http://localhost:3001/paywall';
+    }
+
+    console.log('🔙 Back URL configurada:', backUrl, '(platform:', platform, ')');
+
+    // TODO: En producción real, usar el email del usuario
+    // Por ahora hardcodeamos el email del comprador de prueba
+    const TEST_BUYER_EMAIL = 'test_user_8085113406163690698@testuser.com';
+    const payerEmail = TEST_BUYER_EMAIL;
+    
+    console.log('🧪 Usando email de prueba:', payerEmail);
 
     const response = await preApproval.create({
       body: {
         reason: SUBSCRIPTION_CONFIG.reason,
         external_reference: userId,
-        payer_email: email,
+        payer_email: payerEmail,
         auto_recurring: {
           frequency: SUBSCRIPTION_CONFIG.frequency,
           frequency_type: SUBSCRIPTION_CONFIG.frequency_type,

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SiteService } from "../services/siteService"; // Asegúrate de importar tu servicio
+import { UserService } from "../services/userService";
 import { View, Text, TouchableOpacity, ActivityIndicator, ScrollView, Alert, Modal, TextInput, Dimensions } from "react-native";
 import { router } from "expo-router";
 import { Picker } from "@react-native-picker/picker"; // Instala si no lo tienes
@@ -16,12 +17,39 @@ const BUTTON_WIDTH = Math.min(width * 0.85, 320);
 export default function SelectSiteScreen() {
   const [sites, setSites] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [checkingPremium, setCheckingPremium] = useState(true);
 
   const [modalVisible, setModalVisible] = useState(false);
   const [newAddress, setNewAddress] = useState("");
   const [newRole, setNewRole] = useState("client"); // Estado para el rol
   const { user } = useAuth(); // user.id es el uuid del usuario
 
+// Verificar autenticación y premium status al cargar
+useFocusEffect(
+  useCallback(() => {
+    const checkAuthAndPremium = async () => {
+      // Si no hay usuario, redirigir al login
+      if (!user?.id) {
+        router.replace('/(auth)/sign-in');
+        return;
+      }
+
+      try {
+        const isPremium = await UserService.checkPremiumStatus(user.id);
+        if (!isPremium) {
+          router.replace('/paywall');
+          return;
+        }
+      } catch (error) {
+        console.error('Error verificando premium:', error);
+      } finally {
+        setCheckingPremium(false);
+      }
+    };
+
+    checkAuthAndPremium();
+  }, [user])
+);
 
 useFocusEffect(
   useCallback(() => {
@@ -94,7 +122,7 @@ useFocusEffect(
     }
   };
 
-  if (loading) {
+  if (loading || checkingPremium) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
         <ActivityIndicator size="large" />

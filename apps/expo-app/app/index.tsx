@@ -1,21 +1,29 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, Dimensions, StatusBar } from 'react-native';
+import React from 'react';
+import { View, Text, Image, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Redirect, router } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
 import { images } from '@/constants';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAuth } from '@/context/AuthContext';
 
 export default function Index() {
-  // Aquí puedes agregar lógica para verificar si el usuario está autenticado
-  // const isAuthenticated  = 
-  const isAuthenticated = true; // Cambia esto por tu lógica de autenticación real
+  const { user, loading } = useAuth();
   
-  if (isAuthenticated) {
-    return <Redirect href="/(tabs)" />;
+  // Mostrar loading mientras se verifica el auth
+  if (loading) {
+    return (
+      <SafeAreaView className="flex-1 bg-white justify-center items-center">
+        <ActivityIndicator size="large" color="#2563eb" />
+      </SafeAreaView>
+    );
   }
   
+  // Si está autenticado, ir a select-site (que verificará premium)
+  if (user) {
+    return <Redirect href="/select-site" />;
+  }
+  
+  // Si no está autenticado, mostrar pantalla de bienvenida
   return (
     <SafeAreaView className="flex-1 bg-white">
       <View className="flex-1 items-center justify-center px-8">
