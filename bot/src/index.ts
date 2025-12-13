@@ -89,8 +89,13 @@ async function handleAudioMessage(
             transcribedText = await transcribeAudioMessage(msg);
         } catch (transcribeError: any) {
             console.error('Error en transcripción:', transcribeError.message);
-            // Enviar mensaje de error más amigable
-            const errorMsg = transcribeError.message?.includes('ffmpeg') 
+            
+            // Detectar errores específicos
+            const errorMsg = transcribeError.message?.includes('Bad MAC') || 
+                           transcribeError.message?.includes('bad mac') ||
+                           transcribeError.message?.includes('Failed to decrypt')
+                ? '⚠️ Error al descargar el audio. El mensaje puede no estar completamente descifrado.\n\nIntenta enviar el audio nuevamente en unos segundos.'
+                : transcribeError.message?.includes('ffmpeg') 
                 ? '❌ Error: Necesitas instalar ffmpeg para transcribir audios.\n\nInstala ffmpeg:\n• Linux: sudo apt-get install ffmpeg\n• macOS: brew install ffmpeg\n• Windows: https://ffmpeg.org/download.html'
                 : transcribeError.message?.includes('Cannot find module')
                 ? '❌ Error: Falta instalar @xenova/transformers.\n\nEjecuta: npm install @xenova/transformers'
@@ -524,6 +529,13 @@ async function handleIncomingMessage(m: any, sock: WASocket) {
                 return true; // Si no hay restricción, permitir todos
             }
             if (!jid) return false;
+            
+            // Primero verificar si el JID completo está en la lista (útil para grupos @g.us)
+            if (ALLOWED_WHATSAPP_NUMBERS.includes(jid)) {
+                return true;
+            }
+            
+            // Luego verificar con normalización (para números individuales)
             const normalizedJid = normalizeJid(jid);
             return ALLOWED_WHATSAPP_NUMBERS.some(allowed => {
                 const normalizedAllowed = normalizeJid(allowed);
@@ -578,6 +590,9 @@ async function handleIncomingMessage(m: any, sock: WASocket) {
 
     // Manejo de audios (transcripción con Whisper)
     if (msg.message.audioMessage) {
+        // Delay más largo para dar tiempo a que el mensaje se descifre completamente
+        // Esto ayuda a evitar errores de "Bad MAC" al descargar el audio
+        await new Promise(resolve => setTimeout(resolve, 1000));
         await handleAudioMessage(msg, user, senderNumber, sock);
         return;
     }
@@ -743,6 +758,20 @@ async function handleIncomingMessage(m: any, sock: WASocket) {
             return;
         }
         await startPurchaseFlow(senderNumber, sock, user);
+        return;
+    }
+
+    // Comando para explicar qué hace un comando específico
+    if (lower === 'qué hace' || lower === 'que hace' || lower.startsWith('qué hace ') || lower.startsWith('que hace ')) {
+        const isAdmin = await isUserAdmin(user.id);
+        const command = lower.startsWith('qué hace ') 
+            ? messageText.slice(9).trim() 
+            : lower.startsWith('que hace ')
+            ? messageText.slice(9).trim()
+            : null;
+        
+        const explanation = getCommandExplanation(command, isAdmin);
+        await sock.sendMessage(senderNumber, { text: explanation });
         return;
     }
 
@@ -1041,68 +1070,71 @@ async function handleIdleState(
             return;
         }
         await startPurchaseFlow(senderNumber, sock, user);
+    } else if (lower === 'qué hace' || lower === 'que hace' || lower.startsWith('qué hace ') || lower.startsWith('que hace ')) {
+        // Comando para explicar qué hace un comando específico
+        const command = lower.startsWith('qué hace ') 
+            ? messageText.slice(9).trim() 
+            : lower.startsWith('que hace ')
+            ? messageText.slice(9).trim()
+            : null;
+        
+        const explanation = getCommandExplanation(command, isAdmin);
+        await sock.sendMessage(senderNumber, { text: explanation });
+        return;
     } else {
         // Mostrar mensaje de ayuda según el rol
         if (isAdmin) {
             await sock.sendMessage(senderNumber, {
                 text: `👋 Hola ${user.name}!
 
-✍️ Escribí "*tarea*" o "*t*" para crear una nueva tarea.
+Podés crear:
+✍️ "*tarea*"
+🛒 "*compra*"
+📝 "*av <texto>*"  (o enviá una foto)
 
-🧾 Escribí "*resumen*" o "*res*" para ver el resumen del día (o "*res <obra>*" para una obra específica).
-📅 Escribí "*agenda*" para ver las tareas de hoy (o "*agenda <obra>*").
+Podés ver:
+🧾 "*resumen*" o "*res <obra>*"
+📅 "*agenda*" o "*agenda <obra>*"
 
-📸 Escribí "*avances*" para ver los avances de las últimas 2 semanas (o "*avances <obra>*").
-📝 Escribí "*av <texto>*" para crear un avance de texto (o enviá una foto con descripción para un avance con imagen).
+📸 "*avances*" o "*avances <obra>*"
 
-🏷️ Escribí "*obras*" para ver la lista de tus obras.
-📊 Escribí "*comparar obras*" para ver una comparativa de productividad entre tus obras.
+🏷️ "*obras*"
+📊 "*comparar obras*"
+🌤️ "*clima obra [nombre]*"
 
-✅ Escribí "*[número/título] [pendiente/bloqueada/completada/en progreso]*" para cambiar el estado de una tarea.
+✅ "*[número/título] [pendiente/bloqueada/completada/en progreso]*"
 
-📋 Escribí "*tareas*" para ver todas las tareas o "*tareas <obra>*" para una obra específica.
-📋 Escribí "*tareas bloqueadas*" o "*tareas esta semana*" para filtrar tareas.
+📋 "*tareas*" o "*tareas <obra>*"
+📋 "*tareas bloqueadas*" o "*tareas esta semana*"
 
-🌤️ Escribí "*clima obra [nombre]*" para ver el pronóstico del tiempo de una obra.
+📋 "*compras*" o "*compras criticas*"
+📋 "*comprar [ID]*", "*entregar [ID]*" o "*pendiente [ID]*"
 
-🛒 Escribí "*compra*" o "*c*" para crear una solicitud de compra.
-📋 Escribí "*compras*" para ver compras pendientes o "*compras criticas*" para ver las críticas.
-📋 Escribí "*comprar [ID]*", "*entregar [ID]*" o "*pendiente [ID]*" para cambiar el estado de una compra.
+❌ "*cancelar*"
 
-❌ Escribí "*cancelar*" para cancelar cualquier operación en curso.`
+❓ "*qué hace [comando]*" → Explicación detallada de cualquier comando`
             });
         } else {
             // Mensaje para clientes
             await sock.sendMessage(senderNumber, {
                 text: `👋 Hola ${user.name}!
+Podés crear:
+🔄 "*cambio*"
 
-📋 *Comandos disponibles:*
+Podes ver:
+📋 "*compras*" o "*compras criticas*"
+🛒 "*comprar [ID]*", "*entregar [ID]*" o "*pendiente [ID]*"
 
-🔄 *Solicitar Cambios:*
-   Escribí "*cambio*" o "*cambios*" para solicitar un cambio
+✍️ "*tareas*" o "*tareas bloqueadas*" o "*tareas esta semana*"
 
-🛒 *Compras:*
-   Escribí "*compras*" para ver compras pendientes
-   Escribí "*compras criticas*" para ver compras con prioridad alta o urgente
-   Escribí "*comprar [ID]*" para marcar una compra como comprada
-   Escribí "*entregar [ID]*" para marcar una compra como entregada
-   Escribí "*pendiente [ID]*" para volver una compra a pendiente
+📸 "*avances*"
 
-📋 *Tareas:*
-   Escribí "*tareas*" para ver todas las tareas
-   Escribí "*tareas bloqueadas*" para ver tareas bloqueadas
-   Escribí "*tareas esta semana*" para ver tareas de esta semana
+🧾 "*resumen*" o "*res <obra>*"
+📊 "*comparar obras*"
 
-📸 *Avances:*
-   Escribí "*avances*" para ver los avances de las últimas 2 semanas
+❌ "*cancelar*"
 
-🧾 *Resumen:*
-   Escribí "*resumen*" o "*res*" para ver el resumen del día
-
-📊 *Obras:*
-   Escribí "*comparar obras*" para ver una comparativa de productividad
-
-❌ Escribí "*cancelar*" para cancelar cualquier operación en curso.`
+❓ "*qué hace [comando]*" → Explicación detallada de cualquier comando`
             });
         }
     }
@@ -3230,6 +3262,151 @@ export default async function connectToWhatsApp() {
     return sock;
 }
 
+/**
+ * Obtiene la explicación detallada de un comando específico o todas las explicaciones
+ */
+function getCommandExplanation(command: string | null, isAdmin: boolean): string {
+    const commandLower = command?.toLowerCase().trim() || '';
+    
+    // Mapa de explicaciones para administradores
+    const adminExplanations: Record<string, string> = {
+        'tarea': '📋 *CREAR TAREA*\n\nEste comando inicia el proceso para crear una nueva tarea de mantenimiento. Te guiará paso a paso para ingresar:\n• Título de la tarea\n• Descripción\n• Categoría (Pintura, Construcción, Electricidad, Plomería)\n• Obra donde se realizará\n• Estado inicial\n\nEjemplo: Escribí "tarea" o "crear tarea" para comenzar.',
+        'tareas': '📋 *VER TAREAS*\n\nMuestra todas las tareas de las obras donde tenés acceso. Podés filtrar por:\n• Obra específica: "tareas [nombre obra]"\n• Estado: "tareas bloqueadas", "tareas pendientes", "tareas completadas", "tareas en progreso"\n• Período: "tareas esta semana", "tareas esta mes"\n\nEjemplo: "tareas" o "tareas casa nueva"',
+        'cambio': '🔄 *CREAR SOLICITUD DE CAMBIO*\n\nPermite crear una solicitud de cambio en una obra. Te pedirá:\n• Título del cambio\n• Descripción\n• Categoría\n• Obra donde se solicita\n\nEjemplo: "cambio" o "solicitar cambio"',
+        'resumen': '🧾 *RESUMEN DEL DÍA*\n\nMuestra un resumen completo de todas las actividades del día actual:\n• Tareas creadas\n• Tareas completadas\n• Avances registrados\n• Cambios solicitados\n• Compras realizadas\n\nPodés filtrar por obra: "resumen [nombre obra]"\n\nEjemplo: "resumen" o "res casa nueva"',
+        'agenda': '📅 *AGENDA DE HOY*\n\nMuestra todas las tareas programadas para el día de hoy, organizadas por obra. Incluye:\n• Tareas pendientes\n• Tareas en progreso\n• Tareas con fecha de vencimiento hoy\n\nPodés filtrar por obra: "agenda [nombre obra]"\n\nEjemplo: "agenda" o "agenda casa nueva"',
+        'avances': '📸 *VER AVANCES*\n\nMuestra los avances (fotos y textos) registrados en las últimas 2 semanas. Podés filtrar por obra específica.\n\nEjemplo: "avances" o "avances casa nueva"',
+        'av': '📝 *CREAR AVANCE DE TEXTO*\n\nPermite registrar un avance de texto en una obra. Podés especificar la obra o se usará la primera disponible.\n\nFormato: "av [texto]" o "av [obra]: [texto]"\n\nEjemplo: "av Hormigonado losa" o "av casa nueva: Terminado revoque"',
+        'obras': '🏷️ *LISTA DE OBRAS*\n\nMuestra todas las obras donde tenés acceso, con información básica de cada una.',
+        'comparar obras': '📊 *COMPARAR OBRAS*\n\nMuestra una comparativa de productividad entre todas tus obras, incluyendo:\n• Cantidad de tareas por estado\n• Avances registrados\n• Compras pendientes\n• Métricas de productividad',
+        'compra': '🛒 *CREAR SOLICITUD DE COMPRA*\n\nInicia el proceso para crear una solicitud de compra. Te guiará para ingresar:\n• Descripción del producto/material\n• Cantidad\n• Prioridad (baja, media, alta, urgente)\n• Obra donde se necesita\n\nEjemplo: "compra" o "c"',
+        'compras': '🛒 *VER COMPRAS*\n\nMuestra todas las compras pendientes. Podés filtrar:\n• "compras criticas" - Solo compras con prioridad alta o urgente\n• "compras pendientes" - Solo compras pendientes\n• "compras compradas" - Compras ya compradas\n• "compras entregadas" - Compras ya entregadas\n\nEjemplo: "compras" o "compras criticas"',
+        'comprar': '✅ *MARCAR COMPRA COMO COMPRADA*\n\nMarca una compra como comprada usando su ID.\n\nFormato: "comprar [ID]"\n\nEjemplo: "comprar 123"',
+        'entregar': '📦 *MARCAR COMPRA COMO ENTREGADA*\n\nMarca una compra como entregada usando su ID.\n\nFormato: "entregar [ID]"\n\nEjemplo: "entregar 123"',
+        'pendiente': '⏳ *VOLVER COMPRA A PENDIENTE*\n\nVuelve una compra a estado pendiente usando su ID.\n\nFormato: "pendiente [ID]"\n\nEjemplo: "pendiente 123"',
+        'clima': '🌤️ *PRONÓSTICO DEL TIEMPO*\n\nMuestra el pronóstico del tiempo para una obra específica. Incluye temperatura, condiciones y pronóstico extendido.\n\nFormato: "clima obra [nombre]" o "clima [nombre]"\n\nEjemplo: "clima obra casa nueva"',
+        'cancelar': '❌ *CANCELAR OPERACIÓN*\n\nCancela cualquier operación en curso y vuelve al menú principal.\n\nEjemplo: "cancelar"'
+    };
+
+    // Mapa de explicaciones para clientes
+    const clientExplanations: Record<string, string> = {
+        'tareas': '📋 *VER TAREAS*\n\nMuestra todas las tareas de las obras donde tenés acceso. Podés filtrar por:\n• Estado: "tareas bloqueadas", "tareas esta semana"\n\nEjemplo: "tareas" o "tareas bloqueadas"',
+        'cambio': '🔄 *CREAR SOLICITUD DE CAMBIO*\n\nPermite crear una solicitud de cambio en una obra. Te pedirá:\n• Título del cambio\n• Descripción\n• Categoría\n• Obra donde se solicita\n\nEjemplo: "cambio" o "solicitar cambio"',
+        'compras': '🛒 *VER COMPRAS*\n\nMuestra todas las compras pendientes. Podés filtrar:\n• "compras criticas" - Solo compras con prioridad alta o urgente\n• "compras pendientes" - Solo compras pendientes\n• "compras compradas" - Compras ya compradas\n• "compras entregadas" - Compras ya entregadas\n\nEjemplo: "compras" o "compras criticas"',
+        'comprar': '✅ *MARCAR COMPRA COMO COMPRADA*\n\nMarca una compra como comprada usando su ID.\n\nFormato: "comprar [ID]"\n\nEjemplo: "comprar 123"',
+        'entregar': '📦 *MARCAR COMPRA COMO ENTREGADA*\n\nMarca una compra como entregada usando su ID.\n\nFormato: "entregar [ID]"\n\nEjemplo: "entregar 123"',
+        'pendiente': '⏳ *VOLVER COMPRA A PENDIENTE*\n\nVuelve una compra a estado pendiente usando su ID.\n\nFormato: "pendiente [ID]"\n\nEjemplo: "pendiente 123"',
+        'avances': '📸 *VER AVANCES*\n\nMuestra los avances (fotos y textos) registrados en las últimas 2 semanas. Podés filtrar por obra específica.\n\nEjemplo: "avances" o "avances casa nueva"',
+        'resumen': '🧾 *RESUMEN DEL DÍA*\n\nMuestra un resumen completo de todas las actividades del día actual:\n• Tareas creadas\n• Tareas completadas\n• Avances registrados\n• Cambios solicitados\n• Compras realizadas\n\nPodés filtrar por obra: "resumen [nombre obra]"\n\nEjemplo: "resumen" o "res casa nueva"',
+        'comparar obras': '📊 *COMPARAR OBRAS*\n\nMuestra una comparativa de productividad entre todas tus obras, incluyendo:\n• Cantidad de tareas por estado\n• Avances registrados\n• Compras pendientes\n• Métricas de productividad',
+        'cancelar': '❌ *CANCELAR OPERACIÓN*\n\nCancela cualquier operación en curso y vuelve al menú principal.\n\nEjemplo: "cancelar"'
+    };
+
+    const explanations = isAdmin ? adminExplanations : clientExplanations;
+
+    // Si no se especifica comando, devolver todas las explicaciones
+    if (!command || commandLower === '') {
+        const allExplanations: string[] = [];
+        allExplanations.push(`📚 *EXPLICACIÓN DE TODOS LOS COMANDOS*\n\n`);
+        
+        // Agrupar por categorías
+        if (isAdmin) {
+            allExplanations.push('📋 *TAREAS:*\n');
+            allExplanations.push(adminExplanations['tarea']);
+            allExplanations.push('\n' + adminExplanations['tareas']);
+            allExplanations.push('\n\n🔄 *CAMBIOS:*\n');
+            allExplanations.push(adminExplanations['cambio']);
+            allExplanations.push('\n\n🧾 *RESÚMENES:*\n');
+            allExplanations.push(adminExplanations['resumen']);
+            allExplanations.push('\n' + adminExplanations['agenda']);
+            allExplanations.push('\n\n📸 *AVANCES:*\n');
+            allExplanations.push(adminExplanations['avances']);
+            allExplanations.push('\n' + adminExplanations['av']);
+            allExplanations.push('\n\n🏷️ *OBRAS:*\n');
+            allExplanations.push(adminExplanations['obras']);
+            allExplanations.push('\n' + adminExplanations['comparar obras']);
+            allExplanations.push('\n\n🛒 *COMPRAS:*\n');
+            allExplanations.push(adminExplanations['compra']);
+            allExplanations.push('\n' + adminExplanations['compras']);
+            allExplanations.push('\n' + adminExplanations['comprar']);
+            allExplanations.push('\n' + adminExplanations['entregar']);
+            allExplanations.push('\n' + adminExplanations['pendiente']);
+            allExplanations.push('\n\n🌤️ *CLIMA:*\n');
+            allExplanations.push(adminExplanations['clima']);
+            allExplanations.push('\n\n❌ *OTROS:*\n');
+            allExplanations.push(adminExplanations['cancelar']);
+        } else {
+            allExplanations.push('📋 *TAREAS:*\n');
+            allExplanations.push(clientExplanations['tareas']);
+            allExplanations.push('\n\n🔄 *CAMBIOS:*\n');
+            allExplanations.push(clientExplanations['cambio']);
+            allExplanations.push('\n\n🛒 *COMPRAS:*\n');
+            allExplanations.push(clientExplanations['compras']);
+            allExplanations.push('\n' + clientExplanations['comprar']);
+            allExplanations.push('\n' + clientExplanations['entregar']);
+            allExplanations.push('\n' + clientExplanations['pendiente']);
+            allExplanations.push('\n\n📸 *AVANCES:*\n');
+            allExplanations.push(clientExplanations['avances']);
+            allExplanations.push('\n\n🧾 *RESÚMENES:*\n');
+            allExplanations.push(clientExplanations['resumen']);
+            allExplanations.push('\n\n🏷️ *OBRAS:*\n');
+            allExplanations.push(clientExplanations['comparar obras']);
+            allExplanations.push('\n\n❌ *OTROS:*\n');
+            allExplanations.push(clientExplanations['cancelar']);
+        }
+        
+        return allExplanations.join('\n');
+    }
+
+    // Buscar el comando específico
+    // Normalizar variaciones comunes
+    const normalizedCommand = commandLower
+        .replace(/^que\s+hace\s+/, '') // Remover "que hace" si está presente
+        .replace(/^qué\s+hace\s+/, '')
+        .trim();
+
+    // Mapeo de variaciones a comandos base
+    const commandMap: Record<string, string> = {
+        'tarea': 'tarea',
+        'crear tarea': 'tarea',
+        't': 'tarea',
+        'tareas': 'tareas',
+        'cambio': 'cambio',
+        'cambios': 'cambio',
+        'solicitar cambio': 'cambio',
+        'resumen': 'resumen',
+        'res': 'resumen',
+        'agenda': 'agenda',
+        'hoy': 'agenda',
+        'avances': 'avances',
+        'avance': 'avances',
+        'av': 'av',
+        'obras': 'obras',
+        'obra': 'obras',
+        'comparar': 'comparar obras',
+        'comparar obras': 'comparar obras',
+        'compra': 'compra',
+        'comprar': 'comprar',
+        'c': 'compra',
+        'compras': 'compras',
+        'entregar': 'entregar',
+        'pendiente': 'pendiente',
+        'clima': 'clima',
+        'clima obra': 'clima',
+        'cancelar': 'cancelar'
+    };
+
+    const baseCommand = commandMap[normalizedCommand] || normalizedCommand;
+    const explanation = explanations[baseCommand];
+
+    if (explanation) {
+        return explanation;
+    }
+
+    // Si no se encuentra, devolver mensaje de ayuda
+    return `❓ No encontré una explicación para el comando "${command}".\n\nEscribí "qué hace" para ver todos los comandos disponibles.`;
+}
+
 async function getVerifiedUser(senderNumber: string) {
     if (verifiedUsersCache.has(senderNumber)) {
         return verifiedUsersCache.get(senderNumber);
@@ -4603,9 +4780,9 @@ async function handlePurchaseTrackingCommand(
         } else if (lower.startsWith('compras entregadas')) {
             filteredPurchases = uniquePurchases.filter((p: any) => p.status === 'delivered');
         } else if (lower.startsWith('compras criticas')) {
-            // Filtrar compras con prioridad alta o urgente
+            // Filtrar compras con prioridad alta o urgente que estén pendientes
             filteredPurchases = uniquePurchases.filter((p: any) => {
-                return p.priority === 'alta' || p.priority === 'urgente';
+                return (p.priority === 'alta' || p.priority === 'urgente') && p.status === 'pending';
             });
         } else if (lower === 'compras') {
             // Si solo dice "compras", mostrar solo pendientes

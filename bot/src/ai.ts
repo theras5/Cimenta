@@ -104,7 +104,7 @@ COMANDOS DISPONIBLES PARA ADMINISTRADORES:
 🛒 COMPRAS:
 - "compra" o "c" → Crear solicitud de compra
 - "compras" → Ver compras pendientes
-- "compras criticas" → Ver compras críticas
+- "compras criticas" → Ver compras críticas pendientes (prioridad alta o urgente)
 - "comprar [ID]" → Marcar compra como comprada
 - "entregar [ID]" → Marcar compra como entregada
 - "pendiente [ID]" → Volver compra a pendiente
@@ -114,6 +114,10 @@ COMANDOS DISPONIBLES PARA ADMINISTRADORES:
 
 ❌ OTROS:
 - "cancelar" → Cancelar operación en curso
+
+❓ AYUDA:
+- "qué hace [comando]" → Explicación detallada de cualquier comando
+- "qué hace" → Ver explicaciones de todos los comandos
 `;
     } else {
         return `
@@ -129,7 +133,7 @@ COMANDOS DISPONIBLES PARA CLIENTES:
 
 🛒 COMPRAS:
 - "compras" → Ver compras pendientes
-- "compras criticas" → Ver compras críticas
+- "compras criticas" → Ver compras críticas pendientes (prioridad alta o urgente)
 - "comprar [ID]" → Marcar compra como comprada
 - "entregar [ID]" → Marcar compra como entregada
 - "pendiente [ID]" → Volver compra a pendiente
@@ -147,6 +151,10 @@ COMANDOS DISPONIBLES PARA CLIENTES:
 
 ❌ OTROS:
 - "cancelar" → Cancelar operación en curso
+
+❓ AYUDA:
+- "qué hace [comando]" → Explicación detallada de cualquier comando
+- "qué hace" → Ver explicaciones de todos los comandos
 `;
     }
 }

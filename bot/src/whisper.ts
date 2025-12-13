@@ -13,6 +13,59 @@ import { promisify } from "util";
 
 const execAsync = promisify(exec);
 
+/**
+ * Descarga un mensaje de audio con reintentos para manejar errores de cifrado (Bad MAC)
+ * @param msg - Mensaje de WhatsApp que contiene el audio
+ * @param maxRetries - Número máximo de reintentos (default: 3)
+ * @param initialDelay - Delay inicial en ms antes del primer intento (default: 500)
+ * @returns Buffer con el audio descargado
+ */
+async function downloadAudioWithRetry(
+    msg: WAMessage,
+    maxRetries: number = 5,
+    initialDelay: number = 1000
+): Promise<Buffer> {
+    let lastError: any = null;
+    
+    // Esperar un poco antes del primer intento para dar tiempo a que el mensaje se descifre completamente
+    await new Promise(resolve => setTimeout(resolve, initialDelay));
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+            const audioBuffer = await downloadMediaMessage(msg, 'buffer', {}) as Buffer;
+            
+            if (!audioBuffer || audioBuffer.length === 0) {
+                throw new Error('Buffer de audio vacío');
+            }
+            
+            return audioBuffer;
+        } catch (error: any) {
+            lastError = error;
+            const errorMessage = error?.message || '';
+            const errorStack = error?.stack || '';
+            
+            // Verificar si es un error de cifrado (Bad MAC)
+            const isBadMAC = errorMessage.includes('Bad MAC') || 
+                           errorMessage.includes('bad mac') ||
+                           errorStack.includes('Bad MAC') ||
+                           errorStack.includes('verifyMAC');
+            
+            // Si no es un error de cifrado o es el último intento, lanzar el error
+            if (!isBadMAC || attempt === maxRetries - 1) {
+                throw error;
+            }
+            
+            // Calcular delay exponencial: 500ms, 1000ms, 2000ms...
+            const delay = initialDelay * Math.pow(2, attempt);
+            console.log(`⚠️ Error de cifrado al descargar audio (intento ${attempt + 1}/${maxRetries}). Reintentando en ${delay}ms...`);
+            
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+    }
+    
+    throw lastError || new Error('No se pudo descargar el audio después de múltiples intentos');
+}
+
 const openaiApiKey = process.env.OPENAI_API_KEY;
 // Por defecto, usar Whisper local si no hay API key configurada
 const useLocalWhisper = process.env.USE_LOCAL_WHISPER !== 'false' && !openaiApiKey 
@@ -71,8 +124,8 @@ export async function transcribeAudioMessage(msg: WAMessage): Promise<string | n
     let tempFilePath: string | null = null;
 
     try {
-        // Descargar el audio como buffer
-        const audioBuffer = await downloadMediaMessage(msg, 'buffer', {}) as Buffer;
+        // Descargar el audio como buffer con reintentos para manejar errores de cifrado
+        const audioBuffer = await downloadAudioWithRetry(msg, 3, 500);
         
         if (!audioBuffer) {
             throw new Error('No se pudo descargar el audio');
@@ -149,8 +202,8 @@ async function transcribeWithLocalWhisper(msg: WAMessage): Promise<string | null
         // @ts-ignore - Importación dinámica, puede no estar instalado
         const { pipeline, AutoProcessor } = await import('@xenova/transformers');
         
-        // Descargar el audio
-        const audioBuffer = await downloadMediaMessage(msg, 'buffer', {}) as Buffer;
+        // Descargar el audio con reintentos para manejar errores de cifrado
+        const audioBuffer = await downloadAudioWithRetry(msg, 3, 500);
         if (!audioBuffer) {
             throw new Error('No se pudo descargar el audio');
         }
