@@ -81,7 +81,7 @@ async function handleAudioMessage(
     sock: WASocket
 ) {
     try {
-        await safeSendMessage(sock, senderNumber, '🎤 Recibiendo audio... Transcribiendo...');
+        await safeSendMessage(sock, senderNumber, '🎤 Escuchando tu audio...');
 
         // Transcribir el audio usando Whisper
         let transcribedText: string | null = null;
@@ -115,9 +115,28 @@ async function handleAudioMessage(
 
         // Procesar el texto transcrito con Gemini AI para ejecutar cualquier comando
         const isAdmin = await isUserAdmin(user.id);
+        
+        // Obtener las obras del usuario para ayudar a la AI a mapear nombres de obras
+        let userSites: Array<{id: string, address: string}> = [];
+        try {
+            const sites = await api.SiteService.getSitesByUser(user.id);
+            if (sites && sites.length > 0) {
+                userSites = sites.map((s: any) => ({ id: s.id, address: s.address || '' }));
+            }
+        } catch (e) {
+            console.error('Error obteniendo obras del usuario para contexto de AI:', e);
+        }
+        
         let commandResult = null;
         try {
-            commandResult = await processAudioCommand(transcribedText, user.id, isAdmin);
+            console.log(`[processAudioCommand] Procesando transcripción: "${transcribedText}"`);
+            console.log(`[processAudioCommand] Usuario: ${user.id}, Admin: ${isAdmin}, Obras: ${userSites.length}`);
+            commandResult = await processAudioCommand(transcribedText, user.id, isAdmin, userSites);
+            if (commandResult) {
+                console.log(`[processAudioCommand] Comando reconocido: ${commandResult.commandType}`, commandResult.params);
+            } else {
+                console.log(`[processAudioCommand] No se pudo reconocer ningún comando`);
+            }
         } catch (aiError: any) {
             // Manejo específico del error 429 de Gemini AI
             if (aiError.isRateLimit || aiError.message === 'GEMINI_QUOTA_EXCEEDED') {
@@ -174,24 +193,55 @@ async function executeAudioCommand(
                 let siteId: string | undefined = params.site_id;
                 if (!siteId && params.site_address) {
                     const sites = await api.SiteService.getAdminSitesByUser(user.id);
-                    const matchedSite = sites.find((s: any) => 
-                        (s.address || '').toLowerCase().includes(params.site_address.toLowerCase())
-                    );
-                    if (matchedSite) siteId = matchedSite.id;
+                    // Buscar por match exacto o parcial (bidireccional)
+                    const searchTerm = params.site_address.toLowerCase().trim();
+                    const matchedSite = sites.find((s: any) => {
+                        const siteAddress = (s.address || '').toLowerCase();
+                        return siteAddress.includes(searchTerm) || searchTerm.includes(siteAddress);
+                    });
+                    if (matchedSite) {
+                        siteId = matchedSite.id;
+                        console.log(`[createTask] Obra mapeada: "${params.site_address}" → "${matchedSite.address}" (${matchedSite.id})`);
+                    }
                 }
                 
                 // Si no hay site_id, intentar obtenerlo
                 if (!siteId) {
                     const sites = await api.SiteService.getAdminSitesByUser(user.id);
-                    if (sites && sites.length > 0) {
-                        if (sites.length === 1) {
-                            siteId = sites[0].id;
+                    if (!sites || sites.length === 0) {
+                        await safeSendMessage(sock, senderNumber, '⚠️ No encontré obras donde seas administrador. Solo podés crear tareas en obras donde tenés rol de administrador.');
+                        return;
+                    }
+                    
+                    if (sites.length === 1) {
+                        // Si hay una sola obra, usarla automáticamente
+                        siteId = sites[0].id;
+                    } else {
+                        // Si hay múltiples obras, buscar obra mencionada en el audio
+                        const lowerTranscription = transcribedText.toLowerCase();
+                        const siteMentioned = sites.find((s: any) => {
+                            const siteAddress = (s.address || '').toLowerCase();
+                            return lowerTranscription.includes(siteAddress) || siteAddress.includes(lowerTranscription);
+                        });
+                        
+                        if (siteMentioned) {
+                            siteId = siteMentioned.id;
+                            console.log(`[createTask] Obra encontrada en transcripción: "${siteMentioned.address}" (${siteMentioned.id})`);
                         } else {
-                            // Buscar obra mencionada en el audio
-                            const siteMentioned = sites.find((s: any) => 
-                                transcribedText.toLowerCase().includes((s.address || '').toLowerCase())
-                            );
-                            siteId = siteMentioned?.id || sites[0].id;
+                            // No se encontró obra en el audio, preguntar al usuario
+                            const dto: CreateTaskDTO = {
+                                ...params,
+                                user_id: user.id
+                                // No incluir site_id para que handleTaskCreation pregunte
+                            };
+                            
+                            // Guardar el DTO y pedir selección de obra
+                            setChatState(senderNumber, 'AWAITING_TASK_SITE_SELECTION', { taskData: dto });
+                            const lines: string[] = [];
+                            lines.push('🏷️ ¿Para qué obra es esta tarea? (respondé con el número):');
+                            sites.slice(0, 20).forEach((s: any, idx: number) => lines.push(`${idx + 1}) ${s.address}`));
+                            await safeSendMessage(sock, senderNumber, lines.join('\n'));
+                            return;
                         }
                     }
                 }
@@ -349,7 +399,7 @@ async function executeAudioCommand(
             }
             
             case 'getWeather': {
-                const obraName = params.obra_name;
+                const obraName = params.obra_name || '';
                 await handleWeatherCommand(obraName, user, senderNumber, sock);
                 break;
             }
@@ -360,9 +410,111 @@ async function executeAudioCommand(
                     return;
                 }
                 
-                // Para compras, necesitamos iniciar el flujo completo
-                // Por ahora, informamos al usuario que use el comando de texto
-                await safeSendMessage(sock, senderNumber, '⚠️ Para crear una compra completa, usá el comando de texto: "compra"');
+                await safeSendMessage(sock, senderNumber, '✅ Entendido. Creando la solicitud de compra...');
+                
+                // Obtener site_id basado en site_address si se mencionó
+                let siteId: string | undefined = params.site_id;
+                if (!siteId && params.site_address) {
+                    const sites = await api.SiteService.getAdminSitesByUser(user.id);
+                    const searchTerm = params.site_address.toLowerCase().trim();
+                    const matchedSite = sites.find((s: any) => {
+                        const siteAddress = (s.address || '').toLowerCase();
+                        return siteAddress.includes(searchTerm) || searchTerm.includes(siteAddress);
+                    });
+                    if (matchedSite) {
+                        siteId = matchedSite.id;
+                        console.log(`[createPurchase] Obra mapeada: "${params.site_address}" → "${matchedSite.address}" (${matchedSite.id})`);
+                    }
+                }
+                
+                // Si no hay site_id, intentar obtenerlo
+                if (!siteId) {
+                    const sites = await api.SiteService.getAdminSitesByUser(user.id);
+                    if (!sites || sites.length === 0) {
+                        await safeSendMessage(sock, senderNumber, '⚠️ No encontré obras donde seas administrador. Solo podés crear compras en obras donde tenés rol de administrador.');
+                        return;
+                    }
+                    
+                    if (sites.length === 1) {
+                        siteId = sites[0].id;
+                    } else {
+                        // Buscar obra mencionada en el audio
+                        const lowerTranscription = transcribedText.toLowerCase();
+                        const siteMentioned = sites.find((s: any) => {
+                            const siteAddress = (s.address || '').toLowerCase();
+                            return lowerTranscription.includes(siteAddress) || siteAddress.includes(lowerTranscription);
+                        });
+                        
+                        if (siteMentioned) {
+                            siteId = siteMentioned.id;
+                            console.log(`[createPurchase] Obra encontrada en transcripción: "${siteMentioned.address}" (${siteMentioned.id})`);
+                        } else {
+                            // No se encontró obra, preguntar al usuario
+                            const purchasePayload: any = {
+                                ...params,
+                                user_id: user.id
+                            };
+                            
+                            setChatState(senderNumber, 'AWAITING_PURCHASE_SITE_SELECTION', { 
+                                purchaseData: purchasePayload,
+                                sitesOptions: sites 
+                            });
+                            const lines: string[] = [];
+                            lines.push('🏷️ ¿Para qué obra es esta compra? (respondé con el número):');
+                            sites.slice(0, 20).forEach((s: any, idx: number) => lines.push(`${idx + 1}) ${s.address}`));
+                            await safeSendMessage(sock, senderNumber, lines.join('\n'));
+                            return;
+                        }
+                    }
+                }
+                
+                if (!siteId) {
+                    await safeSendMessage(sock, senderNumber, '⚠️ No encontré obras donde seas administrador. Solo podés crear compras en obras donde tenés rol de administrador.');
+                    return;
+                }
+                
+                // Crear la compra
+                const purchasePayload: any = {
+                    product: params.product,
+                    quantity: params.quantity || 1,
+                    category: params.category || 'otros',
+                    priority: params.priority || 'normal',
+                    status: 'pending',
+                    user_id: user.id,
+                    site_id: siteId
+                };
+                
+                if (params.description) {
+                    purchasePayload.description = params.description;
+                }
+                if (params.price !== undefined && params.price !== null) {
+                    purchasePayload.price = params.price;
+                }
+                if (params.supplier) {
+                    purchasePayload.supplier = params.supplier;
+                }
+                
+                try {
+                    const createdPurchase = await api.PurchaseService.createPurchase(purchasePayload);
+                    // Obtener el nombre de la obra
+                    let siteAddress = 'Sin obra';
+                    try {
+                        const sites = await api.SiteService.getAdminSitesByUser(user.id);
+                        const site = sites.find((s: any) => s.id === siteId);
+                        if (site) {
+                            siteAddress = site.address || 'Sin obra';
+                        }
+                    } catch (e) {
+                        console.error('Error obteniendo nombre de obra:', e);
+                    }
+                    
+                    await safeSendMessage(sock, senderNumber, 
+                        `✅ Solicitud de compra creada:\n📦 Producto: ${createdPurchase.product}\n📊 Cantidad: ${createdPurchase.quantity}\n🏷️ Categoría: ${createdPurchase.category}\n🏷️ Obra: ${siteAddress}`
+                    );
+                } catch (error: any) {
+                    console.error('Error creando compra:', error);
+                    await safeSendMessage(sock, senderNumber, `❌ Error al crear la compra: ${error?.message || 'Error desconocido'}`);
+                }
                 break;
             }
             
@@ -914,6 +1066,10 @@ async function handleMessageByState(
             await handlePurchaseSiteSelection(messageText, context, user, senderNumber, sock);
             break;
 
+        case 'AWAITING_PURCHASE_SITE_SELECTION':
+            await handlePurchaseSiteSelectionFromAudio(messageText, context, user, senderNumber, sock);
+            break;
+
         case 'AWAITING_PURCHASE_PRODUCT':
             await handlePurchaseProduct(messageText, context, senderNumber, sock);
             break;
@@ -1108,8 +1264,8 @@ Podés ver:
 📋 "*tareas*" o "*tareas <obra>*"
 📋 "*tareas bloqueadas*" o "*tareas esta semana*"
 
-📋 "*compras*" o "*compras criticas*"
-📋 "*comprar [ID]*", "*entregar [ID]*" o "*pendiente [ID]*"
+🛒 "*compras*" o "*compras criticas*"
+🛒 "*comprar [ID]*", "*entregar [ID]*" o "*pendiente [ID]*"
 
 ❌ "*cancelar*"
 
@@ -2538,6 +2694,75 @@ async function handlePurchaseSiteSelection(messageText: string, context: any, us
     }
     setChatState(senderNumber, 'AWAITING_PURCHASE_PRODUCT', { site_id: chosen.id, site_address: chosen.address });
     await sock.sendMessage(senderNumber, { text: `✅ Obra seleccionada: ${chosen.address}\n\n📦 ¿Qué producto necesitás comprar?` });
+}
+
+// Manejo de selección de obra para compra desde audio (cuando ya tenemos los datos de la compra)
+async function handlePurchaseSiteSelectionFromAudio(messageText: string, context: any, user: Profile, senderNumber: string, sock: WASocket) {
+    const purchaseData = context?.purchaseData;
+    const options: any[] = context?.sitesOptions || [];
+    
+    if (!options.length) {
+        await sock.sendMessage(senderNumber, { text: '❌ No encontré opciones de obra. Escribí "compra" para empezar de nuevo.' });
+        setChatState(senderNumber, 'IDLE');
+        return;
+    }
+    
+    if (!purchaseData) {
+        await sock.sendMessage(senderNumber, { text: '❌ Error: No se encontró la información de la compra. Intentá de nuevo.' });
+        setChatState(senderNumber, 'IDLE');
+        return;
+    }
+    
+    let input = messageText.trim().toLowerCase();
+    let chosen: any | null = null;
+    const num = input.match(/^\d+/);
+    if (num) {
+        const idx = parseInt(num[0], 10) - 1;
+        if (idx >= 0 && idx < options.length) chosen = options[idx];
+    }
+    if (!chosen) {
+        chosen = options.find((s: any) => (s.address || '').toLowerCase().includes(input) || (s.id || '').toLowerCase() === input) || null;
+    }
+    if (!chosen) {
+        await sock.sendMessage(senderNumber, { text: '⚠️ No reconocí la obra. Respondé con el número de la lista o parte del nombre.' });
+        return;
+    }
+    
+    // Crear la compra con los datos que ya tenemos
+    const purchasePayload: any = {
+        product: purchaseData.product,
+        quantity: purchaseData.quantity || 1,
+        category: purchaseData.category || 'otros',
+        priority: purchaseData.priority || 'normal',
+        status: 'pending',
+        user_id: user.id,
+        site_id: chosen.id
+    };
+    
+    if (purchaseData.description) {
+        purchasePayload.description = purchaseData.description;
+    }
+    if (purchaseData.price !== undefined && purchaseData.price !== null) {
+        purchasePayload.price = purchaseData.price;
+    }
+    if (purchaseData.supplier) {
+        purchasePayload.supplier = purchaseData.supplier;
+    }
+    
+    try {
+        const createdPurchase = await api.PurchaseService.createPurchase(purchasePayload);
+        // Obtener el nombre de la obra
+        let siteAddress = chosen.address || 'Sin obra';
+        
+        await safeSendMessage(sock, senderNumber, 
+            `✅ Solicitud de compra creada:\n📦 Producto: ${createdPurchase.product}\n📊 Cantidad: ${createdPurchase.quantity}\n🏷️ Categoría: ${createdPurchase.category}\n🏷️ Obra: ${siteAddress}`
+        );
+        setChatState(senderNumber, 'IDLE');
+    } catch (error: any) {
+        console.error('Error creando compra:', error);
+        await safeSendMessage(sock, senderNumber, `❌ Error al crear la compra: ${error?.message || 'Error desconocido'}`);
+        setChatState(senderNumber, 'IDLE');
+    }
 }
 
 async function handlePurchaseProduct(messageText: string, context: any, senderNumber: string, sock: WASocket) {
