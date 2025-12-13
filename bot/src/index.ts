@@ -728,7 +728,8 @@ async function handleIncomingMessage(m: any, sock: WASocket) {
     }
 
     // Comando de clima para obra
-    if (lower.startsWith('clima obra') || lower.startsWith('clima')) {
+    if (lower.startsWith('clima')) {
+        // Extraer el nombre de la obra, removiendo "clima" y opcionalmente "obra"
         const obraName = messageText.replace(/^clima\s+(obra\s+)?/i, '').trim();
         await handleWeatherCommand(obraName, user, senderNumber, sock);
         return;
@@ -1100,7 +1101,7 @@ Podés ver:
 
 🏷️ "*obras*"
 📊 "*comparar obras*"
-🌤️ "*clima obra [nombre]*"
+🌤️ "*clima [nombre]*"
 
 ✅ "*[número/título] [pendiente/bloqueada/completada/en progreso]*"
 
@@ -2307,17 +2308,10 @@ async function handleChangeCreation(
             text: `✅ Solicitud de cambio creada con éxito:\n📋 Título: ${createdChange.title}\n🏷️ Obra: ${siteAddress || 'Sin obra'}\n🔄 Estado: Cambios`
         });
 
-        // Notificar a los admins de la obra si el usuario es cliente
+        // Notificar a los admins de la obra (similar a como se hace con tareas bloqueadas)
         if (changeDTO.site_id) {
-            // Verificar si el usuario es admin de ESTE sitio específico, no de cualquier sitio
-            const isAdminOfThisSite = await api.SiteService.validateUserIsAdmin(user.id, changeDTO.site_id);
-            console.log(`[handleChangeCreation] Usuario ${user.name} (${user.id}) es admin del sitio ${changeDTO.site_id}: ${isAdminOfThisSite}`);
-            if (!isAdminOfThisSite) {
-                console.log(`[handleChangeCreation] Usuario es cliente de esta obra, notificando a administradores de la obra ${changeDTO.site_id}`);
-                await notifyAdminsOfChange(changeDTO.site_id, createdChange, user, siteAddress);
-            } else {
-                console.log(`[handleChangeCreation] Usuario es admin de esta obra, no se envía notificación`);
-            }
+            console.log(`[handleChangeCreation] Notificando a administradores de la obra ${changeDTO.site_id} sobre el cambio creado por ${user.name}`);
+            await notifyAdminsOfChange(changeDTO.site_id, createdChange, user, siteAddress);
         } else {
             console.log(`[handleChangeCreation] No hay site_id en el cambio, no se puede notificar`);
         }
@@ -2822,7 +2816,7 @@ async function sendMySites(jid: string, sock: WASocket, user: Profile) {
             return;
         }
         const lines: string[] = [];
-        lines.push(`🏷️ Tus obras (${list.length})`);
+        lines.push(`🏷️ Tus obras`);
         lines.push('');
         list.slice(0, 20).forEach((s: any, i: number) => {
             lines.push(`${i + 1}. ${s.address}`);
@@ -3657,23 +3651,11 @@ async function handleTaskStatusUpdateCommand(
             text: `✅ Tarea actualizada:\n\n${icon} *${task.title}*\nEstado: ${statusText}`
         });
 
-        // Si la tarea se bloqueó, verificar dependencias y notificar a admins
+        // Si la tarea se bloqueó, verificar dependencias
+        // La notificación a admins se manejará desde el servidor para evitar duplicación
         if (targetStatus === 'blocked') {
             await checkAndNotifyTaskDependencies(task.id, task.title, user, sock);
-            
-            // Obtener la tarea actualizada para tener todos los datos (incluido site)
-            try {
-                const updatedTask = await api.TaskService.getTask(task.id);
-                if (updatedTask && updatedTask.site_id) {
-                    await notifyAdminsOfBlockedTask(updatedTask.site_id, updatedTask, user, (updatedTask as any).site?.address);
-                }
-            } catch (error) {
-                console.error('Error obteniendo tarea actualizada para notificación:', error);
-                // Si falla, intentar con los datos que tenemos
-                if (task.site_id) {
-                    await notifyAdminsOfBlockedTask(task.site_id, task, user, (task as any).site?.address);
-                }
-            }
+            // No notificar aquí - el servidor detectará el cambio y notificará
         }
 
     } catch (error: any) {
@@ -3847,23 +3829,11 @@ async function handleTaskSelectionForStatus(
             text: `✅ Tarea actualizada:\n\n${icon} *${selectedTask.title}*\nEstado: ${statusText}`
         });
 
-        // Si la tarea se bloqueó, verificar dependencias y notificar a admins
+        // Si la tarea se bloqueó, verificar dependencias
+        // La notificación a admins se manejará desde el servidor para evitar duplicación
         if (targetStatus === 'blocked') {
             await checkAndNotifyTaskDependencies(selectedTask.id, selectedTask.title, user, sock);
-            
-            // Obtener la tarea actualizada para tener todos los datos (incluido site)
-            try {
-                const updatedTask = await api.TaskService.getTask(selectedTask.id);
-                if (updatedTask && updatedTask.site_id) {
-                    await notifyAdminsOfBlockedTask(updatedTask.site_id, updatedTask, user, (updatedTask as any).site?.address);
-                }
-            } catch (error) {
-                console.error('Error obteniendo tarea actualizada para notificación:', error);
-                // Si falla, intentar con los datos que tenemos
-                if (selectedTask.site_id) {
-                    await notifyAdminsOfBlockedTask(selectedTask.site_id, selectedTask, user, (selectedTask as any).site?.address);
-                }
-            }
+            // No notificar aquí - el servidor detectará el cambio y notificará
         }
         
         setChatState(senderNumber, 'IDLE');
@@ -4444,7 +4414,7 @@ async function handleWeatherCommand(
                 lines.push(`${index + 1}. ${site.address || 'Sin nombre'}`);
             });
             lines.push('');
-            lines.push('Ejemplo: "clima obra 1" o "clima obra [nombre]"');
+            lines.push('Ejemplo: "clima 1" o "clima [nombre]"');
 
             await sock.sendMessage(senderNumber, { text: lines.join('\n') });
             setChatState(senderNumber, 'AWAITING_WEATHER_SITE_SELECTION', { sites });
@@ -4482,7 +4452,7 @@ async function handleWeatherCommand(
 
         if (!selectedSite) {
             await sock.sendMessage(senderNumber, {
-                text: `❌ No encontré la obra "${obraName}".\n\nEscribí "clima obra" para ver la lista de obras.`
+                text: `❌ No encontré la obra "${obraName}".\n\nEscribí "clima" para ver la lista de obras.`
             });
             return;
         }
@@ -4955,7 +4925,6 @@ async function displayPurchases(
             lines.push('💡 Para cambiar el estado de una compra, escribí:');
             lines.push('   *comprar [ID]* - Marcar como comprada');
             lines.push('   *entregar [ID]* - Marcar como entregada');
-            lines.push('   *pendiente [ID]* - Volver a pendiente');
         }
 
         await sock.sendMessage(senderNumber, { text: lines.join('\n') });
@@ -5059,12 +5028,11 @@ async function handlePurchaseStatusChange(
             text: `✅ Estado actualizado: ${purchase.product} ahora está ${statusText}`
         });
         
-        // Notificar a los admins de la obra si el usuario es cliente
-        if (purchase.site_id) {
-            const isAdmin = await isUserAdmin(user.id);
-            if (!isAdmin) {
-                await notifyAdminsOfPurchaseStatusChange(purchase.site_id, purchase, newStatus, user, purchase.site?.address);
-            }
+        // Notificar a los admins de la obra cuando el estado cambia a "purchased" o "delivered"
+        // (similar a como se hace con tareas bloqueadas y cambios)
+        if (purchase.site_id && (newStatus === 'purchased' || newStatus === 'delivered')) {
+            console.log(`[handlePurchaseStatusChange] Notificando a administradores de la obra ${purchase.site_id} sobre el cambio de estado de compra por ${user.name}`);
+            await notifyAdminsOfPurchaseStatusChange(purchase.site_id, purchase, newStatus, user, purchase.site?.address);
         }
         
     } catch (error: any) {
@@ -5120,6 +5088,11 @@ async function notifyAdminsOfChange(
 
         // Enviar notificación a cada administrador
         for (const admin of admins) {
+            // No notificar al mismo usuario si es administrador y creó el cambio
+            if (admin.id === client.id) {
+                continue;
+            }
+            
             if (admin.whatsapp_jid) {
                 try {
                     // Normalizar el JID: convertir @lid a @s.whatsapp.net si es necesario
@@ -5188,6 +5161,11 @@ async function notifyAdminsOfPurchaseStatusChange(
 
         // Enviar notificación a cada administrador
         for (const admin of admins) {
+            // No notificar al mismo usuario si es administrador y cambió el estado
+            if (admin.id === client.id) {
+                continue;
+            }
+            
             if (admin.whatsapp_jid) {
                 try {
                     // Normalizar el JID: convertir @lid a @s.whatsapp.net si es necesario
@@ -5288,48 +5266,50 @@ async function notifyAdminsOfBlockedTask(
 }
 
 // Función para enviar notificación cuando una tarea pasa a blocked
-async function notifyBlockedTask(whatsappJid: string, taskId: string, taskTitle: string, taskDescription?: string, siteAddress?: string, blockerName?: string, isAdmin?: boolean) {
-    if (!globalSock) {
-        console.error('Socket de WhatsApp no está disponible para enviar notificación');
-        return;
-    }
-
-    try {
-        let message: string[];
-        
-        if (isAdmin) {
-            // Mensaje para administrador: informar quién bloqueó la tarea
-            message = [
-                '⛔ *Tarea Bloqueada - Notificación para Administrador*',
-                '',
-                `📋 *${taskTitle}*`,
-                taskDescription ? `📝 ${taskDescription}` : '',
-                siteAddress ? `🏷️ Obra: ${siteAddress}` : '',
-                '',
-                blockerName ? `👤 Bloqueada por: *${blockerName}*` : '👤 Una tarea ha sido bloqueada',
-                '',
-                '💡 Como administrador de esta obra, te informamos que una tarea ha sido bloqueada. Revisá los detalles en la app.'
-            ].filter(Boolean);
-        } else {
-            // Mensaje para el dueño de la tarea (quien la bloqueó)
-            message = [
-                '⛔ *Tarea Bloqueada*',
-                '',
-                `📋 *${taskTitle}*`,
-                taskDescription ? `📝 ${taskDescription}` : '',
-                siteAddress ? `🏷️ Obra: ${siteAddress}` : '',
-                '',
-                'Tu tarea ha sido marcada como bloqueada. Revisá los detalles en la app.'
-            ].filter(Boolean);
-        }
-
-        await safeSendMessage(globalSock, whatsappJid, message.join('\n'));
-        console.log(`Notificación de tarea bloqueada enviada a ${whatsappJid} (${isAdmin ? 'admin' : 'dueño'})`);
-    } catch (error: any) {
-        console.error('Error enviando notificación de tarea bloqueada:', error);
-        throw error;
-    }
-}
+// NOTA: Esta función ha sido deshabilitada porque ya se usa notifyAdminsOfBlockedTask
+// que envía el mensaje correcto. Esta función causaba duplicación de mensajes.
+// async function notifyBlockedTask(whatsappJid: string, taskId: string, taskTitle: string, taskDescription?: string, siteAddress?: string, blockerName?: string, isAdmin?: boolean) {
+//     if (!globalSock) {
+//         console.error('Socket de WhatsApp no está disponible para enviar notificación');
+//         return;
+//     }
+//
+//     try {
+//         let message: string[];
+//         
+//         if (isAdmin) {
+//             // Mensaje para administrador: informar quién bloqueó la tarea
+//             message = [
+//                 '⛔ *Tarea Bloqueada - Notificación para Administrador*',
+//                 '',
+//                 `📋 *${taskTitle}*`,
+//                 taskDescription ? `📝 ${taskDescription}` : '',
+//                 siteAddress ? `🏷️ Obra: ${siteAddress}` : '',
+//                 '',
+//                 blockerName ? `👤 Bloqueada por: *${blockerName}*` : '👤 Una tarea ha sido bloqueada',
+//                 '',
+//                 '💡 Como administrador de esta obra, te informamos que una tarea ha sido bloqueada. Revisá los detalles en la app.'
+//             ].filter(Boolean);
+//         } else {
+//             // Mensaje para el dueño de la tarea (quien la bloqueó)
+//             message = [
+//                 '⛔ *Tarea Bloqueada*',
+//                 '',
+//                 `📋 *${taskTitle}*`,
+//                 taskDescription ? `📝 ${taskDescription}` : '',
+//                 siteAddress ? `🏷️ Obra: ${siteAddress}` : '',
+//                 '',
+//                 'Tu tarea ha sido marcada como bloqueada. Revisá los detalles en la app.'
+//             ].filter(Boolean);
+//         }
+//
+//         await safeSendMessage(globalSock, whatsappJid, message.join('\n'));
+//         console.log(`Notificación de tarea bloqueada enviada a ${whatsappJid} (${isAdmin ? 'admin' : 'dueño'})`);
+//     } catch (error: any) {
+//         console.error('Error enviando notificación de tarea bloqueada:', error);
+//         throw error;
+//     }
+// }
 
 // Función para enviar notificación cuando una compra cambia a purchased o delivered
 async function notifyPurchaseStatusChange(whatsappJid: string, purchaseId: string, product: string, status: 'purchased' | 'delivered', siteAddress?: string) {
@@ -5377,6 +5357,7 @@ function createNotificationServer() {
             return;
         }
 
+        // Endpoint para notificaciones de tareas bloqueadas desde el servidor (web/app)
         if (req.method === 'POST' && req.url === '/notify/blocked-task') {
             let body = '';
             
@@ -5387,20 +5368,78 @@ function createNotificationServer() {
             req.on('end', async () => {
                 try {
                     const data = JSON.parse(body);
-                    const { whatsappJid, taskId, taskTitle, taskDescription, siteAddress, blockerName, isAdmin } = data;
+                    const { taskId, taskTitle, taskDescription, siteAddress, blockerName, blockerUserId, notifyOwnerOnly, ownerWhatsappJid, notifyAdminsOnly, siteId } = data;
                     
-                    if (!whatsappJid || !taskId || !taskTitle) {
+                    if (!taskId || !taskTitle) {
                         res.writeHead(400, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ error: 'Faltan campos requeridos: whatsappJid, taskId, taskTitle' }));
+                        res.end(JSON.stringify({ error: 'Faltan campos requeridos: taskId, taskTitle' }));
                         return;
                     }
                     
-                    await notifyBlockedTask(whatsappJid, taskId, taskTitle, taskDescription, siteAddress, blockerName, isAdmin);
+                    // Obtener la tarea completa para tener todos los datos
+                    let task: Task;
+                    try {
+                        task = await api.TaskService.getTask(taskId);
+                    } catch (error) {
+                        // Si no se puede obtener la tarea, crear un objeto parcial con los datos recibidos
+                        task = {
+                            id: taskId,
+                            title: taskTitle,
+                            description: taskDescription || '',
+                            category: 'otro' as any,
+                            status: 'blocked' as any,
+                            site_id: undefined,
+                            user_id: blockerUserId
+                        } as Task;
+                    }
+                    
+                    // Obtener el perfil del usuario que bloqueó
+                    const blocker: Profile = {
+                        id: blockerUserId || '',
+                        name: blockerName || 'Usuario desconocido',
+                        whatsapp_jid: '' // Campo requerido pero no necesario para la notificación
+                    } as Profile;
+                    
+                    // Si solo se debe notificar al dueño
+                    if (notifyOwnerOnly && ownerWhatsappJid) {
+                        if (!globalSock) {
+                            throw new Error('Socket de WhatsApp no está disponible');
+                        }
+                        const siteName = siteAddress || 'Obra no especificada';
+                        const categoryIcon = task.category === 'pintura' ? '🎨' : 
+                                           task.category === 'construccion' ? '🏗️' :
+                                           task.category === 'electricidad' ? '⚡' :
+                                           task.category === 'plomeria' ? '🚰' : '🧩';
+                        const message = `⛔ *Tarea Bloqueada*\n\n` +
+                                       `🏷️ *Obra:* ${siteName}\n\n` +
+                                       `${categoryIcon} *${task.title}*\n` +
+                                       (task.description ? `📝 ${task.description}\n` : '') +
+                                       `\n💡 Tu tarea ha sido marcada como bloqueada. Revisá los detalles en la app.`;
+                        
+                        let normalizedJid = ownerWhatsappJid;
+                        if (normalizedJid.endsWith('@lid')) {
+                            normalizedJid = normalizedJid.replace('@lid', '@s.whatsapp.net');
+                        } else if (!normalizedJid.includes('@')) {
+                            normalizedJid = normalizedJid + '@s.whatsapp.net';
+                        }
+                        
+                        await safeSendMessage(globalSock, normalizedJid, message);
+                    }
+                    
+                    // Si se debe notificar a los administradores (por defecto o explícitamente)
+                    if (notifyAdminsOnly || (!notifyOwnerOnly && !notifyAdminsOnly)) {
+                        const finalSiteId = task.site_id || data.siteId;
+                        if (finalSiteId) {
+                            await notifyAdminsOfBlockedTask(finalSiteId, task, blocker, siteAddress);
+                        } else {
+                            console.error('[notify/blocked-task] No se pudo obtener site_id para la tarea', taskId);
+                        }
+                    }
                     
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ success: true, message: 'Notificación enviada' }));
                 } catch (error: any) {
-                    console.error('Error procesando notificación:', error);
+                    console.error('Error procesando notificación de tarea bloqueada:', error);
                     res.writeHead(500, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ error: error.message || 'Error interno del servidor' }));
                 }

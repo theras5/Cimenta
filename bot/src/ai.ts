@@ -110,7 +110,7 @@ COMANDOS DISPONIBLES PARA ADMINISTRADORES:
 - "pendiente [ID]" → Volver compra a pendiente
 
 🌤️ CLIMA:
-- "clima obra [nombre]" → Ver pronóstico del tiempo de una obra
+- "clima [nombre]" o "clima obra [nombre]" → Ver pronóstico del tiempo de una obra
 
 ❌ OTROS:
 - "cancelar" → Cancelar operación en curso

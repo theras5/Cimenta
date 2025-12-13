@@ -251,7 +251,7 @@ async function notifyTaskBlocked(task: Task) {
             return;
         }
         
-        // Notificar al dueño de la tarea (quien la bloqueó)
+        // Notificar al dueño de la tarea (quien la bloqueó) si tiene WhatsApp
         if (blockerProfile.whatsapp_jid) {
             await sendBlockedTaskNotification(
                 botUrl,
@@ -262,29 +262,36 @@ async function notifyTaskBlocked(task: Task) {
             );
         }
         
-        // Obtener administradores de la obra y notificarles
-        try {
-            const admins = await getSiteAdminsService(task.site_id);
-            
-            for (const admin of admins) {
-                // No notificar al mismo usuario si es administrador y dueño de la tarea
-                if (admin.id === task.user_id) {
-                    continue;
+        // Notificar a todos los administradores de la obra (el bot se encargará de notificar a cada uno)
+        // Solo llamar al endpoint una vez, no una vez por admin
+        if (task.site_id) {
+            try {
+                const response = await fetch(`${botUrl}/notify/blocked-task`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        taskId: task.id,
+                        taskTitle: task.title,
+                        taskDescription: task.description,
+                        siteAddress: (task as any).site?.address || 'Obra no especificada',
+                        blockerName: blockerName,
+                        blockerUserId: task.user_id,
+                        siteId: task.site_id,
+                        notifyAdminsOnly: true // El bot notificará a todos los admins
+                    }),
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Error al notificar: ${response.status} ${response.statusText}`);
                 }
                 
-                if (admin.whatsapp_jid) {
-                    await sendBlockedTaskNotification(
-                        botUrl,
-                        admin.whatsapp_jid,
-                        task,
-                        blockerName,
-                        true // es administrador
-                    );
-                }
+                console.log(`Notificación de tarea bloqueada ${task.id} enviada a administradores de la obra ${task.site_id}`);
+            } catch (adminError: any) {
+                console.error('Error notificando a administradores:', adminError.message);
+                // No fallar si no se pueden notificar a los administradores
             }
-        } catch (adminError: any) {
-            console.error('Error obteniendo administradores, continuando sin notificar a admins:', adminError.message);
-            // No fallar si no se pueden obtener los administradores
         }
         
     } catch (error: any) {
@@ -293,7 +300,7 @@ async function notifyTaskBlocked(task: Task) {
     }
 }
 
-// Función auxiliar para enviar notificación de tarea bloqueada
+// Función auxiliar para enviar notificación de tarea bloqueada al dueño
 async function sendBlockedTaskNotification(
     botUrl: string,
     whatsappJid: string,
@@ -308,13 +315,15 @@ async function sendBlockedTaskNotification(
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                whatsappJid: whatsappJid,
                 taskId: task.id,
                 taskTitle: task.title,
                 taskDescription: task.description,
                 siteAddress: (task as any).site?.address || 'Obra no especificada',
                 blockerName: blockerName,
-                isAdmin: isAdmin
+                blockerUserId: task.user_id,
+                siteId: task.site_id,
+                notifyOwnerOnly: true, // Solo notificar al dueño
+                ownerWhatsappJid: whatsappJid
             }),
         });
         
