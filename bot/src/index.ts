@@ -1014,8 +1014,8 @@ async function handleIdleState(
                 return;
             }
             if (sites.length === 1) {
-                setChatState(senderNumber, 'AWAITING_TASK_INPUT', { site_id: (sites[0] as any).id, site_address: (sites[0] as any).address });
-                await sock.sendMessage(senderNumber, { text: '🎯 ¡Genial! Vamos a crear una tarea.\n🏷️ Obra: ' + ((sites[0] as any).address || '') + '\n📝 Describí lo que tenés que hacer en un solo mensaje (ej: "Cambiar foco del baño mañana").' });
+                setChatState(senderNumber, 'AWAITING_TASK_TITLE', { site_id: (sites[0] as any).id, site_address: (sites[0] as any).address });
+                await sock.sendMessage(senderNumber, { text: '🎯 ¡Genial! Vamos a crear una tarea.\n🏷️ Obra: ' + ((sites[0] as any).address || '') + '\n✍️ Escribí el *título* de la tarea (ej: "Arreglar caño del baño").' });
                 return;
             }
             const lines: string[] = [];
@@ -1223,11 +1223,10 @@ async function handleTaskCategory(
             '✅ Categoría guardada.',
             '',
             'Elegí el estado inicial (respondé con número o nombre):',
-            '1) *Cambios* 🔄',
-            '2) *Pendiente* 🕒',
-            '3) *En Progreso* 🚧',
-            '4) *Completada* ✅',
-            '5) *Bloqueada* ⛔',
+            '1) *Pendiente* 🕒',
+            '2) *En Progreso* 🚧',
+            '3) *Completada* ✅',
+            '4) *Bloqueada* ⛔',
         ].join('\n');
         await sock.sendMessage(senderNumber, { text: body });
 
@@ -1252,16 +1251,15 @@ async function handleTaskStatus(
     let normalized = messageText.toLowerCase().trim();
     const numMatchSt = normalized.match(/^\d+/);
     if (numMatchSt) normalized = numMatchSt[0];
-    // Mapear castellano -> enumeración del backend
+    // Mapear castellano -> enumeración del backend (sin "cambios" ya que existe el comando "cambio")
     const statusMap: Record<string, string> = {
-        '1': 'changes',
-        '2': 'pending',
-        '3': 'in_progress',
-        '4': 'completed',
-        '5': 'blocked',
-        'cambios': 'changes',
+        '1': 'pending',
+        '2': 'in_progress',
+        '3': 'completed',
+        '4': 'blocked',
         'pendiente': 'pending',
         'en progreso': 'in_progress',
+        'progreso': 'in_progress',
         'completada': 'completed',
         'bloqueada': 'blocked',
         // Aceptar también los valores crudos del backend
@@ -1294,11 +1292,10 @@ async function handleTaskStatus(
     } else {
         const body = [
             'Estado no válido. Elegí una opción válida (número o nombre):',
-            '1) Cambios 🔄',
-            '2) Pendiente 🕒',
-            '3) En Progreso 🚧',
-            '4) Completada ✅',
-            '5) Bloqueada ⛔',
+            '1) Pendiente 🕒',
+            '2) En Progreso 🚧',
+            '3) Completada ✅',
+            '4) Bloqueada ⛔',
         ].join('\n');
         await sock.sendMessage(senderNumber, { text: body });
     }
@@ -1998,8 +1995,8 @@ async function handleSiteSelection(
         await sock.sendMessage(senderNumber, { text: '⚠️ No reconocí la obra. Respondé con el número de la lista o parte del nombre.' });
         return;
     }
-    setChatState(senderNumber, 'AWAITING_TASK_INPUT', { site_id: chosen.id, site_address: chosen.address });
-    await sock.sendMessage(senderNumber, { text: `🏷️ Obra seleccionada: ${chosen.address}\n📝 Describí lo que tenés que hacer en un solo mensaje (ej: "Cambiar foco del baño mañana").` });
+    setChatState(senderNumber, 'AWAITING_TASK_TITLE', { site_id: chosen.id, site_address: chosen.address });
+    await sock.sendMessage(senderNumber, { text: `🏷️ Obra seleccionada: ${chosen.address}\n✍️ Escribí el *título* de la tarea (ej: "Arreglar caño del baño").` });
 }
 
 // Manejo de selección de obra para avances (texto o media)
@@ -2447,17 +2444,14 @@ async function handleWorkerSelection(
             let phoneNumber = worker.worker_cellnumber || '';
             // Remover espacios, guiones y paréntesis
             phoneNumber = phoneNumber.replace(/[\s\-\(\)]/g, '');
-            // Si empieza con +, mantenerlo; si no, agregar +54
-            if (!phoneNumber.startsWith('+')) {
-                // Si empieza con 54, agregar +
-                if (phoneNumber.startsWith('54')) {
-                    phoneNumber = '+' + phoneNumber;
-                } else {
-                    // Asumir que es un número argentino sin código de país
-                    phoneNumber = '+54' + phoneNumber;
-                }
+            // Remover el + si existe (los JIDs de WhatsApp no deben tener +)
+            phoneNumber = phoneNumber.replace(/^\+/, '');
+            // Si no empieza con 54, agregar código de país argentino
+            if (!phoneNumber.startsWith('54')) {
+                // Asumir que es un número argentino sin código de país
+                phoneNumber = '54' + phoneNumber;
             }
-            // Agregar @s.whatsapp.net
+            // Agregar @s.whatsapp.net (sin el +)
             const whatsappJid = phoneNumber + '@s.whatsapp.net';
 
             // Enviar mensaje al worker
