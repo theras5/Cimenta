@@ -13,11 +13,11 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.cimenta.demo",
-      "associatedDomains": ["applinks:cimenta-api.ngrok.io"]
+      "bundleIdentifier": "com.cimenta.app",
+      "associatedDomains": ["applinks:api.cimenta.com"]
     },
     "android": {
-      "package": "com.cimenta.demo",
+      "package": "com.cimenta.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/icons/icon.png",
         "backgroundColor": "#ffffff"
@@ -30,7 +30,7 @@
           "data": [
             {
               "scheme": "https",
-              "host": "cimenta-api.ngrok.io",
+              "host": "api.cimenta.com",
               "pathPrefix": "/payments/mobile-callback"
             }
           ],

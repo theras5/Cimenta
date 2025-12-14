@@ -19,8 +19,7 @@ router.get('/status/:userId', getSubscriptionStatus);
 /**
  * Mobile callback - Mercado Pago redirige aquí después del pago
  * Este endpoint sirve como puente para App Links/Universal Links
- * El navegador abre esta URL y el sistema operativo la intercepta
- * para abrir la app automáticamente
+ * En producción, el SO intercepta esta URL y abre la app automáticamente
  */
 router.get('/mobile-callback', (req: Request, res: Response) => {
   const { preapproval_id, status, external_reference } = req.query;
@@ -31,11 +30,12 @@ router.get('/mobile-callback', (req: Request, res: Response) => {
     external_reference 
   });
 
-  // El deep link scheme de la app
-  const appScheme = 'cimentademo';
+  // Deep link scheme de la app (configurado en app.json)
+  const appScheme = process.env.APP_SCHEME || 'cimentademo';
   const deepLink = `${appScheme}://payment-success?status=${status || 'unknown'}&preapproval_id=${preapproval_id || ''}&user_id=${external_reference || ''}`;
 
-  // HTML que intenta abrir la app y fallback
+  // HTML que intenta abrir la app automáticamente
+  // En producción con App Links configurados, el SO abre la app antes de mostrar esto
   res.send(`
     <!DOCTYPE html>
     <html>
@@ -55,44 +55,44 @@ router.get('/mobile-callback', (req: Request, res: Response) => {
           color: white;
           text-align: center;
         }
-        .container {
-          padding: 40px;
-        }
+        .container { padding: 40px; }
         h1 { margin-bottom: 20px; }
-        p { opacity: 0.9; margin-bottom: 30px; }
+        p { opacity: 0.9; margin-bottom: 20px; }
+        .btn {
+          display: inline-block;
+          background: white;
+          color: #667eea;
+          padding: 15px 30px;
+          border-radius: 25px;
+          text-decoration: none;
+          font-weight: bold;
+        }
         .spinner {
-          width: 50px;
-          height: 50px;
-          border: 4px solid rgba(255,255,255,0.3);
+          width: 40px; height: 40px;
+          border: 3px solid rgba(255,255,255,0.3);
           border-top-color: white;
           border-radius: 50%;
           animation: spin 1s linear infinite;
           margin: 0 auto 20px;
         }
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-        a {
-          color: white;
-          text-decoration: underline;
-        }
+        @keyframes spin { to { transform: rotate(360deg); } }
       </style>
     </head>
     <body>
       <div class="container">
         <div class="spinner"></div>
-        <h1>¡Pago procesado!</h1>
-        <p>Volviendo a la app de Cimenta...</p>
-        <p><small>Si no se abre automáticamente, <a href="${deepLink}">tocá aquí</a></small></p>
+        <h1>¡Pago procesado! 🎉</h1>
+        <p>Volviendo a la app...</p>
+        <a href="${deepLink}" class="btn">Abrir Cimenta</a>
+        <p style="margin-top: 30px; font-size: 13px; opacity: 0.7;">
+          Si no se abre automáticamente,<br>tocá el botón o cerrá esta ventana.
+        </p>
       </div>
       <script>
-        // Intentar abrir la app inmediatamente
-        window.location.href = "${deepLink}";
-        
-        // Fallback: si después de 2 segundos seguimos aquí, mostrar mensaje
+        // Intentar abrir la app automáticamente
         setTimeout(function() {
-          document.querySelector('p').textContent = 'Podés cerrar esta ventana y volver a la app';
-        }, 2000);
+          window.location.href = "${deepLink}";
+        }, 500);
       </script>
     </body>
     </html>
