@@ -9,7 +9,8 @@ import {
     getSitesByUserService,
     getAdminSitesByUserService,
     validateUserIsAdminService,
-    getSiteAdminsService
+    getSiteAdminsService,
+    getSiteClientsService
 } from "../services/siteService";
 
 export const getAllSites = async (req: Request, res: Response, next: NextFunction) => {
@@ -133,6 +134,17 @@ export const getSiteAdmins = async (req: Request, res: Response, next: NextFunct
         const admins = await getSiteAdminsService(siteId);
         
         res.status(200).json(admins);
+    } catch (err) {
+        next(err);
+    }
+};
+
+export const getSiteClients = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const siteId = req.params.siteId;
+        const clients = await getSiteClientsService(siteId);
+        
+        res.status(200).json(clients);
     } catch (err) {
         next(err);
     }

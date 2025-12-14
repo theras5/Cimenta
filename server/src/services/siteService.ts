@@ -313,3 +313,60 @@ export const getUserRoleInSiteService = async (userId: string, siteId: string): 
     
     return data?.role || null;
 };
+
+/**
+ * Obtiene los clientes de una obra específica
+ * @param siteId ID de la obra
+ * @returns Array de perfiles de clientes con sus whatsapp_jid
+ */
+export const getSiteClientsService = async (siteId: string) => {
+    try {
+        if (!siteId) {
+            throw new AppError('siteId es requerido', 400);
+        }
+
+        console.log(`[getSiteClientsService] Buscando clientes para obra: ${siteId}`);
+        
+        // 1. Buscar usuarios con rol 'client' en belongs_to para este site_id
+        const { data: belongsData, error } = await supabase
+            .from('belongs_to')
+            .select('user_id')
+            .eq('site_id', siteId)
+            .eq('role', 'client');
+
+        if (error) {
+            console.error('[getSiteClientsService] Error en belongs_to:', error);
+            throw new AppError(`Error al obtener clientes: ${error.message}`, 500);
+        }
+        
+        if (!belongsData || belongsData.length === 0) {
+            console.log(`[getSiteClientsService] No se encontraron clientes para la obra ${siteId}`);
+            return [];
+        }
+        
+        // 2. Extraer los user_ids
+        const userIds = belongsData.map(row => row.user_id);
+        console.log(`[getSiteClientsService] Client user IDs encontrados:`, userIds);
+        
+        // 3. Obtener los perfiles completos con whatsapp_jid
+        const { data: profiles, error: profilesError } = await supabase
+            .from('profiles')
+            .select('id, name, whatsapp_jid')
+            .in('id', userIds)
+            .not('whatsapp_jid', 'is', null);
+        
+        if (profilesError) {
+            console.error('[getSiteClientsService] Error al obtener perfiles:', profilesError);
+            throw new AppError(`Error al obtener perfiles de clientes: ${profilesError.message}`, 500);
+        }
+        
+        console.log(`[getSiteClientsService] Clientes encontrados: ${profiles?.length || 0}`);
+        return profiles || [];
+    } catch (error: any) {
+        if (error instanceof AppError) {
+            throw error;
+        }
+        console.error('[getSiteClientsService] Error inesperado:', error);
+        throw new AppError(`Error al obtener clientes: ${error.message || 'Error desconocido'}`, 500);
+    }
+};

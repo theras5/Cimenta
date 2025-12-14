@@ -8,7 +8,8 @@ import {
     getSitesByUser,
     getAdminSitesByUser,
     validateUserIsAdmin,
-    getSiteAdmins
+    getSiteAdmins,
+    getSiteClients
 } from '../controllers/siteController';
 
 const siteRouter = express.Router();
@@ -18,6 +19,7 @@ siteRouter.get("/", getAllSites);
 siteRouter.get("/user/:userId", getSitesByUser);
 siteRouter.get("/user/:userId/admin", getAdminSitesByUser);
 siteRouter.get("/:siteId/admins", getSiteAdmins);
+siteRouter.get("/:siteId/clients", getSiteClients);
 siteRouter.get("/:id/admin/:userId", validateUserIsAdmin);
 siteRouter.get("/:id", getSiteById);
 siteRouter.post("/", createSite);

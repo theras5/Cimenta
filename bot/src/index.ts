@@ -5514,9 +5514,9 @@ async function notifyAdminsOfPurchaseStatusChange(
 }
 
 /**
- * Notifica a los administradores de una obra cuando una tarea se bloquea
+ * Notifica a los clientes de una obra cuando una tarea se bloquea
  */
-async function notifyAdminsOfBlockedTask(
+async function notifyClientsOfBlockedTask(
     siteId: string,
     task: Task,
     blocker: Profile,
@@ -5528,11 +5528,11 @@ async function notifyAdminsOfBlockedTask(
     }
 
     try {
-        // Obtener los administradores de la obra
-        const admins = await api.SiteService.getSiteAdmins(siteId);
+        // Obtener los clientes de la obra
+        const clients = await api.SiteService.getSiteClients(siteId);
         
-        if (!admins || admins.length === 0) {
-            console.log(`No se encontraron administradores para la obra ${siteId}`);
+        if (!clients || clients.length === 0) {
+            console.log(`No se encontraron clientes para la obra ${siteId}`);
             return;
         }
 
@@ -5549,17 +5549,17 @@ async function notifyAdminsOfBlockedTask(
                        (task.description ? `📝 ${task.description}\n` : '') +
                        `\n💡 Revisá la tarea bloqueada en la app.`;
 
-        // Enviar notificación a cada administrador
-        for (const admin of admins) {
-            // No notificar al mismo usuario si es administrador y bloqueó la tarea
-            if (admin.id === blocker.id) {
+        // Enviar notificación a cada cliente
+        for (const client of clients) {
+            // No notificar al mismo usuario si es cliente y bloqueó la tarea
+            if (client.id === blocker.id) {
                 continue;
             }
             
-            if (admin.whatsapp_jid) {
+            if (client.whatsapp_jid) {
                 try {
                     // Normalizar el JID: convertir @lid a @s.whatsapp.net si es necesario
-                    let normalizedJid = admin.whatsapp_jid;
+                    let normalizedJid = client.whatsapp_jid;
                     if (normalizedJid.endsWith('@lid')) {
                         normalizedJid = normalizedJid.replace('@lid', '@s.whatsapp.net');
                     } else if (!normalizedJid.includes('@')) {
@@ -5568,24 +5568,24 @@ async function notifyAdminsOfBlockedTask(
                     
                     const sent = await safeSendMessage(globalSock, normalizedJid, message);
                     if (sent) {
-                        console.log(`✅ Notificación de tarea bloqueada enviada a admin ${admin.name} (${normalizedJid})`);
+                        console.log(`✅ Notificación de tarea bloqueada enviada a cliente ${client.name} (${normalizedJid})`);
                     } else {
-                        console.error(`❌ No se pudo enviar notificación de tarea bloqueada a admin ${admin.name} (${normalizedJid})`);
+                        console.error(`❌ No se pudo enviar notificación de tarea bloqueada a cliente ${client.name} (${normalizedJid})`);
                     }
                 } catch (error: any) {
-                    console.error(`❌ Error enviando notificación a admin ${admin.name}:`, error);
-                    // Continuar con los demás admins aunque falle uno
+                    console.error(`❌ Error enviando notificación a cliente ${client.name}:`, error);
+                    // Continuar con los demás clientes aunque falle uno
                 }
             }
         }
     } catch (error: any) {
-        console.error('Error notificando a administradores de tarea bloqueada:', error);
+        console.error('Error notificando a clientes de tarea bloqueada:', error);
         // No lanzar el error para no interrumpir el flujo principal
     }
 }
 
 // Función para enviar notificación cuando una tarea pasa a blocked
-// NOTA: Esta función ha sido deshabilitada porque ya se usa notifyAdminsOfBlockedTask
+// NOTA: Esta función ha sido deshabilitada porque ya se usa notifyClientsOfBlockedTask
 // que envía el mensaje correcto. Esta función causaba duplicación de mensajes.
 // async function notifyBlockedTask(whatsappJid: string, taskId: string, taskTitle: string, taskDescription?: string, siteAddress?: string, blockerName?: string, isAdmin?: boolean) {
 //     if (!globalSock) {
@@ -5745,11 +5745,11 @@ function createNotificationServer() {
                         await safeSendMessage(globalSock, normalizedJid, message);
                     }
                     
-                    // Si se debe notificar a los administradores (por defecto o explícitamente)
+                    // Si se debe notificar a los clientes (por defecto o explícitamente)
                     if (notifyAdminsOnly || (!notifyOwnerOnly && !notifyAdminsOnly)) {
                         const finalSiteId = task.site_id || data.siteId;
                         if (finalSiteId) {
-                            await notifyAdminsOfBlockedTask(finalSiteId, task, blocker, siteAddress);
+                            await notifyClientsOfBlockedTask(finalSiteId, task, blocker, siteAddress);
                         } else {
                             console.error('[notify/blocked-task] No se pudo obtener site_id para la tarea', taskId);
                         }

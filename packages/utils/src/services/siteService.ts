@@ -92,6 +92,14 @@ export const createSiteService = (apiUrl: string, baseHeaders: Record<string, st
             throw new Error(`Error ${response.status}: ${response.statusText}`);
         }
         return await response.json();
+    },
+
+    async getSiteClients(siteId: string): Promise<Array<{ id: string; name: string; whatsapp_jid: string }>> {
+        const response = await fetch(`${apiUrl}/sites/${siteId}/clients`);
+        if (!response.ok) {
+            throw new Error(`Error ${response.status}: ${response.statusText}`);
+        }
+        return await response.json();
     }
 
 });
