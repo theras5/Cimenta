@@ -54,23 +54,15 @@ export const createSubscriptionService = async ({ userId, email, platform = 'web
 
     console.log('🔙 Back URL configurada:', backUrl, '(platform:', platform, ')');
 
-    // En modo desarrollo (TEST_MODE=true), usar email de prueba de MP
-    // En producción, usar el email real del usuario
-    const isDevMode = process.env.TEST_MODE === 'true';
+    // Email de prueba de MP para la demo
     const TEST_BUYER_EMAIL = 'test_user_8085113406163690698@testuser.com';
-    const payerEmail = isDevMode ? TEST_BUYER_EMAIL : email;
-    
-    if (isDevMode) {
-      console.log('🧪 Modo DEV: usando email de prueba:', payerEmail);
-    } else {
-      console.log('📧 Modo PROD: usando email del usuario:', payerEmail);
-    }
+    console.log('🧪 Usando email de prueba para demo:', TEST_BUYER_EMAIL);
 
     const response = await preApproval.create({
       body: {
         reason: SUBSCRIPTION_CONFIG.reason,
         external_reference: userId,
-        payer_email: payerEmail,
+        payer_email: TEST_BUYER_EMAIL,
         auto_recurring: {
           frequency: SUBSCRIPTION_CONFIG.frequency,
           frequency_type: SUBSCRIPTION_CONFIG.frequency_type,
