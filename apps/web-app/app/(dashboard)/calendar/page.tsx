@@ -23,6 +23,7 @@ import {
 import { ChevronLeft, ChevronRight, Plus, Clock, X } from "lucide-react";
 import Sidebar from "@/components/SideBar";
 import { useRouter } from "next/navigation";
+import { useUserRole } from "@/hooks/useUserRole";
 
 interface CalendarEvent {
   id: string;
@@ -123,6 +124,10 @@ const darkenHex = (hex: string, amount = 0.18) => {
 
 export default function CalendarPage() {
   const router = useRouter();
+  const { role, loading: roleLoading } = useUserRole();
+  const normalizedRole = role?.toLowerCase() ?? null;
+  const isClient = normalizedRole === "client";
+  const isAdmin = normalizedRole === "admin";
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<any | null>(null);
@@ -701,13 +706,14 @@ export default function CalendarPage() {
             </div>
           </div>
 
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-blue-600 hover:bg-blue-700">
-                <Plus size={20} className="mr-2" />
-                Nuevo Evento
-              </Button>
-            </DialogTrigger>
+          {!roleLoading && isAdmin && (
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-blue-600 hover:bg-blue-700">
+                  <Plus size={20} className="mr-2" />
+                  Nuevo Evento
+                </Button>
+              </DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Crear Nuevo Evento</DialogTitle>
@@ -783,7 +789,8 @@ export default function CalendarPage() {
                 </Button>
               </div>
             </DialogContent>
-          </Dialog>
+            </Dialog>
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

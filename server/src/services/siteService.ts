@@ -93,54 +93,33 @@ export const createBelongsToService = async ({ user_id, site_id, role }: { user_
 
 
 export const getSitesByUserService = async (userId: string) => {
-    try {
-        if (!userId) {
-            throw new AppError('userId es requerido', 400);
-        }
+    
+    // 1. Verificar qué hay en belongs_to para este usuario
+    const { data: belongsData, error } = await supabase
+        .from('belongs_to')
+        .select('site_id')        
+        .eq('user_id', userId);
 
-        console.log(`[getSitesByUserService] Buscando sitios para usuario: ${userId}`);
-        
-        // 1. Verificar qué hay en belongs_to para este usuario
-        const { data: belongsData, error } = await supabase
-            .from('belongs_to')
-            .select('site_id')        
-            .eq('user_id', userId);
-
-        if (error) {
-            console.error('[getSitesByUserService] Error en belongs_to:', error);
-            throw new AppError(`Error al obtener relaciones de usuario: ${error.message}`, 500);
-        }
-        
-        if (!belongsData || belongsData.length === 0) {
-            console.log(`[getSitesByUserService] Usuario ${userId} no tiene sitios asignados`);
-            return [];
-        }
-        
-        // 2. Extraer los site_ids
-        const siteIds = belongsData.map(row => row.site_id);
-        console.log(`[getSitesByUserService] Site IDs encontrados:`, siteIds);
-        
-        // 3. Obtener los sites completos
-        const { data: sites, error: sitesError } = await supabase
-            .from('sites')
-            .select('*')
-            .in('id', siteIds)
-            .order('created_at', { ascending: false });
-        
-        if (sitesError) {
-            console.error('[getSitesByUserService] Error al obtener sites:', sitesError);
-            throw new AppError(`Error al obtener sitios: ${sitesError.message}`, 500);
-        }
-        
-        console.log(`[getSitesByUserService] Sitios encontrados: ${sites?.length || 0}`);
-        return sites || [];
-    } catch (error: any) {
-        if (error instanceof AppError) {
-            throw error;
-        }
-        console.error('[getSitesByUserService] Error inesperado:', error);
-        throw new AppError(`Error al obtener sitios del usuario: ${error.message || 'Error desconocido'}`, 500);
+ 
+    if (error) throw error;
+    if (!belongsData || belongsData.length === 0) {
+        return [];
     }
+    
+    // 2. Extraer los site_ids
+    const siteIds = belongsData.map(row => row.site_id);
+    
+    // 3. Obtener los sites completos
+    const { data: sites, error: sitesError } = await supabase
+        .from('sites')
+        .select('*')
+        .in('id', siteIds)
+        .order('created_at', { ascending: false });
+    
+    
+    if (sitesError) throw sitesError;
+    
+    return sites || [];
 };
 
 /**

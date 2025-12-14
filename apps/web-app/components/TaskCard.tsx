@@ -20,6 +20,7 @@ interface TaskCardProps {
   changes?: boolean
   onEdit?: (task: Task) => void
   onAssignWorkers?: (task: Task) => void
+  canEdit?: boolean
 }
 
 const getStatusBgColor = (status: Task["status"]) => {
@@ -64,7 +65,7 @@ const getCategoryColor = (category: string) => {
   }
 }
 
-const TaskCard: React.FC<TaskCardProps> = ({ task, changes, onEdit, onAssignWorkers }) => {
+const TaskCard: React.FC<TaskCardProps> = ({ task, changes, onEdit, onAssignWorkers, canEdit = true }) => {
   const { getWorkersByTask } = useAssignedTo();
   const [assignedCount, setAssignedCount] = useState(0);
   const [loadingWorkers, setLoadingWorkers] = useState(true);
@@ -103,21 +104,11 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, changes, onEdit, onAssignWork
 
   const handleClick = () => {
     console.log(`Clicked task ${task.id}`, changes ? "changes" : "tasks")
+    // Si hay onEdit, abrir el modal al hacer clic (incluso si no se puede editar, para ver el detalle)
+    if (onEdit) {
+      onEdit(task)
+    }
   }
-
-  const descRef = useRef<HTMLParagraphElement | null>(null);
-  const [descOverflow, setDescOverflow] = useState(false);
-
-  useEffect(() => {
-    const measure = () => {
-      const el = descRef.current;
-      if (!el) return;
-      setDescOverflow(el.scrollHeight > el.clientHeight + 1);
-    };
-    measure();
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, [task.description]);
 
   const handleEdit = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -180,7 +171,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, changes, onEdit, onAssignWork
         {/* Footer - Action Buttons */}
         <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
           <div className="flex gap-1">
-            {onEdit && (
+            {onEdit && canEdit && (
               <button
                 onClick={handleEdit}
                 className="p-2 rounded-md hover:bg-white/50 transition-colors opacity-70 hover:opacity-100"
@@ -191,7 +182,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, changes, onEdit, onAssignWork
               </button>
             )}
             
-            {onAssignWorkers && !changes && (
+            {onAssignWorkers && !changes && canEdit && (
               <button
                 onClick={handleAssignWorkers}
                 className="p-2 rounded-md hover:bg-white/50 transition-colors opacity-70 hover:opacity-100"

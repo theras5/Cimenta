@@ -11,6 +11,7 @@ interface TaskSectionProps {
   changes?: boolean
   onEditTask?: (task: Task) => void
   onAssignWorkers?: (task: Task) => void
+  canEdit?: boolean
 }
 
 const TaskSection: React.FC<TaskSectionProps> = ({ 
@@ -19,7 +20,8 @@ const TaskSection: React.FC<TaskSectionProps> = ({
   onSeeAll, 
   changes, 
   onEditTask,
-  onAssignWorkers 
+  onAssignWorkers,
+  canEdit = true
 }) => (
   <div className="mb-2">
     <div className="flex justify-between items-center mb-3">
@@ -44,6 +46,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({
           changes={changes} 
           onEdit={onEditTask}
           onAssignWorkers={onAssignWorkers}
+          canEdit={canEdit}
         />
       ))}
     </div>

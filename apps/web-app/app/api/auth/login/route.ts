@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getApiUrl } from '@/lib/apiConfig';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+const API_URL = getApiUrl();
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     
     console.log('Logging in user:', body.email);
+    console.log('API URL:', API_URL);
 
     const response = await fetch(`${API_URL}/auth/login`, {
       method: 'POST',

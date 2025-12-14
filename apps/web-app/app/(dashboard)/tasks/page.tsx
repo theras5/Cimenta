@@ -84,12 +84,14 @@ const ScrollableTaskSection = ({
   changes = false,
   onEditTask,
   onAssignWorkers,
+  canEdit = true,
 }: {
   title: string;
   tasks: Task[];
   changes?: boolean;
   onEditTask?: (task: Task) => void;
   onAssignWorkers?: (task: Task) => void;
+  canEdit?: boolean;
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showScrollButtons, setShowScrollButtons] = useState(false);
@@ -150,6 +152,7 @@ const ScrollableTaskSection = ({
           changes={changes}
           onEditTask={onEditTask}
           onAssignWorkers={onAssignWorkers}
+          canEdit={canEdit}
         />
       </div>
     </div>
@@ -500,8 +503,19 @@ const TasksScreen = () => {
   };
 
   const handleEditTask = (task: Task) => {
+    // Los clientes solo pueden ver el detalle, no editar (excepto cambios)
+    const isChange = task.status === "changes";
+    const canEditThisTask = roleLoading 
+      ? false 
+      : isChange 
+        ? isClient 
+        : isAdmin;
+    
     setTaskToEdit(task);
     setShowEditModal(true);
+    
+    // Si es cliente y no es un cambio, solo mostrar el modal sin permitir edición
+    // El modal ya maneja esto con la prop canEdit
   };
 
   const handleSaveTask = async (id: string, updatedTask: Partial<Task>) => {
@@ -1000,6 +1014,7 @@ const TasksScreen = () => {
                   changes={true}
                   onEditTask={handleEditTask}
                   onAssignWorkers={handleOpenAssignModal}
+                  canEdit={isClient || isAdmin}
                 />
               )}
               {pendingTasks.length > 0 && (
@@ -1008,6 +1023,7 @@ const TasksScreen = () => {
                   tasks={pendingTasks}
                   onEditTask={handleEditTask}
                   onAssignWorkers={handleOpenAssignModal}
+                  canEdit={isAdmin}
                 />
               )}
               {inProgressTasks.length > 0 && (
@@ -1016,6 +1032,7 @@ const TasksScreen = () => {
                   tasks={inProgressTasks}
                   onEditTask={handleEditTask}
                   onAssignWorkers={handleOpenAssignModal}
+                  canEdit={isAdmin}
                 />
               )}
               {blockedTasks.length > 0 && (
@@ -1024,6 +1041,7 @@ const TasksScreen = () => {
                   tasks={blockedTasks}
                   onEditTask={handleEditTask}
                   onAssignWorkers={handleOpenAssignModal}
+                  canEdit={isAdmin}
                 />
               )}
               {completedTasks.length > 0 && (
@@ -1032,6 +1050,7 @@ const TasksScreen = () => {
                   tasks={completedTasks}
                   onEditTask={handleEditTask}
                   onAssignWorkers={handleOpenAssignModal}
+                  canEdit={isAdmin}
                 />
               )}
               {rejectedTasks.length > 0 && (
@@ -1039,6 +1058,7 @@ const TasksScreen = () => {
                   title="Rechazadas"
                   tasks={rejectedTasks}
                   onEditTask={handleEditTask}
+                  canEdit={isAdmin}
                 />
               )}
             </div>
