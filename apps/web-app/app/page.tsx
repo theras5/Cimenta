@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card"
 import { Check, CheckCircle2, ShoppingCart, Camera, FileText } from "lucide-react"
 import { useState } from "react"
 import Link from "next/link"
+import Image from "next/image"
 
 export default function LandingPage() {
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null)
@@ -30,18 +31,35 @@ export default function LandingPage() {
 
       {/* Hero - Clean and simple with mascot */}
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-        <div className="flex flex-col justify-center">
-          <h1 className="text-5xl sm:text-6xl font-bold text-black mb-6">
-            Bienvenido a <span style={{ color: "#0066FF" }}>Cimenta</span>
-          </h1>
-          <p className="text-lg text-gray-600 mb-8 leading-relaxed max-w-2xl">
-            La plataforma de gestión de proyectos que impulsa la productividad de tu equipo. Organiza tareas, colabora
-            eficientemente y alcanza tus objetivos.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 max-w-md">
-            <Button asChild size="lg" className="rounded-lg font-medium" style={{ backgroundColor: "#0066FF", color: "white" }}>
-              <Link href="/register">Registrarse</Link>
-            </Button>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+          {/* Left side - Content */}
+          <div className="flex flex-col justify-center">
+            <h1 className="text-5xl sm:text-6xl font-bold text-black mb-6">
+              Bienvenido a <span style={{ color: "#0066FF" }}>Cimenta</span>
+            </h1>
+            <p className="text-lg text-gray-600 mb-8 leading-relaxed max-w-2xl">
+              La plataforma de gestión de proyectos que impulsa la productividad de tu equipo. Organiza tareas, colabora
+              eficientemente y alcanza tus objetivos.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 max-w-md">
+              <Button asChild size="lg" className="rounded-lg font-medium" style={{ backgroundColor: "#0066FF", color: "white" }}>
+                <Link href="/register">Registrarse</Link>
+              </Button>
+            </div>
+          </div>
+
+          {/* Right side - Wolf Mascot */}
+          <div className="flex justify-center lg:justify-end">
+            <div className="relative w-full max-w-md lg:max-w-lg">
+              <Image
+                src="/wolf_for_banner.png"
+                alt="Cimenta Mascot - Lobo constructor"
+                width={500}
+                height={600}
+                className="object-contain w-full h-auto"
+                priority
+              />
+            </div>
           </div>
         </div>
       </section>
