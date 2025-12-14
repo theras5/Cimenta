@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import { uploadProfilePicture, deleteProfilePicture, getUserProfile } from '../controllers/storageController';
+import { uploadProfilePicture, deleteProfilePicture, getUserProfile, getAvatarUrl } from '../controllers/storageController';
 
 const storageRouter = express.Router();
 
@@ -22,5 +22,6 @@ const upload = multer({
 storageRouter.post("/upload-profile-picture", upload.single('file'), uploadProfilePicture);
 storageRouter.delete("/delete-profile-picture", deleteProfilePicture);
 storageRouter.get("/user-profile/:userId", getUserProfile);
+storageRouter.get("/avatar/:userId", getAvatarUrl);
 
 export default storageRouter;

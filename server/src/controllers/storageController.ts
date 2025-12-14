@@ -199,3 +199,52 @@ export const getUserProfile = async (req: Request, res: Response, next: NextFunc
     });
   }
 };
+
+export const getAvatarUrl = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    const userId = req.params.userId;
+    
+    if (!token) {
+      return res.status(401).json({
+        error: "Token de autenticación requerido"
+      });
+    }
+
+    // Verificar el token
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      return res.status(401).json({
+        error: "Token inválido o expirado"
+      });
+    }
+
+    // Solo permitir que los usuarios obtengan su propio avatar
+    if (user.id !== userId) {
+      return res.status(403).json({
+        error: "No tienes permiso para acceder a este recurso"
+      });
+    }
+
+    // Obtener el avatar_url del perfil
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles')
+      .select('avatar_url')
+      .eq('id', userId)
+      .single();
+
+    if (profileError) {
+      console.error("Error al obtener avatar:", profileError);
+      throw new AppError(profileError.message, 400);
+    }
+
+    res.status(200).json({ avatarUrl: profileData?.avatar_url || null });
+
+  } catch (error: AppError | any) {
+    console.error("Error al obtener avatar:", error);
+    res.status(error.statusCode || 500).json({
+      error: error.message || "Error interno del servidor"
+    });
+  }
+};

@@ -27,7 +27,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/lib/supabase";
 
 const profileMenuItems = [
   {
@@ -77,23 +76,23 @@ export default function PerfilPage() {
     if (!user?.id) return;
 
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('avatar_url')
-        .eq('id', user.id)
-        .single();
+      const token = localStorage.getItem('auth_token');
+      if (!token) return;
 
-      if (error) {
-        console.error('Error loading avatar:', error);
+      const response = await fetch(`/api/storage/avatar/${user.id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        console.error('Error loading avatar:', response.statusText);
         return;
       }
 
-      if (data?.avatar_url) {
-        const { data: publicUrlData } = supabase.storage
-          .from('avatars')
-          .getPublicUrl(data.avatar_url);
-        
-        setAvatarUrl(publicUrlData.publicUrl);
+      const data = await response.json();
+      if (data?.avatarUrl) {
+        setAvatarUrl(data.avatarUrl);
       }
     } catch (error) {
       console.error('Error loading avatar:', error);

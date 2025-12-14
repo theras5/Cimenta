@@ -15,6 +15,7 @@ import workers from "./routes/workers";
 import assignedToRoutes from "./routes/assignedTo";
 import payments from "./routes/payments";
 import wellKnown from "./routes/wellKnown";
+import storage from "./routes/storage";
 
 // server/src/app.ts
 import cors from "cors";
@@ -59,6 +60,8 @@ app.use("/invitations", invitations);
 app.use("/.well-known", wellKnown);
 
 app.use("/payments", payments);
+
+app.use("/storage", storage);
 
 // Middleware de manejo de errores (DEBE IR AL FINAL)
 app.use(errorMiddleware);
