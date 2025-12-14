@@ -5,7 +5,9 @@ import {
     getTaskByIdService, 
     createTaskService, 
     updateTaskByIdService, 
-    deleteTaskByIdService 
+    deleteTaskByIdService,
+    getTaskDependenciesService,
+    updateTaskStatusService
 } from "../services/taskService";
 
 export const getAllTasks = async (req: Request, res: Response, next: NextFunction) => {
@@ -81,6 +83,37 @@ export const deleteTaskById = async (req: Request, res: Response, next: NextFunc
         const id = req.params.id;
         await deleteTaskByIdService(id);
         res.status(204).send();
+    } catch (error) {
+        next(error);
+    }
+};
+
+// Obtener dependencias de una tarea (tareas que dependen de esta)
+export const getTaskDependencies = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const blockerId = req.query.blocker_id as string;
+        if (!blockerId) {
+            return res.status(400).json({ error: 'blocker_id es requerido' });
+        }
+        const data = await getTaskDependenciesService(blockerId);
+        res.status(200).json(data);
+    } catch (error) {
+        next(error);
+    }
+};
+
+// Actualizar solo el estado de una tarea
+export const updateTaskStatus = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const id = req.params.id;
+        const { status } = req.body;
+        
+        if (!status) {
+            return res.status(400).json({ error: 'status es requerido' });
+        }
+
+        const data = await updateTaskStatusService(id, status);
+        res.status(200).json(data);
     } catch (error) {
         next(error);
     }

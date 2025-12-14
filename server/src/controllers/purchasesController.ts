@@ -36,6 +36,7 @@ export const createPurchase = async (req: Request, res: Response, next: NextFunc
         console.log('📥 createPurchase - Body recibido:', JSON.stringify(req.body, null, 2));
         
         const purchaseToCreate = req.body;
+        console.log('Controlador createPurchase recibió:', JSON.stringify(purchaseToCreate, null, 2));
 
         // Verificar campos requeridos
         if (!purchaseToCreate.product || !purchaseToCreate.category) {
@@ -49,8 +50,9 @@ export const createPurchase = async (req: Request, res: Response, next: NextFunc
         const data = await createPurchaseService(purchaseToCreate);
         console.log('✅ Respuesta del service exitosa');
         res.status(201).json(data);
-    } catch (error) {
-        console.error('❌ Error en createPurchase controller:', error);
+    } catch (error: any) {
+        console.error('Error en controlador createPurchase:', error);
+        console.error('Stack:', error.stack);
         next(error);
     }
 };

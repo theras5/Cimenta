@@ -4,3 +4,4 @@ export * from './types/change.dto';
 export * from './types/update.dto';
 export * from './types/purchase.dto';
 export * from './types/supplier.dto';
+export * from './types/auth.dto';

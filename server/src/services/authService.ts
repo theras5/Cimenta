@@ -2,8 +2,8 @@ import { supabase } from "../config/supabase";
 import { AppError } from "../errors/AppError";
 
 export async function signInWithPasswordService(email: string, password: string, name: string) {
-    if (!email || !password || !name) {
-        throw new AppError("Email, contraseña y nombre son requeridos.", 400);
+    if (!email || !password) {
+        throw new AppError("Email y contraseña son requeridos.", 400);
     }
 
     const { data, error } = await supabase.auth.signUp({
@@ -57,20 +57,3 @@ export async function logInWithPasswordService(email: string, password: string) 
     return data;
 }
 
-// export async function getProfileByPhone(phone: string) {
-//     if (!phone) {
-//         throw new AppError("", 400);
-//     }
-
-//     const { data, error } = await supabase
-//         .from("profiles")
-//         .select("*")
-//         .eq("phone", phone)
-//         .single();
-
-//     if (error) {
-//         throw new AppError(error.message, 500);
-//     }
-
-//     return data;
-// }

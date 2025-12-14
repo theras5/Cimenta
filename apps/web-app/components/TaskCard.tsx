@@ -105,6 +105,20 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, changes, onEdit, onAssignWork
     console.log(`Clicked task ${task.id}`, changes ? "changes" : "tasks")
   }
 
+  const descRef = useRef<HTMLParagraphElement | null>(null);
+  const [descOverflow, setDescOverflow] = useState(false);
+
+  useEffect(() => {
+    const measure = () => {
+      const el = descRef.current;
+      if (!el) return;
+      setDescOverflow(el.scrollHeight > el.clientHeight + 1);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [task.description]);
+
   const handleEdit = (e: React.MouseEvent) => {
     e.stopPropagation()
     if (onEdit) {

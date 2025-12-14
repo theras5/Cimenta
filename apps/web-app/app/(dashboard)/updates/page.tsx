@@ -191,6 +191,7 @@ const AvancesScreen = () => {
         title: newUpdate.title,
         description: newUpdate.description || "",
         user_id: user?.id,
+        user_name: user?.name || "Usuario desconocido",
         site_id: selectedSiteId,
         image_url: newUpdate.image_url || "",
       });

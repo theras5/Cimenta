@@ -494,6 +494,14 @@ const handleStatusChange = async (newStatus: Purchase['status']) => {
             {uiPurchase.category}
           </span>
         </div>
+        {uiPurchase.supplier && (
+          <div 
+            style={{ backgroundColor: getCategoryColor(uiPurchase.category) }}
+            className="w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-bold"
+          >
+            {uiPurchase.supplier.charAt(0).toUpperCase()}
+          </div>
+        )}
       </div>
       
       {/* Botón para cambiar al siguiente estado */}

@@ -42,13 +42,9 @@ export const createTaskService = (apiUrl: string, baseHeaders: Record<string, st
   },
 
   async getTasksBySite(siteId: string): Promise<Task[]> {
-      const response = await fetch(`${apiUrl}/api/tasks/site/${siteId}`);
-      
-      if (!response.ok) {
-        throw new Error(`Error ${response.status}: ${response.statusText}`);
-      }
-      
-      return await response.json();
+    const response = await fetch(`${apiUrl}/tasks/site/${siteId}`);
+    if (!response.ok) throw new Error(`Error ${response.status}: ${response.statusText}`);
+    return await response.json();
   },
   
   // Actualizar una tarea
@@ -94,3 +90,4 @@ export const createTaskService = (apiUrl: string, baseHeaders: Record<string, st
       return await response.json();
   }
 });
+

@@ -34,7 +34,17 @@ export const createPurchaseService = (apiUrl: string, baseHeaders: Record<string
     });
     
     if (!response.ok) {
-      throw new Error(`Error ${response.status}: ${response.statusText}`);
+      // Intentar obtener el mensaje de error del body si está disponible
+      let errorMessage = `${response.status}: ${response.statusText}`;
+      try {
+        const errorData = await response.json();
+        if (errorData.error || errorData.message) {
+          errorMessage = errorData.error || errorData.message;
+        }
+      } catch (e) {
+        // Si no se puede parsear el JSON, usar el mensaje por defecto
+      }
+      throw new Error(`Error ${errorMessage}`);
     }
     
     return await response.json();
@@ -42,7 +52,7 @@ export const createPurchaseService = (apiUrl: string, baseHeaders: Record<string
 
   // Obtener compras por sitio
   async getPurchasesBySite(siteId: string): Promise<Purchase[]> {
-    const response = await fetch(`${apiUrl}/api/purchases/site/${siteId}`);
+    const response = await fetch(`${apiUrl}/purchases/site/${siteId}`);
     
     if (!response.ok) {
       throw new Error(`Error ${response.status}: ${response.statusText}`);

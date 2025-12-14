@@ -58,6 +58,7 @@ const Profile = () => {
   const [uploading, setUploading] = useState(false);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
 
+
   useEffect(() => {
     if (!loading && !user) {
       router.replace('/(auth)/sign-in');
@@ -495,6 +496,7 @@ const styles = StyleSheet.create({
   avatarContainer: {
     marginBottom: 16,
     position: 'relative',
+
   },
   avatar: {
     width: 128,

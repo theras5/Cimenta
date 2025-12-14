@@ -2,9 +2,9 @@ export interface Task {
   id: string;
   title: string;
   description: string;
-  category: string;
+  category: TaskCategory;
   categoryColor?: string;
-  status: 'changes' | 'pending' | 'in_progress' | 'completed' | 'blocked';
+  status: TaskStatus;
   start_date?: string;
   end_date?: string;
   assignedMembers?: string[];
@@ -16,12 +16,31 @@ export interface Task {
 }
 
 export interface CreateTaskDTO {
+  user_id: string;
   title: string;
   description: string;
-  category: string;
-  status: string;
+  category: TaskCategory;
+  status: TaskStatus;
   start_date?: string;
   end_date?: string;
+  site_id?: string;
   assignedMembers?: string[];
   mediaFiles?: string[];
+}
+
+const taskStatus = ['changes', 'pending', 'in_progress', 'completed', 'blocked'] as const;
+
+const taskCategories = ['pintura', 'construccion', 'electricidad', 'plomeria'] as const;
+
+export type TaskCategory = typeof taskCategories[number];
+
+// Fix: TaskStatus should be based on taskStatus, not taskCategories
+export type TaskStatus = typeof taskStatus[number];
+
+export function isTaskStatus(value: any): value is TaskStatus {
+  return taskStatus.includes(value);
+}
+
+export function isTaskCategory(value: any): value is TaskCategory {
+  return taskCategories.includes(value);
 }

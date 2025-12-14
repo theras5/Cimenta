@@ -5,20 +5,6 @@ import { Task } from "@cimenta/dtos";
 const DEFAULT_SITE_ID = 'e43d720c-8b2f-454f-8b41-55019ffef012';
 const DEFAULT_USER_ID = 'bf118bdb-6c44-469e-bdc9-0c46a4aa6737';
 
-// export interface Task {
-//     id: string;
-//     created_at: string;
-//     title: string;
-//     category: "electricidad" | "plomeria" | "construccion" | "pintura";
-//     description?: string;
-//     // is_urgent: boolean;
-//     status: "changes" | "pending" | "in_progress" | "completed" | "blocked" | "rejected";
-//     start_date?: string;
-//     end_date?: string;
-//     site_id: string;
-//     user_id: string; 
-// }
-
 export async function getAllTasksService() {
     const { data, error } = await supabase.from("tasks").select(`
             *,
@@ -60,18 +46,19 @@ export async function createTaskService(newTask: Omit<Task, 'id' | 'created_at'>
         throw new AppError("Title y category son campos obligatorios.", 400);
     }
 
+    console.log('[createTaskService] Creando tarea con datos:', JSON.stringify(newTask, null, 2));
+
     const { data, error } = await supabase
         .from('tasks')
         .insert([{
             title: newTask.title,
-            description: newTask.description,
+            description: newTask.description || null,
             category: newTask.category,
-            status: newTask.status,
-            start_date: newTask.start_date,
-            end_date: newTask.end_date,
-            // Use defaults if site_id or user_id are not provided to avoid not-null constraint errors
-            site_id: newTask.site_id ?? DEFAULT_SITE_ID,
-            user_id: newTask.user_id ?? DEFAULT_USER_ID
+            status: newTask.status || 'pending',
+            start_date: newTask.start_date || null,
+            end_date: newTask.end_date || null,                
+            site_id: newTask.site_id || null,
+            user_id: newTask.user_id || null
         }])
         .select(`
             *,
@@ -84,9 +71,12 @@ export async function createTaskService(newTask: Omit<Task, 'id' | 'created_at'>
 
     if (error) {
         console.error('createTaskService - Supabase error:', error, 'payload:', JSON.stringify(newTask));
+        console.error('[createTaskService] Error de Supabase:', error);
+        console.error('[createTaskService] Datos enviados:', JSON.stringify(newTask, null, 2));
         throw new AppError(error.message, 500);
     }
 
+    console.log('[createTaskService] Tarea creada exitosamente:', data?.id);
     return data;
 }
 
@@ -94,6 +84,11 @@ export async function createTaskService(newTask: Omit<Task, 'id' | 'created_at'>
 export async function updateTaskByIdService(taskId: string, newTask: Partial<Task>) {
     console.log(`updateTaskByIdService - ID: ${taskId}`);
     console.log(`updateTaskByIdService - Datos recibidos:`, JSON.stringify(newTask, null, 2));
+    
+    // Obtener la tarea actual para comparar el status
+    const currentTask = await getTaskByIdService(taskId);
+    const previousStatus = currentTask?.status;
+    const newStatus = newTask.status;
     
     // Filtrar campos que existen en la tabla de la base de datos
     const allowedFields = {
@@ -142,7 +137,215 @@ export async function updateTaskByIdService(taskId: string, newTask: Partial<Tas
     }
 
     console.log(`updateTaskByIdService - Tarea actualizada:`, JSON.stringify(data, null, 2));
+    
+    // Detectar si la tarea cambió a "blocked" y notificar al dueño
+    if (newStatus === 'blocked' && previousStatus !== 'blocked' && data.user_id) {
+        try {
+            await notifyTaskBlocked(data);
+        } catch (notifyError) {
+            // No fallar la actualización si la notificación falla
+            console.error('Error notificando tarea bloqueada:', notifyError);
+        }
+    }
+    
     return data;
+}
+
+// Actualizar solo el estado de una tarea
+export async function updateTaskStatusService(taskId: string, status: Task['status']) {
+    if (!taskId || !status) {
+        throw new AppError("taskId y status son requeridos", 400);
+    }
+
+    // Validar que el status sea válido
+    const validStatuses = ['pending', 'in_progress', 'completed', 'blocked', 'changes'];
+    if (!validStatuses.includes(status)) {
+        throw new AppError(`Status inválido: ${status}. Debe ser uno de: ${validStatuses.join(', ')}`, 400);
+    }
+
+    // Obtener la tarea actual para comparar el status
+    const currentTask = await getTaskByIdService(taskId);
+    if (!currentTask) {
+        throw new AppError(`No se encontró la tarea con el id ${taskId}`, 404);
+    }
+    const previousStatus = currentTask.status;
+
+    // Actualizar solo el status
+    const { data, error } = await supabase
+        .from("tasks")
+        .update({ status })
+        .eq("id", taskId)
+        .select(`
+            *,
+            site:site_id (
+                id,
+                address
+            )
+        `)
+        .single();
+
+    if (error) {
+        console.error(`updateTaskStatusService - Error de Supabase:`, error);
+        throw new AppError(error.message, 500);
+    }
+
+    if (!data) {
+        throw new AppError(`No se encontró la tarea con el id ${taskId}`, 404);
+    }
+
+    console.log(`updateTaskStatusService - Tarea ${taskId} actualizada de ${previousStatus} a ${status}`);
+    
+    // Detectar si la tarea cambió a "blocked" y notificar al dueño
+    if (status === 'blocked' && previousStatus !== 'blocked' && data.user_id) {
+        try {
+            await notifyTaskBlocked(data);
+        } catch (notifyError) {
+            // No fallar la actualización si la notificación falla
+            console.error('Error notificando tarea bloqueada:', notifyError);
+        }
+    }
+    
+    return data;
+}
+
+// Función para notificar cuando una tarea pasa a blocked
+async function notifyTaskBlocked(task: Task) {
+    const { getProfileById } = await import('./profileService');
+    const { getSiteAdminsService } = await import('./siteService');
+    const botUrl = process.env.WHATSAPP_BOT_URL || 'http://localhost:3001';
+    
+    try {
+        // Obtener el perfil del dueño de la tarea (quien bloqueó)
+        if (!task.user_id) {
+            console.log(`Tarea ${task.id} no tiene user_id, no se enviará notificación`);
+            return;
+        }
+        const blockerProfile = await getProfileById(task.user_id);
+        const blockerName = blockerProfile.name || 'Usuario desconocido';
+        
+        if (!task.site_id) {
+            console.log(`Tarea ${task.id} no tiene site_id, no se enviará notificación a administradores`);
+            // Aún así notificar al dueño si tiene WhatsApp
+            if (blockerProfile.whatsapp_jid) {
+                await sendBlockedTaskNotification(
+                    botUrl,
+                    blockerProfile.whatsapp_jid,
+                    task,
+                    blockerName,
+                    false // no es administrador
+                );
+            }
+            return;
+        }
+        
+        // Notificar al dueño de la tarea (quien la bloqueó) si tiene WhatsApp
+        if (blockerProfile.whatsapp_jid) {
+            await sendBlockedTaskNotification(
+                botUrl,
+                blockerProfile.whatsapp_jid,
+                task,
+                blockerName,
+                false // no es administrador
+            );
+        }
+        
+        // Notificar a todos los administradores de la obra (el bot se encargará de notificar a cada uno)
+        // Solo llamar al endpoint una vez, no una vez por admin
+        if (task.site_id) {
+            try {
+                const response = await fetch(`${botUrl}/notify/blocked-task`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        taskId: task.id,
+                        taskTitle: task.title,
+                        taskDescription: task.description,
+                        siteAddress: (task as any).site?.address || 'Obra no especificada',
+                        blockerName: blockerName,
+                        blockerUserId: task.user_id,
+                        siteId: task.site_id,
+                        notifyAdminsOnly: true // El bot notificará a todos los admins
+                    }),
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Error al notificar: ${response.status} ${response.statusText}`);
+                }
+                
+                console.log(`Notificación de tarea bloqueada ${task.id} enviada a administradores de la obra ${task.site_id}`);
+            } catch (adminError: any) {
+                console.error('Error notificando a administradores:', adminError.message);
+                // No fallar si no se pueden notificar a los administradores
+            }
+        }
+        
+    } catch (error: any) {
+        console.error('Error en notifyTaskBlocked:', error.message);
+        throw error;
+    }
+}
+
+// Función auxiliar para enviar notificación de tarea bloqueada al dueño
+async function sendBlockedTaskNotification(
+    botUrl: string,
+    whatsappJid: string,
+    task: Task,
+    blockerName: string,
+    isAdmin: boolean
+) {
+    try {
+        const response = await fetch(`${botUrl}/notify/blocked-task`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                taskId: task.id,
+                taskTitle: task.title,
+                taskDescription: task.description,
+                siteAddress: (task as any).site?.address || 'Obra no especificada',
+                blockerName: blockerName,
+                blockerUserId: task.user_id,
+                siteId: task.site_id,
+                notifyOwnerOnly: true, // Solo notificar al dueño
+                ownerWhatsappJid: whatsappJid
+            }),
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Error al notificar: ${response.status} ${response.statusText}`);
+        }
+        
+        console.log(`Notificación enviada a ${whatsappJid} por tarea bloqueada ${task.id} (${isAdmin ? 'admin' : 'dueño'})`);
+    } catch (error: any) {
+        console.error(`Error enviando notificación a ${whatsappJid}:`, error.message);
+        // No lanzar el error para no interrumpir otras notificaciones
+    }
+}
+
+/**
+ * Obtiene las tareas que dependen de una tarea bloqueada
+ * La tabla task_dependencies tiene: blocker_id (tarea que bloquea) y blocked_id (tarea bloqueada)
+ * Cuando una tarea se bloquea, buscamos todas las tareas donde blocker_id = tarea bloqueada
+ */
+export async function getTaskDependenciesService(blockerId: string) {
+    try {
+        const { data, error } = await supabase
+            .from('task_dependencies')
+            .select('blocked_id')
+            .eq('blocker_id', blockerId);
+
+        if (error) {
+            throw new AppError(error.message, 500);
+        }
+
+        return data || [];
+    } catch (error: any) {
+        console.error('Error obteniendo dependencias de tarea:', error);
+        throw error;
+    }
 }
 
 export async function deleteTaskByIdService(taskId: string) {
@@ -169,7 +372,7 @@ export const getTasksBySiteService = async (siteId: string) => {
         `)
         .eq('site_id', siteId)
         .order('created_at', { ascending: false });
-    
-    if (error) throw error;
+
+    if (error) throw new AppError(error.message, 500);
     return data;
 };

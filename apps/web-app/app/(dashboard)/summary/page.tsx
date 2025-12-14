@@ -11,6 +11,9 @@ import {
   ListTodo,
 } from "lucide-react";
 import Sidebar from "@/components/SideBar";
+import { useTasks } from "@/hooks/useTasks";
+import { usePurchases } from "@/hooks/usePurchases";
+import { useAuth } from "@/hooks/useAuth";
 
 interface ISiteSummary {
   totalTasks: number;

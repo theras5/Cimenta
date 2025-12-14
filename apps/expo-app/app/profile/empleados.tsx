@@ -77,6 +77,7 @@ const Empleados = () => {
 
     if (!formData.profession.trim()) {
       newErrors.profession = 'La profesión es obligatoria';
+
     }
 
     setErrors(newErrors);
