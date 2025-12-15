@@ -730,12 +730,6 @@ async function handleIncomingMessage(m: any, sock: WASocket) {
             return;
         }
 
-        // Ignorar mensajes de grupos (JID termina en @g.us)
-        if (senderNumber.endsWith('@g.us')) {
-            console.log(`⚠️ Mensaje de grupo ignorado: ${senderNumber}`);
-            return;
-        }
-
         // Restricción: solo responder a números permitidos (si están configurados)
         if (ALLOWED_WHATSAPP_NUMBERS && ALLOWED_WHATSAPP_NUMBERS.length > 0) {
             if (!isAllowedNumber(senderNumber)) {
