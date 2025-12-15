@@ -114,4 +114,75 @@ export const UserService = {
       return { success: false };
     }
   },
+
+    /**
+   * Obtiene la URL del avatar del usuario
+   */
+  async getAvatarUrl(userId: string, token: string): Promise<string | null> {
+    try {
+      const response = await fetch(`${getApiUrl()}/storage/avatar/${userId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) return null;
+      const { avatarUrl } = await response.json();
+      return avatarUrl || null;
+    } catch (error) {
+      console.error('Error obteniendo avatar:', error);
+      return null;
+    }
+  },
+
+  /**
+   * Sube una nueva foto de perfil
+   */
+  async uploadAvatar(userId: string, uri: string, token: string): Promise<string | null> {
+    try {
+      const formData = new FormData();
+      const fileExt = uri.split('.').pop() || 'jpg';
+      const fileName = `${userId}.${fileExt}`;
+      formData.append('file', {
+        uri,
+        name: fileName,
+        type: `image/${fileExt}`,
+      } as any);
+      formData.append('userId', userId);
+
+      const response = await fetch(`${getApiUrl()}/storage/upload-profile-picture`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Error al subir la imagen');
+      }
+      const data = await response.json();
+      return data.url || null;
+    } catch (error) {
+      console.error('Error subiendo avatar:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Elimina la foto de perfil del usuario
+   */
+  async deleteAvatar(userId: string, token: string): Promise<boolean> {
+    try {
+      const response = await fetch(`${getApiUrl()}/storage/avatar/${userId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      return response.ok;
+    } catch (error) {
+      console.error('Error eliminando avatar:', error);
+      return false;
+    }
+  },
 };
