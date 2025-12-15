@@ -1,23 +1,24 @@
-# Use an official Node.js runtime as a parent image
 FROM node:20-slim
 
-# Install ffmpeg
+# Instalar FFmpeg
 RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
-WORKDIR /usr/src/app
+# Crear directorio de la app
+WORKDIR /app
 
-# Copy package.json and package-lock.json
+# 1. Copiamos los package.json desde la carpeta 'bot'
 COPY bot/package*.json ./
 
-# Install dependencies
+# 2. Instalamos dependencias
 RUN npm install --production
 
-# Copy the rest of the bot source code
-COPY bot/ ./
+# 3. Copiamos el código fuente desde la carpeta 'bot'
+COPY bot/ .
 
-# Expose port (if your bot listens to a port, e.g. for webhooks)
-# EXPOSE 3000
+# Comentario: No exponemos puerto porque es un Worker
+# EXPOSE 3000 <-- Eliminado
 
-# Command to run your bot (adjust if needed)
+# Comando de inicio
+# Asegúrate de que la ruta sea correcta RELATIVA a /app.
+# Si dentro de 'bot' tienes 'src/index.js', entonces esto es correcto:
 CMD ["node", "src/index.js"]
