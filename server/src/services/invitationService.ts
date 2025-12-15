@@ -82,8 +82,15 @@ export const acceptInvitationService = async (token: string, userId: string) => 
     .eq('site_id', invitation.site_id)
     .single();
 
+  
+  // Si ya pertenece, marcamos la invitación como aceptada y devolvemos OK (idempotente)
   if (existingMembership) {
-    throw new Error('Ya perteneces a esta obra');
+    await supabase
+      .from('invitations')
+      .update({ accepted: true })
+      .eq('token', token);
+
+    return invitation;
   }
 
   // Agregar usuario a la obra
