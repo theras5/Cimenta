@@ -6,6 +6,7 @@ import { createSupplierService } from "./services/supplierService";
 import { createTaskService } from "./services/taskService";
 import { createUpdateService } from "./services/updateService";
 import { createWorkerService } from "./services/workerService";
+import { createAssignedToService } from "./services/assignedToService"
 
 interface ApiClientOptions {
     bypassToken?: string;
@@ -26,5 +27,6 @@ export const createApiClient = (apiUrl: string, options?: ApiClientOptions) => {
         SupplierService: createSupplierService(apiUrl, baseHeaders),
         AuthService: createAuthService(apiUrl, baseHeaders),
         WorkerService: createWorkerService(apiUrl, baseHeaders),
+        AssignedToService: createAssignedToService(apiUrl, baseHeaders),
     }
 };
