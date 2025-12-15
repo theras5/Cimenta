@@ -84,12 +84,14 @@ const ScrollableTaskSection = ({
   changes = false,
   onEditTask,
   onAssignWorkers,
+  showEditButton = false,
 }: {
   title: string;
   tasks: Task[];
   changes?: boolean;
   onEditTask?: (task: Task) => void;
   onAssignWorkers?: (task: Task) => void;
+  showEditButton?: boolean;
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showScrollButtons, setShowScrollButtons] = useState(false);
@@ -150,6 +152,7 @@ const ScrollableTaskSection = ({
           changes={changes}
           onEditTask={onEditTask}
           onAssignWorkers={onAssignWorkers}
+          showEditButton={showEditButton}
         />
       </div>
     </div>
@@ -961,20 +964,8 @@ const TasksScreen = () => {
                   </div>
                   <div className="flex gap-2">
                     <Button
-                      variant="outline"
-                      onClick={() => {
-                        setShowAssignModal(false);
-                        setTaskToAssign(null);
-                        setSelectedWorkers([]);
-                        setAssignedWorkers([]);
-                      }}
-                      className="flex-1"
-                    >
-                      Cancelar
-                    </Button>
-                    <Button
                       onClick={handleSaveWorkerAssignments}
-                      className="flex-1"
+                      className="w-full"
                       disabled={assignLoading}
                     >
                       {assignLoading ? "Guardando..." : "Guardar"}
@@ -1002,6 +993,7 @@ const TasksScreen = () => {
                   tasks={changes}
                   changes={true}
                   onEditTask={handleEditTask}
+                  showEditButton={isClient}
                 />
               )}
               {pendingTasks.length > 0 && (
@@ -1010,6 +1002,7 @@ const TasksScreen = () => {
                   tasks={pendingTasks}
                   onEditTask={handleEditTask}
                   onAssignWorkers={isAdmin ? handleOpenAssignModal : undefined}
+                  showEditButton={isAdmin}
                 />
               )}
               {inProgressTasks.length > 0 && (
@@ -1018,6 +1011,7 @@ const TasksScreen = () => {
                   tasks={inProgressTasks}
                   onEditTask={handleEditTask}
                   onAssignWorkers={isAdmin ? handleOpenAssignModal : undefined}
+                  showEditButton={isAdmin}
                 />
               )}
               {blockedTasks.length > 0 && (
@@ -1026,6 +1020,7 @@ const TasksScreen = () => {
                   tasks={blockedTasks}
                   onEditTask={handleEditTask}
                   onAssignWorkers={isAdmin ? handleOpenAssignModal : undefined}
+                  showEditButton={isAdmin}
                 />
               )}
               {completedTasks.length > 0 && (
@@ -1034,6 +1029,7 @@ const TasksScreen = () => {
                   tasks={completedTasks}
                   onEditTask={handleEditTask}
                   onAssignWorkers={isAdmin ? handleOpenAssignModal : undefined}
+                  showEditButton={isAdmin}
                 />
               )}
               {rejectedTasks.length > 0 && (
@@ -1041,6 +1037,7 @@ const TasksScreen = () => {
                   title="Rechazadas"
                   tasks={rejectedTasks}
                   onEditTask={handleEditTask}
+                  showEditButton={isAdmin}
                 />
               )}
             </div>

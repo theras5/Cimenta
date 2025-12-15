@@ -447,18 +447,10 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
 
           {/* Botones */}
           <div className="flex flex-col sm:flex-row gap-2 pt-4">
-            <Button
-              variant="outline"
-              onClick={onClose}
-              className="flex-1"
-              disabled={isSaving}
-            >
-              Cerrar
-            </Button>
             {canEdit && (
               <Button
                 onClick={handleSave}
-                className="flex-1"
+                className="w-full"
                 disabled={!editedTask.title || !editedTask.category || isSaving}
               >
                 {isSaving ? "Guardando..." : "Guardar Cambios"}
