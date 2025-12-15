@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Cimenta_demo",
-    "slug": "Cimenta_demo",
+    "slug": "cimenta",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icons/icon.png",
@@ -14,7 +14,13 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.cimenta.app",
-      "associatedDomains": ["applinks:api.cimenta.com"]
+      "associatedDomains": [
+        "applinks:api.cimenta.com",
+        "applinks:api.cimenta.com"
+      ],
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.cimenta.app",
@@ -34,7 +40,10 @@
               "pathPrefix": "/payments/mobile-callback"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
@@ -59,6 +68,13 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "7649d827-7c65-4a01-9463-bd408d2ede4d"
+      }
+    },
+    "owner": "theras5s-organization"
   }
 }
