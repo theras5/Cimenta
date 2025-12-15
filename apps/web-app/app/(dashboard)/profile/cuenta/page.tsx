@@ -17,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { apiClient } from "@/lib/apiClient";
 
 export default function MiCuentaPage() {
   const { user, loading, updateUser } = useAuth();
@@ -41,6 +42,7 @@ export default function MiCuentaPage() {
       });
       loadAvatar();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   useEffect(() => {
@@ -56,18 +58,7 @@ export default function MiCuentaPage() {
       const token = localStorage.getItem('auth_token');
       if (!token) return;
 
-      const response = await fetch(`/api/user-profile/${user.id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        console.error("Error al cargar el perfil");
-        return;
-      }
-
-      const data = await response.json();
+      const data = await apiClient.StorageService.getUserProfile(user.id, token);
       if (data.avatar_url) {
         setAvatarUrl(data.avatar_url);
       }
@@ -112,22 +103,7 @@ export default function MiCuentaPage() {
         throw new Error('No se encontró el token de autenticación');
       }
 
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const response = await fetch('/api/storage/upload-profile-picture', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Error al subir la imagen');
-      }
-
+      await apiClient.StorageService.uploadProfilePicture(file, token);
       await loadAvatar();
       setShowAvatarDialog(false);
 
@@ -159,18 +135,7 @@ export default function MiCuentaPage() {
         throw new Error('No se encontró el token de autenticación');
       }
 
-      const response = await fetch('/api/storage/delete-profile-picture', {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Error al eliminar la imagen');
-      }
-
+      await apiClient.StorageService.deleteProfilePicture(token);
       setAvatarUrl(null);
       setShowAvatarDialog(false);
 

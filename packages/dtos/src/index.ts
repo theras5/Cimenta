@@ -7,3 +7,4 @@ export * from './types/supplier.dto';
 export * from './types/auth.dto';
 export * from './types/worker.dto';
 export * from './types/assignedTo.dto';
+export * from './types/invitation.dto';
