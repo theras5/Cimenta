@@ -1,34 +1,33 @@
 FROM node:20-slim
 
-# 1. Instalar dependencias del sistema (FFmpeg)
+# 1. Instalar FFmpeg y dependencias del sistema
 RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
 
-# 2. Establecemos el directorio raíz de trabajo
+# 2. Configurar la raíz del proyecto (Simulando el Monorepo)
 WORKDIR /app
 
-# --- AQUÍ ESTÁ EL TRUCO PARA MONOREPOS ---
+# 3. Copiar los archivos de definición de paquetes (Root + Librería interna + Bot)
+# El asterisco * en package-lock.json evita error si no existe
+COPY package.json package-lock.json* ./
+COPY packages/dtos/package.json ./packages/dtos/
+COPY bot/package.json ./bot/
 
-# 3. Copiamos los package.json del root (si usas workspaces) y de la librería
-COPY package*.json ./
-COPY packages/dtos/package*.json ./packages/dtos/
+# 4. Instalar dependencias
+# Quitamos "--production" para asegurar que se instalen herramientas de compilación (TypeScript) si las usas.
+RUN npm install
 
-# 4. Copiamos el código fuente de la librería interna
-# (Asegúrate que la ruta 'packages/dtos' sea la real en tu proyecto)
+# 5. Copiar el código fuente completo
 COPY packages/dtos ./packages/dtos
-
-# 5. Copiamos el package.json del bot
-COPY bot/package*.json ./bot/
-
-# 6. Copiamos el código del bot
 COPY bot ./bot
 
-# 7. Instalamos dependencias DESDE LA RAÍZ (importante para workspaces)
-# Si no usas workspaces, puedes hacer WORKDIR /app/bot y npm install ahí,
-# pero necesitarás que la ruta relativa hacia ../packages/dtos sea válida.
-RUN npm install --production
-
-# 8. Nos movemos a la carpeta del bot para ejecutarlo
+# 6. Entrar a la carpeta del bot
 WORKDIR /app/bot
 
-# 9. Comando de inicio
-CMD ["node", "src/index.js"]
+# 7. Build (Truco de seguridad)
+# Si tu proyecto es TypeScript y tiene un script "build", esto lo compilará.
+# Si es JS puro y no tiene script build, esto simplemente no hará nada y seguirá sin error.
+RUN npm run build --if-present
+
+# 8. Comando de inicio
+# IMPORTANTE: Asegúrate de que en bot/package.json tengas un script "start"
+CMD ["npm", "start"]
