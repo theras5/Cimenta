@@ -8,6 +8,36 @@ import { useEffect, useState } from "react";
 export function useUserRole() {
   const [role, setRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
+
+  // Escuchar cambios en localStorage
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const checkSiteId = () => {
+      const siteId = localStorage.getItem("selectedSiteId");
+      setSelectedSiteId(siteId);
+    };
+
+    checkSiteId();
+
+    // Escuchar cambios en localStorage
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "selectedSiteId") {
+        setSelectedSiteId(e.newValue);
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    
+    // Verificar cambios cada 500ms (para cambios en la misma pestaña)
+    const interval = setInterval(checkSiteId, 500);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      clearInterval(interval);
+    };
+  }, []);
 
   useEffect(() => {
     const fetchRole = async () => {
@@ -19,10 +49,16 @@ export function useUserRole() {
           return;
         }
 
+        console.log("🔍 [useUserRole] Obteniendo rol del usuario...");
+
         const userString = localStorage.getItem("user");
-        const siteId = localStorage.getItem("selectedSiteId");
+        const siteId = selectedSiteId || localStorage.getItem("selectedSiteId");
+
+        console.log("📋 [useUserRole] user:", userString ? "presente" : "ausente");
+        console.log("🏗️ [useUserRole] selectedSiteId:", siteId);
 
         if (!userString || !siteId) {
+          console.log("⚠️ [useUserRole] Falta user o siteId, rol = null");
           setRole(null);
           return;
         }
@@ -31,28 +67,35 @@ export function useUserRole() {
         const userId = user?.id;
 
         if (!userId) {
+          console.log("⚠️ [useUserRole] userId no encontrado en user");
           setRole(null);
           return;
         }
+
+        console.log("👤 [useUserRole] userId:", userId);
 
         const apiUrl = process.env.NEXT_PUBLIC_API_URL;
         const baseUrl = apiUrl && apiUrl.length > 0 ? apiUrl : null;
         const url = baseUrl
           ? `${baseUrl}/user-role?user_id=${userId}&site_id=${siteId}`
           : `/api/user-role?user_id=${userId}&site_id=${siteId}`;
+        
+        console.log("🌐 [useUserRole] Llamando a:", url);
+        
         const response = await fetch(url);
 
         if (!response.ok) {
           const text = await response.text().catch(() => "");
-          console.error("Error al obtener rol del usuario", response.status, text);
+          console.error("❌ [useUserRole] Error al obtener rol:", response.status, text);
           setRole(null);
           return;
         }
 
         const data = await response.json();
+        console.log("✅ [useUserRole] Rol obtenido:", data.role);
         setRole(data.role ?? null);
       } catch (error) {
-        console.error("Error en useUserRole (web):", error);
+        console.error("💥 [useUserRole] Error:", error);
         setRole(null);
       } finally {
         setLoading(false);
@@ -60,7 +103,7 @@ export function useUserRole() {
     };
 
     fetchRole();
-  }, []);
+  }, [selectedSiteId]);
 
   return { role, loading };
 }

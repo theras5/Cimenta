@@ -37,6 +37,7 @@ const Obras = () => {
   const [formData, setFormData] = useState({
     address: '',
     description: '',
+    role: 'admin' as 'admin' | 'client',
   });
 
   useEffect(() => {
@@ -80,12 +81,12 @@ const Obras = () => {
     try {
       const newSite = await SiteService.createSite({
         address: formData.address,
-        role: 'admin',
+        role: formData.role || 'admin',
         user_id: user.id,
       });
 
       // Limpiar el formulario y cerrar el modal
-      setFormData({ address: '', description: '' });
+      setFormData({ address: '', description: '', role: 'admin' });
       setIsDialogOpen(false);
 
       // Recargar la lista de obras
@@ -300,6 +301,46 @@ const Obras = () => {
                   multiline
                   numberOfLines={3}
                 />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>
+                  Tu rol en esta obra <Text style={styles.required}>*</Text>
+                </Text>
+                <View style={styles.roleSelector}>
+                  <TouchableOpacity
+                    style={[
+                      styles.roleOption,
+                      formData.role === 'admin' && styles.roleOptionSelected,
+                    ]}
+                    onPress={() => setFormData({ ...formData, role: 'admin' })}
+                  >
+                    <Text
+                      style={[
+                        styles.roleText,
+                        formData.role === 'admin' && styles.roleTextSelected,
+                      ]}
+                    >
+                      Administrador
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.roleOption,
+                      formData.role === 'client' && styles.roleOptionSelected,
+                    ]}
+                    onPress={() => setFormData({ ...formData, role: 'client' })}
+                  >
+                    <Text
+                      style={[
+                        styles.roleText,
+                        formData.role === 'client' && styles.roleTextSelected,
+                      ]}
+                    >
+                      Cliente
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
 
@@ -775,6 +816,32 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 8,
     fontStyle: 'italic',
+  },
+  roleSelector: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  roleOption: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+  },
+  roleOptionSelected: {
+    borderColor: '#2563EB',
+    backgroundColor: '#2563EB',
+  },
+  roleText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6B7280',
+  },
+  roleTextSelected: {
+    color: '#FFFFFF',
   },
   optionsModalContainer: {
     flex: 1,

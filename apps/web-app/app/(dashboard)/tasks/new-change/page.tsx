@@ -42,20 +42,11 @@ export default function NewChangePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
-  const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const [newChange, setNewChange] = useState({
     title: "",
     description: "",
     category: ""
   });
-
-  const toggleMember = (member: string) => {
-    if (selectedMembers.includes(member)) {
-      setSelectedMembers(selectedMembers.filter((m) => m !== member));
-    } else {
-      setSelectedMembers([...selectedMembers, member]);
-    }
-  };
 
   const resetForm = () => {
     setNewChange({
@@ -63,7 +54,6 @@ export default function NewChangePage() {
       description: "",
       category: ""
     });
-    setSelectedMembers([]);
     setError("");
     setSuccess(false);
   };
@@ -173,7 +163,7 @@ export default function NewChangePage() {
                   {/* Título */}
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">
-                      Título del cambio *
+                      Título del cambio <span className="text-red-500">*</span>
                     </label>
                     <Input
                       placeholder="Ej: Modificación del diseño de la cocina"
@@ -189,7 +179,7 @@ export default function NewChangePage() {
                   {/* Descripción */}
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">
-                      Descripción del cambio propuesto *
+                      Descripción del cambio propuesto
                     </label>
                     <Textarea
                       placeholder="Describe detalladamente el cambio que necesitas realizar..."
@@ -209,7 +199,7 @@ export default function NewChangePage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-gray-700">
-                        Categoría afectada *
+                        Categoría afectada <span className="text-red-500">*</span>
                       </label>
                       <Select
                         value={newChange.category}

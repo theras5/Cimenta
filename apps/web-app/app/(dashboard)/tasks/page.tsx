@@ -84,12 +84,14 @@ const ScrollableTaskSection = ({
   changes = false,
   onEditTask,
   onAssignWorkers,
+  showEditButton = false,
 }: {
   title: string;
   tasks: Task[];
   changes?: boolean;
   onEditTask?: (task: Task) => void;
   onAssignWorkers?: (task: Task) => void;
+  showEditButton?: boolean;
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showScrollButtons, setShowScrollButtons] = useState(false);
@@ -150,6 +152,7 @@ const ScrollableTaskSection = ({
           changes={changes}
           onEditTask={onEditTask}
           onAssignWorkers={onAssignWorkers}
+          showEditButton={showEditButton}
         />
       </div>
     </div>
@@ -661,7 +664,7 @@ const TasksScreen = () => {
             <div className="space-y-3">
               {roleLoading && <p className="text-sm text-gray-500 text-center">Cargando permisos...</p>}
 
-              {!roleLoading && (isAdmin || (!isAdmin && !isClient)) && (
+              {!roleLoading && isAdmin && (
                 <Button
                   onClick={handleCreateTask}
                   className="w-full justify-start h-auto p-4 bg-blue-50 hover:bg-blue-100 text-gray-800 border border-blue-200"
@@ -679,7 +682,7 @@ const TasksScreen = () => {
                 </Button>
               )}
 
-              {!roleLoading && (isClient || (!isAdmin && !isClient)) && (
+              {!roleLoading && isClient && (
                 <Button
                   onClick={handleCreateChange}
                   className="w-full justify-start h-auto p-4 bg-orange-50 hover:bg-orange-100 text-gray-800 border border-orange-200"
@@ -712,43 +715,63 @@ const TasksScreen = () => {
               <DialogTitle className="text-center text-xl">Crear Nueva Tarea</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              <Input
-                placeholder="Título de la tarea"
-                value={newTask.title}
-                onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
-              />
-              <Textarea
-                placeholder="Descripción detallada de la tarea"
-                value={newTask.description}
-                onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
-                rows={3}
-              />
-              <Select
-                value={newTask.category}
-                onValueChange={(value) => setNewTask({ ...newTask, category: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar categoría" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="electricidad">ELECTRICIDAD</SelectItem>
-                  <SelectItem value="pintura">PINTURA</SelectItem>
-                  <SelectItem value="plomeria">PLOMERIA</SelectItem>
-                  <SelectItem value="construccion">CONSTRUCCION</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select
-                value={newTask.status}
-                onValueChange={(value) => setNewTask({ ...newTask, status: value as Task["status"] })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Estado inicial" />
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">
+                  Título <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  placeholder="Título de la tarea"
+                  value={newTask.title}
+                  onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">
+                  Descripción
+                </label>
+                <Textarea
+                  placeholder="Descripción detallada de la tarea"
+                  value={newTask.description}
+                  onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
+                  rows={3}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">
+                  Categoría <span className="text-red-500">*</span>
+                </label>
+                <Select
+                  value={newTask.category}
+                  onValueChange={(value) => setNewTask({ ...newTask, category: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar categoría" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="electricidad">ELECTRICIDAD</SelectItem>
+                    <SelectItem value="pintura">PINTURA</SelectItem>
+                    <SelectItem value="plomeria">PLOMERIA</SelectItem>
+                    <SelectItem value="construccion">CONSTRUCCION</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">
+                  Estado
+                </label>
+                <Select
+                  value={newTask.status}
+                  onValueChange={(value) => setNewTask({ ...newTask, status: value as Task["status"] })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Estado inicial" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="pending">Pendiente</SelectItem>
                   <SelectItem value="in_progress">En progreso</SelectItem>
                 </SelectContent>
-              </Select>
+                </Select>
+              </div>
 
               {/* Fecha y hora inicio/fin */}
 
@@ -831,62 +854,45 @@ const TasksScreen = () => {
               <DialogTitle className="text-center text-xl">Nueva Solicitud de Cambio</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              <Input
-                placeholder="Título del cambio"
-                value={newChange.title}
-                onChange={(e) => setNewChange({ ...newChange, title: e.target.value })}
-              />
-              <Textarea
-                placeholder="Descripción del cambio propuesto"
-                value={newChange.description}
-                onChange={(e) => setNewChange({ ...newChange, description: e.target.value })}
-                rows={3}
-              />
-              <Select
-                value={newChange.category}
-                onValueChange={(value) => setNewChange({ ...newChange, category: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Categoría afectada" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="electricidad">ELECTRICIDAD</SelectItem>
-                  <SelectItem value="pintura">PINTURA</SelectItem>
-                  <SelectItem value="plomeria">PLOMERIA</SelectItem>
-                  <SelectItem value="construccion">CONSTRUCCION</SelectItem>
-                </SelectContent>
-              </Select>
-
-
-              {/* Workers Selection */}
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">
-                  Responsables del cambio ({selectedWorkers.length} seleccionados)
+                <label className="text-sm font-medium text-gray-700 mb-1 block">
+                  Título <span className="text-red-500">*</span>
                 </label>
-                {workers.length === 0 ? (
-                  <p className="text-sm text-gray-500 italic">
-                    No tienes trabajadores registrados.
-                  </p>
-                ) : (
-                  <div className="border rounded-md p-3 max-h-40 overflow-y-auto space-y-2">
-                    {workers.map((worker) => (
-                      <div
-                        key={worker.worker_id}
-                        className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded cursor-pointer"
-                        onClick={() => toggleWorker(worker.worker_id)}
-                      >
-                        <Checkbox
-                          checked={selectedWorkers.includes(worker.worker_id)}
-                          onCheckedChange={() => toggleWorker(worker.worker_id)}
-                        />
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">{getFullName(worker.worker_name, worker.worker_surname)}</p>
-                          <p className="text-xs text-gray-500">{worker.profession}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <Input
+                  placeholder="Título del cambio"
+                  value={newChange.title}
+                  onChange={(e) => setNewChange({ ...newChange, title: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">
+                  Descripción
+                </label>
+                <Textarea
+                  placeholder="Descripción del cambio propuesto"
+                  value={newChange.description}
+                  onChange={(e) => setNewChange({ ...newChange, description: e.target.value })}
+                  rows={3}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">
+                  Categoría <span className="text-red-500">*</span>
+                </label>
+                <Select
+                  value={newChange.category}
+                  onValueChange={(value) => setNewChange({ ...newChange, category: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Categoría afectada" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="electricidad">ELECTRICIDAD</SelectItem>
+                    <SelectItem value="pintura">PINTURA</SelectItem>
+                    <SelectItem value="plomeria">PLOMERIA</SelectItem>
+                    <SelectItem value="construccion">CONSTRUCCION</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <Button
@@ -958,20 +964,8 @@ const TasksScreen = () => {
                   </div>
                   <div className="flex gap-2">
                     <Button
-                      variant="outline"
-                      onClick={() => {
-                        setShowAssignModal(false);
-                        setTaskToAssign(null);
-                        setSelectedWorkers([]);
-                        setAssignedWorkers([]);
-                      }}
-                      className="flex-1"
-                    >
-                      Cancelar
-                    </Button>
-                    <Button
                       onClick={handleSaveWorkerAssignments}
-                      className="flex-1"
+                      className="w-full"
                       disabled={assignLoading}
                     >
                       {assignLoading ? "Guardando..." : "Guardar"}
@@ -999,7 +993,7 @@ const TasksScreen = () => {
                   tasks={changes}
                   changes={true}
                   onEditTask={handleEditTask}
-                  onAssignWorkers={handleOpenAssignModal}
+                  showEditButton={isClient}
                 />
               )}
               {pendingTasks.length > 0 && (
@@ -1007,7 +1001,8 @@ const TasksScreen = () => {
                   title="Pendientes"
                   tasks={pendingTasks}
                   onEditTask={handleEditTask}
-                  onAssignWorkers={handleOpenAssignModal}
+                  onAssignWorkers={isAdmin ? handleOpenAssignModal : undefined}
+                  showEditButton={isAdmin}
                 />
               )}
               {inProgressTasks.length > 0 && (
@@ -1015,7 +1010,8 @@ const TasksScreen = () => {
                   title="En progreso"
                   tasks={inProgressTasks}
                   onEditTask={handleEditTask}
-                  onAssignWorkers={handleOpenAssignModal}
+                  onAssignWorkers={isAdmin ? handleOpenAssignModal : undefined}
+                  showEditButton={isAdmin}
                 />
               )}
               {blockedTasks.length > 0 && (
@@ -1023,7 +1019,8 @@ const TasksScreen = () => {
                   title="Bloqueadas"
                   tasks={blockedTasks}
                   onEditTask={handleEditTask}
-                  onAssignWorkers={handleOpenAssignModal}
+                  onAssignWorkers={isAdmin ? handleOpenAssignModal : undefined}
+                  showEditButton={isAdmin}
                 />
               )}
               {completedTasks.length > 0 && (
@@ -1031,7 +1028,8 @@ const TasksScreen = () => {
                   title="Completadas"
                   tasks={completedTasks}
                   onEditTask={handleEditTask}
-                  onAssignWorkers={handleOpenAssignModal}
+                  onAssignWorkers={isAdmin ? handleOpenAssignModal : undefined}
+                  showEditButton={isAdmin}
                 />
               )}
               {rejectedTasks.length > 0 && (
@@ -1039,6 +1037,7 @@ const TasksScreen = () => {
                   title="Rechazadas"
                   tasks={rejectedTasks}
                   onEditTask={handleEditTask}
+                  showEditButton={isAdmin}
                 />
               )}
             </div>
@@ -1058,6 +1057,7 @@ const TasksScreen = () => {
           showApproveReject={showApproveReject}
           onApproveChange={handleApproveChangeStatus}
           onRejectChange={handleRejectChangeStatus}
+          isAdmin={isAdmin}
         />
 
         <div className="fixed bottom-6 right-6">
