@@ -43,7 +43,7 @@ export function useWorkers() {
       setError(null);
 
       // Usar query parameter en lugar de ruta dinámica
-      const response = await fetch(`/api/workers?employerId=${employerId}`);
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/workers/employer/${employerId}`);
 
       if (!response.ok) {
         throw new Error(`Error ${response.status}: ${response.statusText}`);
@@ -166,10 +166,6 @@ export function useWorkers() {
       setLoading(false);
     }
   }, []);
-
-  useEffect(() => {
-    fetchWorkers();
-  }, [fetchWorkers]);
 
   return {
     workers,
