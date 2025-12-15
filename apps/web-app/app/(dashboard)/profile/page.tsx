@@ -27,6 +27,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { apiClient } from "@/lib/apiClient";
 
 const profileMenuItems = [
   {
@@ -79,18 +80,7 @@ export default function PerfilPage() {
       const token = localStorage.getItem('auth_token');
       if (!token) return;
 
-      const response = await fetch(`/api/storage/avatar/${user.id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        console.error('Error loading avatar:', response.statusText);
-        return;
-      }
-
-      const data = await response.json();
+      const data = await apiClient.StorageService.getAvatarUrl(user.id, token);
       if (data?.avatarUrl) {
         setAvatarUrl(data.avatarUrl);
       }
@@ -143,23 +133,7 @@ export default function PerfilPage() {
         throw new Error('No se encontró el token de autenticación');
       }
 
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const response = await fetch('/api/storage/upload-profile-picture', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Error al subir la imagen');
-      }
-
-      const result = await response.json();
+      await apiClient.StorageService.uploadProfilePicture(file, token);
       
       // Recargar el avatar
       await loadAvatar();
@@ -193,17 +167,7 @@ export default function PerfilPage() {
         throw new Error('No se encontró el token de autenticación');
       }
 
-      const response = await fetch('/api/storage/delete-profile-picture', {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Error al eliminar la imagen');
-      }
+      await apiClient.StorageService.deleteProfilePicture(token);
 
       setAvatarUrl(null);
       setShowAvatarDialog(false);

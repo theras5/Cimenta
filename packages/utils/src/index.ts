@@ -8,6 +8,7 @@ import { createUpdateService } from "./services/updateService";
 import { createWorkerService } from "./services/workerService";
 import { createAssignedToService } from "./services/assignedToService"
 import { createInvitationService } from "./services/invitationService";
+import { createStorageService } from "./services/storageService";
 
 interface ApiClientOptions {
     bypassToken?: string;
@@ -30,5 +31,6 @@ export const createApiClient = (apiUrl: string, options?: ApiClientOptions) => {
         WorkerService: createWorkerService(apiUrl, baseHeaders),
         AssignedToService: createAssignedToService(apiUrl, baseHeaders),
         InvitationService: createInvitationService(apiUrl, baseHeaders),
+        StorageService: createStorageService(apiUrl, baseHeaders),
     }
 };

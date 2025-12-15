@@ -32,7 +32,7 @@ export const createInvitationService = (apiUrl: string, baseHeaders: Record<stri
    * Obtener una invitación por su token
    */
   async getByToken(invitationToken: string): Promise<InvitationWithSite> {
-    const response = await fetch(`${apiUrl}/invitations/${invitationToken}`, {
+    const response = await fetch(`${apiUrl}/invitations/token/${invitationToken}`, {
       method: 'GET',
       headers: baseHeaders,
     });
@@ -49,7 +49,7 @@ export const createInvitationService = (apiUrl: string, baseHeaders: Record<stri
    * Aceptar una invitación
    */
   async accept(data: AcceptInvitationRequest, token: string): Promise<InvitationResponse> {
-    const response = await fetch(`${apiUrl}/invitations/${data.token}/accept`, {
+    const response = await fetch(`${apiUrl}/invitations/accept/${data.token}`, {
       method: 'POST',
       headers: {
         ...baseHeaders,
