@@ -71,7 +71,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, changes, routePrefix }) => {
         const workers = await getWorkersByTask(task.id);
         setAssignedWorkersCount(workers.length);
       } catch (error) {
-        console.error("Error loading assigned workers for task:", task.id, error);
+        // Silenciar errores de red - no crítico para la funcionalidad principal
         setAssignedWorkersCount(0);
       } finally {
         setLoadingWorkers(false);

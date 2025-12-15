@@ -102,7 +102,10 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, changes, onEdit, onAssignWork
   }, [task.description]);
 
   const handleClick = () => {
-    console.log(`Clicked task ${task.id}`, changes ? "changes" : "tasks")
+    // Al hacer click en la tarjeta, abrir el modal de detalle/edición
+    if (onEdit) {
+      onEdit(task)
+    }
   }
 
   const handleEdit = (e: React.MouseEvent) => {
@@ -166,16 +169,6 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, changes, onEdit, onAssignWork
         {/* Footer - Action Buttons */}
         <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
           <div className="flex gap-1">
-            {onEdit && (
-              <button
-                onClick={handleEdit}
-                className="p-2 rounded-md hover:bg-white/50 transition-colors opacity-70 hover:opacity-100"
-                title="Editar tarea"
-                aria-label="Editar tarea"
-              >
-                <Edit2 className="w-3.5 h-3.5 text-gray-600" />
-              </button>
-            )}
             
             {onAssignWorkers && !changes && (
               <button

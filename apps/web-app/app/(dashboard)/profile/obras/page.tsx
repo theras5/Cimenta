@@ -20,6 +20,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { InviteUserModal } from "@/components/InviteUserModal";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export default function MisObrasPage() {
   const { user, loading: authLoading } = useAuth();
@@ -31,6 +38,7 @@ export default function MisObrasPage() {
   const [formData, setFormData] = useState({
     address: "",
     description: "",
+    role: "admin" as "admin" | "client",
   });
 
   useEffect(() => {
@@ -63,13 +71,13 @@ export default function MisObrasPage() {
     const newSite = await createSite({
       address: formData.address,
       description: formData.description,
-      role: "admin",
+      role: formData.role || "admin",
       user_id: user.id,
     });
 
     if (newSite) {
       // Limpiar el formulario y cerrar el dialog
-      setFormData({ address: "", description: "" });
+      setFormData({ address: "", description: "", role: "admin" });
       setIsDialogOpen(false);
       
       // Recargar la lista de obras
@@ -156,6 +164,25 @@ export default function MisObrasPage() {
                       setFormData({ ...formData, description: e.target.value })
                     }
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="role">
+                    Tu rol en esta obra <span className="text-red-500">*</span>
+                  </Label>
+                  <Select
+                    value={formData.role}
+                    onValueChange={(value: "admin" | "client") =>
+                      setFormData({ ...formData, role: value })
+                    }
+                  >
+                    <SelectTrigger id="role">
+                      <SelectValue placeholder="Selecciona tu rol" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">Administrador</SelectItem>
+                      <SelectItem value="client">Cliente</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               <div className="flex justify-end gap-2">

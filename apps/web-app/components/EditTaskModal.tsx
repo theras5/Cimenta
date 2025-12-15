@@ -17,6 +17,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { useAssignedTo } from "@/hooks/useAssignedTo"
+import { useWorkers } from "@/hooks/useWorkers"
+import { Users } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
 
 interface Task {
   id: string
@@ -39,6 +43,7 @@ interface EditTaskModalProps {
   showApproveReject?: boolean
   onApproveChange?: (id: string) => Promise<void>
   onRejectChange?: (id: string, reason?: string) => Promise<void>
+  isAdmin?: boolean
 }
 
 const categories = [
@@ -58,6 +63,7 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
   showApproveReject = false,
   onApproveChange,
   onRejectChange,
+  isAdmin = false,
 }) => {
   const [editedTask, setEditedTask] = useState({
     title: "",
@@ -72,6 +78,11 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [rejectReason, setRejectReason] = useState("")
   const [persistedRejectReason, setPersistedRejectReason] = useState<string | null>(null)
+  const [assignedWorkerIds, setAssignedWorkerIds] = useState<string[]>([])
+  const [selectedWorkersForEdit, setSelectedWorkersForEdit] = useState<string[]>([])
+  
+  const { getWorkersByTask, assignMultipleWorkersToTask } = useAssignedTo()
+  const { workers } = useWorkers()
 
   // Actualizar el formulario cuando cambie la tarea
   useEffect(() => {
@@ -101,6 +112,26 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
     loadReason()
   }, [task])
 
+  // Cargar trabajadores asignados
+  useEffect(() => {
+    const loadAssignedWorkers = async () => {
+      if (!task?.id || isChange) return
+      
+      try {
+        const assigned = await getWorkersByTask(task.id)
+        const workerIds = assigned.map(a => a.worker_id)
+        setAssignedWorkerIds(workerIds)
+        setSelectedWorkersForEdit(workerIds)
+      } catch (error) {
+        // Silenciar errores de red - no crítico para la funcionalidad principal
+        setAssignedWorkerIds([])
+        setSelectedWorkersForEdit([])
+      }
+    }
+    
+    loadAssignedWorkers()
+  }, [task?.id, isChange, getWorkersByTask])
+
   const handleSave = async () => {
     if (!canEdit || !task || !editedTask.title || !editedTask.category) return
 
@@ -119,6 +150,12 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
         end_date: endIso,
         assignedMembers: selectedMembers,
       })
+      
+      // Si es admin y no es cambio, actualizar trabajadores asignados
+      if (isAdmin && !isChange) {
+        await assignMultipleWorkersToTask(task.id, selectedWorkersForEdit)
+      }
+      
       onClose()
     } catch (error) {
       console.error("Error al guardar la tarea:", error)
@@ -165,6 +202,14 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
     }
   }
 
+  const toggleWorkerSelection = (workerId: string) => {
+    setSelectedWorkersForEdit(prev => 
+      prev.includes(workerId) 
+        ? prev.filter(id => id !== workerId)
+        : [...prev, workerId]
+    )
+  }
+
   const formatDateTimeForInput = (dateString?: string) => {
     if (!dateString) return ""
     const date = new Date(dateString)
@@ -187,30 +232,40 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
       <DialogContent className="w-[95vw] sm:max-w-md md:max-w-lg lg:max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-center text-lg sm:text-xl">
-            {isChange ? "Solicitud de cambio" : "Tarea"}
+            {task.title || (isChange ? "Solicitud de cambio" : "Tarea")}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           {/* Título */}
-          <Input
-            placeholder="Título de la tarea"
-            value={editedTask.title}
-            disabled={fieldsDisabled}
-            onChange={(e) =>
-              setEditedTask({ ...editedTask, title: e.target.value })
-            }
-          />
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1 block">
+              Título {!fieldsDisabled && <span className="text-red-500">*</span>}
+            </label>
+            <Input
+              placeholder="Título de la tarea"
+              value={editedTask.title}
+              readOnly={fieldsDisabled}
+              onChange={(e) =>
+                setEditedTask({ ...editedTask, title: e.target.value })
+              }
+            />
+          </div>
 
           {/* Descripción */}
-          <Textarea
-            placeholder="Descripción detallada de la tarea"
-            value={editedTask.description}
-            disabled={fieldsDisabled}
-            onChange={(e) =>
-              setEditedTask({ ...editedTask, description: e.target.value })
-            }
-            rows={3}
-          />
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1 block">
+              Descripción
+            </label>
+            <Textarea
+              placeholder="Descripción detallada de la tarea"
+              value={editedTask.description}
+              readOnly={fieldsDisabled}
+              onChange={(e) =>
+                setEditedTask({ ...editedTask, description: e.target.value })
+              }
+              rows={3}
+            />
+          </div>
 
           {/* Mostrar razón del rechazo si existe y la tarea está rechazada */}
           {task.status === "rejected" && persistedRejectReason ? (
@@ -221,44 +276,69 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
           ) : null}
 
           {/* Categoría */}
-          <Select
-            value={editedTask.category}
-            disabled={fieldsDisabled}
-            onValueChange={(value) =>
-              setEditedTask({ ...editedTask, category: value })
-            }
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Seleccionar categoría" />
-            </SelectTrigger>
-            <SelectContent>
-              {categories.map((category) => (
-                <SelectItem key={category.value} value={category.value}>
-                  {category.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1 block">
+              Categoría {!fieldsDisabled && <span className="text-red-500">*</span>}
+            </label>
+            {fieldsDisabled ? (
+              <div className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-black">
+                {categories.find(c => c.value === editedTask.category)?.label || editedTask.category}
+              </div>
+            ) : (
+              <Select
+                value={editedTask.category}
+                onValueChange={(value) =>
+                  setEditedTask({ ...editedTask, category: value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar categoría" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((category) => (
+                    <SelectItem key={category.value} value={category.value}>
+                      {category.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
 
           {/* Estado */}
-          <Select
-            value={editedTask.status}
-            disabled={statusDisabled}
-            onValueChange={(value) =>
-              setEditedTask({ ...editedTask, status: value as Task["status"] })
-            }
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Estado de la tarea" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="pending">Pendiente</SelectItem>
-              <SelectItem value="in_progress">En progreso</SelectItem>
-              <SelectItem value="completed">Completada</SelectItem>
-              <SelectItem value="blocked">Bloqueada</SelectItem>
-              <SelectItem value="changes">Cambios</SelectItem>
-            </SelectContent>
-          </Select>
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1 block">
+              Estado
+            </label>
+            {statusDisabled ? (
+              <div className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-black">
+                {editedTask.status === "pending" && "Pendiente"}
+                {editedTask.status === "in_progress" && "En progreso"}
+                {editedTask.status === "completed" && "Completada"}
+                {editedTask.status === "blocked" && "Bloqueada"}
+                {editedTask.status === "changes" && "Cambios"}
+                {editedTask.status === "rejected" && "Rechazado"}
+              </div>
+            ) : (
+              <Select
+                value={editedTask.status}
+                onValueChange={(value) =>
+                  setEditedTask({ ...editedTask, status: value as Task["status"] })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Estado de la tarea" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Pendiente</SelectItem>
+                  <SelectItem value="in_progress">En progreso</SelectItem>
+                  <SelectItem value="completed">Completada</SelectItem>
+                  <SelectItem value="blocked">Bloqueada</SelectItem>
+                  <SelectItem value="changes">Cambios</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+          </div>
 
           {/* Fechas */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -269,7 +349,7 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
               <Input
                 type="datetime-local"
                 value={formatDateTimeForInput(editedTask.start_date)}
-                disabled={fieldsDisabled}
+                readOnly={fieldsDisabled}
                 onChange={(e) =>
                   setEditedTask({ ...editedTask, start_date: e.target.value })
                 }
@@ -283,7 +363,7 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
               <Input
                 type="datetime-local"
                 value={formatDateTimeForInput(editedTask.end_date)}
-                disabled={fieldsDisabled}
+                readOnly={fieldsDisabled}
                 onChange={(e) =>
                   setEditedTask({ ...editedTask, end_date: e.target.value })
                 }
@@ -291,6 +371,79 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
               />
             </div>
           </div>
+
+          {/* Trabajadores asignados - solo para tareas */}
+          {!isChange && (
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-2 block">
+                Trabajadores asignados ({isAdmin ? selectedWorkersForEdit.length : assignedWorkerIds.length})
+              </label>
+              {isAdmin ? (
+                // Vista editable para admin
+                workers.length === 0 ? (
+                  <p className="text-sm text-gray-500 italic py-2">
+                    No tienes trabajadores registrados.{' '}
+                    <a href="/profile/empleados" className="text-blue-600 hover:underline">
+                      Agregar trabajadores
+                    </a>
+                  </p>
+                ) : (
+                  <div className="border rounded-lg p-3 max-h-60 overflow-y-auto space-y-2">
+                    {workers.map((worker) => (
+                      <div
+                        key={worker.worker_id}
+                        className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded-lg cursor-pointer"
+                        onClick={() => toggleWorkerSelection(worker.worker_id)}
+                      >
+                        <Checkbox
+                          checked={selectedWorkersForEdit.includes(worker.worker_id)}
+                          onCheckedChange={() => toggleWorkerSelection(worker.worker_id)}
+                        />
+                        <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-full text-blue-600 font-bold text-sm">
+                          {worker.worker_name.charAt(0)}{worker.worker_surname?.charAt(0) || ''}
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-900">
+                            {worker.worker_name} {worker.worker_surname || ''}
+                          </p>
+                          <p className="text-xs text-gray-500">{worker.profession}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              ) : (
+                // Vista solo lectura para clientes
+                assignedWorkerIds.length > 0 ? (
+                  <div className="space-y-2">
+                    {workers
+                      .filter(w => assignedWorkerIds.includes(w.worker_id))
+                      .map((worker) => (
+                        <div
+                          key={worker.worker_id}
+                          className="flex items-center p-3 bg-gray-50 rounded-lg border border-gray-200"
+                        >
+                          <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-full text-blue-600 font-bold text-sm mr-3">
+                            {worker.worker_name.charAt(0)}{worker.worker_surname?.charAt(0) || ''}
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-gray-900">
+                              {worker.worker_name} {worker.worker_surname || ''}
+                            </p>
+                            <p className="text-xs text-gray-500">{worker.profession}</p>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <Users className="w-8 h-8 text-gray-400 mb-2" />
+                    <p className="text-sm text-gray-500">No hay trabajadores asignados</p>
+                  </div>
+                )
+              )}
+            </div>
+          )}
 
           {/* Botones */}
           <div className="flex flex-col sm:flex-row gap-2 pt-4">
