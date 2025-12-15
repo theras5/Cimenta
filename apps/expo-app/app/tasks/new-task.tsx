@@ -1,7 +1,7 @@
 ﻿// @ts-nocheck
 import { Category } from "@/components/TaskCard";
 import { QuickDateSelector } from "@/components/QuickDateSelector";
-// import { MinimalDateSelector } from "@/components/MinimalDateSelector"; // Para un diseÃ±o aÃºn mÃ¡s minimalista
+// import { MinimalDateSelector } from "@/components/MinimalDateSelector"; // Para un diseño aún más minimalista
 import { useAuth } from "@/context/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -39,12 +39,12 @@ interface TeamMember {
 }
 
 const teamMembers: TeamMember[] = [
-  { id: "1", name: "Juan PÃ©rez", role: "Electricista", avatar: "ðŸ‘¨â€ðŸ”§" },
-  { id: "2", name: "MarÃ­a GarcÃ­a", role: "Plomera", avatar: "ðŸ‘©â€ðŸ”§" },
-  { id: "3", name: "Carlos LÃ³pez", role: "Constructor", avatar: "ðŸ‘¨â€ðŸ­" },
-  { id: "4", name: "Ana MartÃ­nez", role: "Pintora", avatar: "ðŸ‘©â€ðŸŽ¨" },
-  { id: "5", name: "Luis RodrÃ­guez", role: "Supervisor", avatar: "ðŸ‘¨â€ðŸ’¼" },
-  { id: "6", name: "Sofia HernÃ¡ndez", role: "Arquitecta", avatar: "ðŸ‘©â€ðŸ’¼" },
+  { id: "1", name: "Juan Pérez", role: "Electricista", avatar: "👨‍🔧" },
+  { id: "2", name: "María García", role: "Plomera", avatar: "👩‍🔧" },
+  { id: "3", name: "Carlos López", role: "Constructor", avatar: "👨‍🏭" },
+  { id: "4", name: "Ana Martínez", role: "Pintora", avatar: "👩‍🎨" },
+  { id: "5", name: "Luis Rodríguez", role: "Supervisor", avatar: "👨‍💼" },
+  { id: "6", name: "Sofía Hernández", role: "Arquitecta", avatar: "👩‍💼" },
 ];
 
 // Interfaz para manejar los archivos multimedia
@@ -73,7 +73,7 @@ export default function NewTask() {
   const [endDate, setEndDate] = useState(
     new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
   ); // 1 semana despuÃ©s
-  
+
   // Estados para controlar los pickers - ya no necesarios con QuickDateSelector
 
   // Solicitar permisos al cargar el componente
@@ -82,12 +82,12 @@ export default function NewTask() {
       const { status } =
         await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
-        alert("Se necesitan permisos para acceder a la galerÃ­a");
+        alert("Se necesitan permisos para acceder a la galería");
       }
     })();
   }, []);
 
-  // FunciÃ³n para seleccionar imÃ¡genes o videos
+  // Función para seleccionar imágenes o videos
   const pickMedia = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: [ImagePicker.MediaType.image],
@@ -108,14 +108,14 @@ export default function NewTask() {
     }
   };
 
-  // FunciÃ³n para eliminar un archivo multimedia
+  // Función para eliminar un archivo multimedia
   const removeMediaFile = (index: number) => {
     const updatedFiles = [...mediaFiles];
     updatedFiles.splice(index, 1);
     setMediaFiles(updatedFiles);
   };
 
-  // FunciÃ³n para seleccionar/deseleccionar miembros
+  // Función para seleccionar/deseleccionar miembros
   const toggleMemberSelection = (member: TeamMember) => {
     const isSelected = selectedMembers.some((m) => m.id === member.id);
 
@@ -126,7 +126,7 @@ export default function NewTask() {
     }
   };
 
-  // FunciÃ³n para remover un miembro seleccionado
+  // Función para remover un miembro seleccionado
   const removeMember = (memberId: string) => {
     setSelectedMembers(selectedMembers.filter((m) => m.id !== memberId));
   };
@@ -140,16 +140,16 @@ export default function NewTask() {
 
 
   const handleSave = async () => {
-    // ValidaciÃ³n completa antes de enviar
+    // Validación completa antes de enviar
     setHasAttemptedSubmit(true);
 
-    //Validar tÃ­tulo
+    //Validar título
     const isTitleValid = title.trim() !== "";
     if (!isTitleValid) {
-      setTitleError("El tÃ­tulo es obligatorio");
+      setTitleError("El título es obligatorio");
     }
 
-    // Validar categorÃ­a
+    // Validar categoría
     const isCategoryValid = category && category.trim() !== "";
     if (!isCategoryValid) {
       setCategoryError("Selecciona una categorÃ­a");
@@ -197,7 +197,7 @@ export default function NewTask() {
     try {
       const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/tasks`, {
         method: "POST",
-        headers: { 
+        headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
@@ -249,37 +249,36 @@ export default function NewTask() {
       </View>
 
       <ScrollView className="flex-1 px-4">
-        {/* TÃ­tulo */}
+        {/* Título */}
         <View className="mb-4">
           <Text className="text-gray-700 font-medium mb-2">
-            TÃ­tulo <Text className="text-red-500">*</Text>
+            Título <Text className="text-red-500">*</Text>
           </Text>
           <TextInput
             value={title}
             onChangeText={(text) => {
               setTitle(text);
               if (hasAttemptedSubmit && titleError) {
-                setTitleError(text.trim() ? null : "El tÃ­tulo es obligatorio");
+                setTitleError(text.trim() ? null : "El título es obligatorio");
               }
             }}
             onBlur={() => {
               if (hasAttemptedSubmit) {
-                setTitleError(title.trim() ? null : "El tÃ­tulo es obligatorio");
+                setTitleError(title.trim() ? null : "El título es obligatorio");
               }
             }}
             placeholder="Ej: Instalar cableado"
-            className={`bg-white p-4 rounded-xl border ${
-              titleError ? "border-red-500" : "border-gray-200"
-            }`}
+            className={`bg-white p-4 rounded-xl border ${titleError ? "border-red-500" : "border-gray-200"
+              }`}
           />
           {titleError && (
             <Text className="text-red-500 text-sm mt-1">{titleError}</Text>
           )}
         </View>
 
-        {/* DescripciÃ³n */}
+        {/* Descripción */}
         <View className="mb-4">
-          <Text className="text-gray-700 font-medium mb-2">DescripciÃ³n</Text>
+          <Text className="text-gray-700 font-medium mb-2">Descripción</Text>
           <TextInput
             value={description}
             onChangeText={setDescription}
@@ -291,10 +290,10 @@ export default function NewTask() {
           />
         </View>
 
-        {/* CategorÃ­a */}
+        {/* Categoría */}
         <View className="mb-4">
           <Text className="text-gray-700 font-medium mb-2">
-            CategorÃ­a <Text className="text-red-500">*</Text>
+            Categoría <Text className="text-red-500">*</Text>
           </Text>
           <View className="flex-row flex-wrap gap-2">
             {categories.map((cat) => {
@@ -314,9 +313,8 @@ export default function NewTask() {
                   activeOpacity={0.9}
                 >
                   <Text
-                    className={`text-xs font-medium ${
-                      isSelected ? "text-white" : "text-gray-800"
-                    }`}
+                    className={`text-xs font-medium ${isSelected ? "text-white" : "text-gray-800"
+                      }`}
                   >
                     {cat.name}
                   </Text>
@@ -347,9 +345,9 @@ export default function NewTask() {
         <QuickDateSelector
           date={endDate}
           onDateChange={setEndDate}
-          label="Fecha de finalizaciÃ³n"
+          label="Fecha de finalización"
           minimumDate={startDate}
-          placeholder="Seleccionar fecha de finalizaciÃ³n"
+          placeholder="Seleccionar fecha de finalización"
         />
 
         {/* Miembros del Equipo */}
@@ -358,7 +356,7 @@ export default function NewTask() {
             Miembros del Equipo
           </Text>
 
-          {/* BotÃ³n para agregar miembros */}
+          {/* Botón para agregar miembros */}
           <TouchableOpacity
             onPress={() => setShowMemberModal(true)}
             className="bg-white flex-row items-center justify-center p-4 rounded-xl border border-gray-200 mb-3"
@@ -407,9 +405,9 @@ export default function NewTask() {
 
         {/* Contenido Audiovisual */}
         <View className="mb-6">
-          <Text className="text-gray-700 font-medium mb-2">ImÃ¡genes</Text>
+          <Text className="text-gray-700 font-medium mb-2">Imágenes</Text>
 
-          {/* BotÃ³n para agregar contenido */}
+          {/* Botón para agregar contenido */}
           <TouchableOpacity
             onPress={pickMedia}
             className="bg-white flex-row items-center justify-center p-4 rounded-xl border border-gray-200 mb-3"
@@ -423,7 +421,7 @@ export default function NewTask() {
             <Text className="text-blue-500 font-medium ml-2">Agregar foto</Text>
           </TouchableOpacity>
 
-          {/* PrevisualizaciÃ³n de archivos */}
+          {/* Previsualización de archivos */}
           {mediaFiles.length > 0 && (
             <View className="mt-3">
               <Text className="text-gray-700 font-medium mb-2">
@@ -483,11 +481,10 @@ export default function NewTask() {
                 <TouchableOpacity
                   key={member.id}
                   onPress={() => toggleMemberSelection(member)}
-                  className={`flex-row items-center justify-between p-4 mb-2 rounded-xl border ${
-                    isSelected
+                  className={`flex-row items-center justify-between p-4 mb-2 rounded-xl border ${isSelected
                       ? "bg-blue-50 border-blue-200"
                       : "bg-white border-gray-200"
-                  }`}
+                    }`}
                 >
                   <View className="flex-row items-center">
                     <Text className="text-3xl mr-3">{member.avatar}</Text>
@@ -501,11 +498,10 @@ export default function NewTask() {
                     </View>
                   </View>
                   <View
-                    className={`w-6 h-6 rounded-full border-2 items-center justify-center ${
-                      isSelected
+                    className={`w-6 h-6 rounded-full border-2 items-center justify-center ${isSelected
                         ? "bg-blue-500 border-blue-500"
                         : "border-gray-300"
-                    }`}
+                      }`}
                   >
                     {isSelected && (
                       <Ionicons name="checkmark" size={16} color="white" />

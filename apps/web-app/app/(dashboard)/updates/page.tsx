@@ -9,10 +9,10 @@ import VideoCard from "@/components/VideoCard";
 import NotificationCard from "@/components/NotificationCard";
 import NoMediaCard from "@/components/NoMediaCard";
 import { useUpdates } from "@/hooks/useUpdates";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
@@ -66,7 +66,7 @@ const AvancesScreen = () => {
     media_type: null as "video" | "image" | null,
     image_url: "",
   });
-  
+
   // Estado para manejar la carga de archivos
   const [fileSelected, setFileSelected] = useState(false);
   const [fileName, setFileName] = useState("");
@@ -132,7 +132,7 @@ const AvancesScreen = () => {
 
     // Listen for storage events (when localStorage changes)
     window.addEventListener("storage", handleSiteChange);
-    
+
     // Also check periodically for changes within the same tab
     const intervalId = setInterval(handleSiteChange, 500);
 
@@ -177,8 +177,8 @@ const AvancesScreen = () => {
   const handleSubmitUpdate = async () => {
     if (!newUpdate.title) {
       toast({
-        title: "Falta informaci├│n",
-        description: "Por favor ingresa al menos un t├¡tulo para el avance.",
+        title: "Falta información",
+        description: "Por favor ingresa al menos un título para el avance.",
         variant: "destructive",
       });
       return;
@@ -197,7 +197,7 @@ const AvancesScreen = () => {
       });
 
       toast({
-        title: "┬í├ëxito!",
+        title: "¡Éxito!",
         description: "Avance creado correctamente.",
       });
 
@@ -214,7 +214,7 @@ const AvancesScreen = () => {
     }
   };
 
-    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!(e.target.files && e.target.files[0])) return;
 
     const file = e.target.files[0];
@@ -263,7 +263,11 @@ const AvancesScreen = () => {
 
   const handleNoMediaPress = (id: string) => {
     const current = updates.find((u) => u.id === id);
-    setDetailData(current || null);
+    if (current && current.user_id) {
+      setDetailData(current as ApiUpdate);
+    } else {
+      setDetailData(null);
+    }
     setDetailOpen(true);
   };
 
@@ -288,7 +292,7 @@ const AvancesScreen = () => {
     const diffInDays = Math.floor(diffInHours / 24);
 
     if (diffInDays > 0) {
-      return `Hace ${diffInDays} d├¡a${diffInDays > 1 ? "s" : ""}`;
+      return `Hace ${diffInDays} día${diffInDays > 1 ? "s" : ""}`;
     } else if (diffInHours > 0) {
       return `Hace ${diffInHours} hora${diffInHours > 1 ? "s" : ""}`;
     } else {
@@ -351,10 +355,10 @@ const AvancesScreen = () => {
               {/* Remaining cards */}
               {updates.map((update) => {
                 // Mostrar el nombre del usuario si es su propio update, o usar el user_name guardado, o "Usuario"
-                const authorName = update.user_id === user?.id 
+                const authorName = update.user_id === user?.id
                   ? (user?.name || "Usuario")
                   : (update.user_name || "Usuario");
-                
+
                 const safeTitle = normalizeText(update.title);
                 const safeDescription = normalizeText(update.description);
                 const safeAuthor = normalizeText(authorName);
@@ -379,7 +383,7 @@ const AvancesScreen = () => {
                 );
               })}
 
-              {/* Loading indicator cuando se est├ín cargando m├ís updates */}
+              {/* Loading indicator cuando se están cargando más updates */}
               {loading && updates.length > 0 && (
                 <div className="flex justify-center py-4">
                   <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
@@ -405,170 +409,169 @@ const AvancesScreen = () => {
         </div>
 
         {/* Modal para crear un nuevo avance */}
-      <Dialog open={showModal} onOpenChange={handleCloseModal}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-semibold text-center">Crear Nuevo Avance</DialogTitle>
-          </DialogHeader>
-          
-          <div className="space-y-4 py-4">
-            {/* T├¡tulo */}
-            <div className="space-y-2">
-              <Label htmlFor="title">Título <span className="text-red-500">*</span></Label>
-              <Input
-                id="title"
-                placeholder="Título del avance"
-                value={newUpdate.title}
-                onChange={(e) => setNewUpdate({ ...newUpdate, title: e.target.value })}
-                className="w-full"
-              />
-            </div>
-            
-            {/* Descripci├│n */}
-            <div className="space-y-2">
-              <Label htmlFor="description">Descripción</Label>
-              <Textarea
-                id="description"
-                placeholder="Describe el avance con más detalles..."
-                value={newUpdate.description}
-                onChange={(e) => setNewUpdate({ ...newUpdate, description: e.target.value })}
-                rows={4}
-                className="w-full"
-              />
-            </div>
-            
-            {/* Tipo de contenido */}
-            <div className="space-y-2">
-              <Label>Tipo de contenido</Label>
-              <RadioGroup 
-                value={newUpdate.media_type || "none"} 
-                onValueChange={(value) => setNewUpdate({ 
-                  ...newUpdate, 
-                  media_type: value === "none" ? null : value as "image" | "video" 
-                })}
-                className="flex space-x-4"
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="none" id="r1" />
-                  <Label htmlFor="r1">Sin contenido</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="image" id="r2" />
-                  <Label htmlFor="r2">Imagen</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="video" id="r3" />
-                  <Label htmlFor="r3">Video</Label>
-                </div>
-              </RadioGroup>
-            </div>
-            
-            {/* Subida de archivo */}
-            {newUpdate.media_type && (
+        <Dialog open={showModal} onOpenChange={handleCloseModal}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-semibold text-center">Crear Nuevo Avance</DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              {/* Título */}
               <div className="space-y-2">
-                <Label htmlFor="media">{newUpdate.media_type === "image" ? "Imagen" : "Video"}</Label>
-                <div className="flex items-center justify-center w-full">
-                  <label 
-                    htmlFor="dropzone-file" 
-                    className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer ${
-                      fileSelected 
-                        ? "bg-blue-50 border-blue-300" 
-                        : "bg-gray-50 border-gray-300 hover:bg-gray-100"
-                    }`}
-                  >
-                    {fileSelected ? (
-                      <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                        <div className="flex items-center mb-2">
-                          {newUpdate.media_type === "image" ? (
-                            <Camera className="w-6 h-6 text-blue-500 mr-2" />
-                          ) : (
-                            <Video className="w-6 h-6 text-blue-500 mr-2" />
-                          )}
-                          <span className="text-sm text-blue-500 truncate max-w-[200px]">{fileName}</span>
-                        </div>
-                        <p className="text-xs text-gray-500">Haz clic para cambiar el archivo</p>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                        <Upload className="w-10 h-10 text-gray-400 mb-2" />
-                        <p className="mb-1 text-sm text-gray-500 dark:text-gray-400">
-                          <span className="font-semibold">Haz clic para subir</span> o arrastra y suelta
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {newUpdate.media_type === "image" 
-                            ? "PNG, JPG o GIF (m├íx. 10MB)" 
-                            : "MP4, MOV o WebM (m├íx. 50MB)"}
-                        </p>
-                      </div>
-                    )}
-                    <input 
-                      id="dropzone-file" 
-                      type="file" 
-                      className="hidden" 
-                      accept={newUpdate.media_type === "image" 
-                        ? "image/png, image/jpeg, image/gif" 
-                        : "video/mp4, video/quicktime, video/webm"}
-                      onChange={handleFileSelect}
-                    />
-                  </label>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={handleCloseModal} className="w-full sm:w-auto">
-              Cancelar
-            </Button>
-            <Button 
-              onClick={handleSubmitUpdate} 
-              className="w-full sm:w-auto"
-              disabled={isSubmitting || !newUpdate.title}
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Creando...
-                </>
-              ) : (
-                "Crear Avance"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Detalle de avance en modal */}
-      <DetailDialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DetailContent className="sm:max-w-lg">
-          <DetailHeader>
-            <DetailTitle className="text-xl font-semibold">
-              {detailData ? normalizeText(detailData.title) : "Detalle de avance"}
-            </DetailTitle>
-          </DetailHeader>
-          <div className="space-y-4">
-            <div className="text-sm text-gray-500">
-              {detailData?.created_at ? (
-                <ClientDate iso={detailData.created_at} options={{ year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }} />
-              ) : (
-                ""
-              )}
-            </div>
-            <p className="text-gray-700 leading-6">
-              {detailData ? normalizeText(detailData.description) : "Sin Descripci\u00f3n"}
-            </p>
-            {detailData?.image_url && (
-              <div className="relative w-full overflow-hidden rounded-xl border border-gray-200">
-                <img
-                  src={detailData.image_url}
-                  alt={detailData.title}
-                  className="w-full object-cover max-h-80"
+                <Label htmlFor="title">Título <span className="text-red-500">*</span></Label>
+                <Input
+                  id="title"
+                  placeholder="Título del avance"
+                  value={newUpdate.title}
+                  onChange={(e) => setNewUpdate({ ...newUpdate, title: e.target.value })}
+                  className="w-full"
                 />
               </div>
-            )}
-          </div>
-        </DetailContent>
-      </DetailDialog>
+
+              {/* Descripción */}
+              <div className="space-y-2">
+                <Label htmlFor="description">Descripción</Label>
+                <Textarea
+                  id="description"
+                  placeholder="Describe el avance con más detalles..."
+                  value={newUpdate.description}
+                  onChange={(e) => setNewUpdate({ ...newUpdate, description: e.target.value })}
+                  rows={4}
+                  className="w-full"
+                />
+              </div>
+
+              {/* Tipo de contenido */}
+              <div className="space-y-2">
+                <Label>Tipo de contenido</Label>
+                <RadioGroup
+                  value={newUpdate.media_type || "none"}
+                  onValueChange={(value) => setNewUpdate({
+                    ...newUpdate,
+                    media_type: value === "none" ? null : value as "image" | "video"
+                  })}
+                  className="flex space-x-4"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="none" id="r1" />
+                    <Label htmlFor="r1">Sin contenido</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="image" id="r2" />
+                    <Label htmlFor="r2">Imagen</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="video" id="r3" />
+                    <Label htmlFor="r3">Video</Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
+              {/* Subida de archivo */}
+              {newUpdate.media_type && (
+                <div className="space-y-2">
+                  <Label htmlFor="media">{newUpdate.media_type === "image" ? "Imagen" : "Video"}</Label>
+                  <div className="flex items-center justify-center w-full">
+                    <label
+                      htmlFor="dropzone-file"
+                      className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer ${fileSelected
+                          ? "bg-blue-50 border-blue-300"
+                          : "bg-gray-50 border-gray-300 hover:bg-gray-100"
+                        }`}
+                    >
+                      {fileSelected ? (
+                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                          <div className="flex items-center mb-2">
+                            {newUpdate.media_type === "image" ? (
+                              <Camera className="w-6 h-6 text-blue-500 mr-2" />
+                            ) : (
+                              <Video className="w-6 h-6 text-blue-500 mr-2" />
+                            )}
+                            <span className="text-sm text-blue-500 truncate max-w-[200px]">{fileName}</span>
+                          </div>
+                          <p className="text-xs text-gray-500">Haz clic para cambiar el archivo</p>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                          <Upload className="w-10 h-10 text-gray-400 mb-2" />
+                          <p className="mb-1 text-sm text-gray-500 dark:text-gray-400">
+                            <span className="font-semibold">Haz clic para subir</span> o arrastra y suelta
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {newUpdate.media_type === "image"
+                              ? "PNG, JPG o GIF (máx. 10MB)"
+                              : "MP4, MOV o WebM (máx. 50MB)"}
+                          </p>
+                        </div>
+                      )}
+                      <input
+                        id="dropzone-file"
+                        type="file"
+                        className="hidden"
+                        accept={newUpdate.media_type === "image"
+                          ? "image/png, image/jpeg, image/gif"
+                          : "video/mp4, video/quicktime, video/webm"}
+                        onChange={handleFileSelect}
+                      />
+                    </label>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={handleCloseModal} className="w-full sm:w-auto">
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleSubmitUpdate}
+                className="w-full sm:w-auto"
+                disabled={isSubmitting || !newUpdate.title}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Creando...
+                  </>
+                ) : (
+                  "Crear Avance"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Detalle de avance en modal */}
+        <DetailDialog open={detailOpen} onOpenChange={setDetailOpen}>
+          <DetailContent className="sm:max-w-lg">
+            <DetailHeader>
+              <DetailTitle className="text-xl font-semibold">
+                {detailData ? normalizeText(detailData.title) : "Detalle de avance"}
+              </DetailTitle>
+            </DetailHeader>
+            <div className="space-y-4">
+              <div className="text-sm text-gray-500">
+                {detailData?.created_at ? (
+                  <ClientDate iso={detailData.created_at} options={{ year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }} />
+                ) : (
+                  ""
+                )}
+              </div>
+              <p className="text-gray-700 leading-6">
+                {detailData ? normalizeText(detailData.description) : "Sin Descripción"}
+              </p>
+              {detailData?.image_url && (
+                <div className="relative w-full overflow-hidden rounded-xl border border-gray-200">
+                  <img
+                    src={detailData.image_url}
+                    alt={detailData.title}
+                    className="w-full object-cover max-h-80"
+                  />
+                </div>
+              )}
+            </div>
+          </DetailContent>
+        </DetailDialog>
       </main>
     </div>
   );
