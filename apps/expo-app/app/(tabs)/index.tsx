@@ -891,14 +891,16 @@ const styles = StyleSheet.create({
   shortcutsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'flex-start',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 32,
-    gap: 16,
+    paddingHorizontal: 20,
   },
   shortcutItem: {
     alignItems: 'center',
-    width: (SCREEN_WIDTH - 40 - 32) / 3, // 3 columnas con gaps
-    marginBottom: 8,
+    width: (SCREEN_WIDTH - 80) / 3, // 3 columnas centradas
+    marginBottom: 16,
+    marginHorizontal: 4,
   },
   shortcutIcon: {
     width: 56,

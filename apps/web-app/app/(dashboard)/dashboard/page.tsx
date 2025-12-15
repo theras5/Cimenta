@@ -293,8 +293,8 @@ export default function CimentaDashboard() {
                 </p>
               </button>
 
-              {/* Invitar Usuario (solo admin con obra seleccionada) */}
-              {normalizedRole === "admin" && selectedSiteId && (
+              {/* Invitar Usuario (cuando hay obra seleccionada) */}
+              {selectedSiteId && (
                 <InviteUserModal 
                   siteId={selectedSiteId} 
                   siteName={selectedSiteName}
