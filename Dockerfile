@@ -1,24 +1,34 @@
 FROM node:20-slim
 
-# Instalar FFmpeg
+# 1. Instalar dependencias del sistema (FFmpeg)
 RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
 
-# Crear directorio de la app
+# 2. Establecemos el directorio raíz de trabajo
 WORKDIR /app
 
-# 1. Copiamos los package.json desde la carpeta 'bot'
-COPY bot/package*.json ./
+# --- AQUÍ ESTÁ EL TRUCO PARA MONOREPOS ---
 
-# 2. Instalamos dependencias
+# 3. Copiamos los package.json del root (si usas workspaces) y de la librería
+COPY package*.json ./
+COPY packages/dtos/package*.json ./packages/dtos/
+
+# 4. Copiamos el código fuente de la librería interna
+# (Asegúrate que la ruta 'packages/dtos' sea la real en tu proyecto)
+COPY packages/dtos ./packages/dtos
+
+# 5. Copiamos el package.json del bot
+COPY bot/package*.json ./bot/
+
+# 6. Copiamos el código del bot
+COPY bot ./bot
+
+# 7. Instalamos dependencias DESDE LA RAÍZ (importante para workspaces)
+# Si no usas workspaces, puedes hacer WORKDIR /app/bot y npm install ahí,
+# pero necesitarás que la ruta relativa hacia ../packages/dtos sea válida.
 RUN npm install --production
 
-# 3. Copiamos el código fuente desde la carpeta 'bot'
-COPY bot/ .
+# 8. Nos movemos a la carpeta del bot para ejecutarlo
+WORKDIR /app/bot
 
-# Comentario: No exponemos puerto porque es un Worker
-# EXPOSE 3000 <-- Eliminado
-
-# Comando de inicio
-# Asegúrate de que la ruta sea correcta RELATIVA a /app.
-# Si dentro de 'bot' tienes 'src/index.js', entonces esto es correcto:
+# 9. Comando de inicio
 CMD ["node", "src/index.js"]
