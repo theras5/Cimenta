@@ -239,7 +239,17 @@ export const getAvatarUrl = async (req: Request, res: Response, next: NextFuncti
       throw new AppError(profileError.message, 400);
     }
 
-    res.status(200).json({ avatarUrl: profileData?.avatar_url || null });
+    // Si hay avatar_url, obtener la URL pública completa de Supabase Storage
+    let publicUrl = null;
+    if (profileData?.avatar_url) {
+      const { data: publicUrlData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(profileData.avatar_url);
+      
+      publicUrl = publicUrlData.publicUrl;
+    }
+
+    res.status(200).json({ avatarUrl: publicUrl });
 
   } catch (error: AppError | any) {
     console.error("Error al obtener avatar:", error);
