@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import { Plus, Clipboard, RefreshCw, Package, Upload, X } from "lucide-react";
+import { Plus, Clipboard, RefreshCw, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -19,7 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import Sidebar from "@/components/SideBar";
 import { usePurchases, Purchase } from "@/hooks/usePurchases";
 import { useAuth } from "@/hooks/useAuth";
 import { PurchaseCard } from "@/components/PurchaseCard";
@@ -50,25 +49,25 @@ const units = [
   { value: "m3", label: "M³" },
 ];
 
-const categoryColors = {
-  MATERIALES: "bg-gray-500",
-  ELECTRICIDAD: "bg-blue-500",
-  PINTURA: "bg-pink-500",
-  PLOMERÍA: "bg-cyan-500",
-  HERRAMIENTAS: "bg-purple-500",
-};
+// const categoryColors = {
+//   MATERIALES: "bg-gray-500",
+//   ELECTRICIDAD: "bg-blue-500",
+//   PINTURA: "bg-pink-500",
+//   PLOMERÍA: "bg-cyan-500",
+//   HERRAMIENTAS: "bg-purple-500",
+// };
 
-// Adaptar modelo de backend al modelo de UI para mantener compatibilidad
-const adaptPurchaseToUI = (purchase: Purchase) => {
-  return {
-    ...purchase,
-    title: purchase.product,
-    estimatedPrice: purchase.price,
-    orderDate: purchase.purchase_date,
-    deliveryDate: purchase.delivery_date,
-    uiStatus: mapStatusToUI(purchase.status),
-  };
-};
+// // Adaptar modelo de backend al modelo de UI para mantener compatibilidad
+// const adaptPurchaseToUI = (purchase: Purchase) => {
+//   return {
+//     ...purchase,
+//     title: purchase.product,
+//     estimatedPrice: purchase.price,
+//     orderDate: purchase.purchase_date,
+//     deliveryDate: purchase.delivery_date,
+//     uiStatus: mapStatusToUI(purchase.status),
+//   };
+// };
 
 // Mapear los estados del backend a estados de la UI
 const mapStatusToUI = (
@@ -86,19 +85,18 @@ const mapStatusToUI = (
   }
 };
 
-// Mapear los estados de la UI a estados del backend
-const mapStatusToBackend = (status: string): Purchase["status"] => {
-  switch (status) {
-    case "para-comprar":
-      return "pending";
-    case "comprado":
-      return "purchased";
-    case "recibido":
-      return "delivered";
-    default:
-      return "pending";
-  }
-};
+// const mapStatusToBackend = (status: string): Purchase["status"] => {
+//   switch (status) {
+//     case "para-comprar":
+//       return "pending";
+//     case "comprado":
+//       return "purchased";
+//     case "recibido":
+//       return "delivered";
+//     default:
+//       return "pending";
+//   }
+// };
 
 // Purchase Section Component with horizontal scroll
 const PurchaseSection = ({

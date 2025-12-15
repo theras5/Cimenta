@@ -15,8 +15,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
-import { supabase } from '../../config/supabase';
 
 interface ProfileMenuItem {
   icon: keyof typeof Ionicons.glyphMap;
@@ -58,7 +56,6 @@ const Profile = () => {
   const [uploading, setUploading] = useState(false);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
 
-
   useEffect(() => {
     if (!loading && !user) {
       router.replace('/(auth)/sign-in');
@@ -66,31 +63,29 @@ const Profile = () => {
   }, [user, loading]);
 
   const loadAvatar = useCallback(async () => {
-    if (!user?.id) return;
+    if (!user?.id || !token) return;
     
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('avatar_url')
-        .eq('id', user.id)
-        .single();
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+      const response = await fetch(`${apiUrl}/storage/avatar/${user.id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
 
-      if (error) {
-        console.error('Error loading avatar:', error);
+      if (!response.ok) {
+        console.error('Error loading avatar:', response.statusText);
         return;
       }
 
-      if (data?.avatar_url) {
-        const { data: publicUrlData } = supabase.storage
-          .from('avatars')
-          .getPublicUrl(data.avatar_url);
-        
-        setAvatarUrl(publicUrlData.publicUrl);
+      const data = await response.json();
+      if (data?.avatarUrl) {
+        setAvatarUrl(data.avatarUrl);
       }
     } catch (error) {
       console.error('Error loading avatar:', error);
     }
-  }, [user?.id]);
+  }, [user?.id, token]);
 
   useEffect(() => {
     if (user?.id) {
@@ -160,8 +155,7 @@ const Profile = () => {
       setUploading(true);
 
       const fileExt = uri.split('.').pop() || 'jpg';
-      const fileName = `${user.id}.${fileExt}`;
-      const filePath = fileName;
+      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
 
       // Crear FormData con la imagen
       const formData = new FormData();
@@ -171,10 +165,9 @@ const Profile = () => {
         type: `image/${fileExt}`,
       } as any);
 
-      // Subir usando fetch directo
-      const uploadUrl = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/storage/v1/object/avatars/${filePath}`;
-      
-      const uploadResponse = await fetch(uploadUrl, {
+      // Subir usando la API
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+      const uploadResponse = await fetch(`${apiUrl}/storage/upload-profile-picture`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -184,16 +177,8 @@ const Profile = () => {
 
       if (!uploadResponse.ok) {
         const errorData = await uploadResponse.json();
-        throw new Error(errorData.message || 'Error al subir la imagen');
+        throw new Error(errorData.error || 'Error al subir la imagen');
       }
-
-      // Actualizar la URL del avatar en el perfil
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ avatar_url: filePath })
-        .eq('id', user.id);
-
-      if (updateError) throw updateError;
 
       await loadAvatar();
       Alert.alert('Éxito', 'Foto de perfil actualizada');
@@ -206,7 +191,7 @@ const Profile = () => {
   };
 
   const deleteAvatar = async () => {
-    if (!user?.id) return;
+    if (!user?.id || !token) return;
 
     Alert.alert(
       'Eliminar foto',
@@ -220,22 +205,18 @@ const Profile = () => {
             try {
               setUploading(true);
 
-              const { data } = await supabase
-                .from('profiles')
-                .select('avatar_url')
-                .eq('id', user.id)
-                .single();
+              const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+              const response = await fetch(`${apiUrl}/storage/delete-profile-picture`, {
+                method: 'DELETE',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                },
+              });
 
-              if (data?.avatar_url) {
-                await supabase.storage
-                  .from('avatars')
-                  .remove([data.avatar_url]);
+              if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Error al eliminar la foto');
               }
-
-              await supabase
-                .from('profiles')
-                .update({ avatar_url: null })
-                .eq('id', user.id);
 
               setAvatarUrl(null);
               Alert.alert('Éxito', 'Foto de perfil eliminada');
@@ -496,29 +477,29 @@ const styles = StyleSheet.create({
   avatarContainer: {
     marginBottom: 16,
     position: 'relative',
-
-  },
-  avatar: {
-    width: 128,
-    height: 128,
-    borderRadius: 64,
-    backgroundColor: '#DBEAFE',
-    justifyContent: 'center',
     alignItems: 'center',
   },
   avatarImage: {
-    width: 128,
-    height: 128,
-    borderRadius: 64,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+  },
+  avatar: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#DBEAFE',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   editAvatarBadge: {
     position: 'absolute',
     bottom: 0,
     right: 0,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
     backgroundColor: '#2563EB',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 3,

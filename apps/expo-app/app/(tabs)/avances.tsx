@@ -42,7 +42,7 @@ const Avances = () => {
     if (params.refresh) {
       fetchUpdates();
     }
-  }, [params.refresh]);
+  }, [params.refresh, fetchUpdates]);
 
   const onRefresh = async () => {
     setRefreshing(true);

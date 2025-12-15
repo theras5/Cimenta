@@ -263,7 +263,7 @@ const AvancesScreen = () => {
 
   const handleNoMediaPress = (id: string) => {
     const current = updates.find((u) => u.id === id);
-    setDetailData(current || null);
+    setDetailData(current as ApiUpdate || null);
     setDetailOpen(true);
   };
 
@@ -272,7 +272,7 @@ const AvancesScreen = () => {
     return (
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-blue-600" />
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
           <p className="text-gray-600">Cargando avances...</p>
         </div>
       </div>
@@ -554,18 +554,6 @@ const AvancesScreen = () => {
                 ""
               )}
             </div>
-            <p className="text-gray-700 leading-6">
-              {detailData ? normalizeText(detailData.description) : "Sin Descripci\u00f3n"}
-            </p>
-            {detailData?.image_url && (
-              <div className="relative w-full overflow-hidden rounded-xl border border-gray-200">
-                <img
-                  src={detailData.image_url}
-                  alt={detailData.title}
-                  className="w-full object-cover max-h-80"
-                />
-              </div>
-            )}
           </div>
         </DetailContent>
       </DetailDialog>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -46,13 +46,7 @@ const Obras = () => {
     }
   }, [user, authLoading]);
 
-  useEffect(() => {
-    if (user?.id) {
-      loadSites();
-    }
-  }, [user?.id]);
-
-  const loadSites = async () => {
+  const loadSites = useCallback(async () => {
     if (!user?.id) return;
 
     setLoading(true);
@@ -60,11 +54,18 @@ const Obras = () => {
       const data = await SiteService.getSitesForUser(user.id);
       setSites(data);
     } catch (error) {
+      console.error('Error loading sites:', error);
       Alert.alert('Error', 'No se pudieron cargar las obras');
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (user?.id) {
+      loadSites();
+    }
+  }, [user?.id, loadSites]);
 
   const validateForm = () => {
     if (!formData.address.trim()) {
@@ -117,6 +118,7 @@ const Obras = () => {
         ]
       );
     } catch (error) {
+      console.error('Error creating site:', error);
       Alert.alert('Error', 'No se pudo crear la obra');
     } finally {
       setLoading(false);
@@ -816,10 +818,6 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 8,
     fontStyle: 'italic',
-  },
-  roleSelector: {
-    flexDirection: 'row',
-    gap: 8,
   },
   roleOption: {
     flex: 1,

@@ -119,8 +119,8 @@ export default function UpdateDetailPage() {
         }
         const json = await res.json();
         setData(json);
-      } catch (err: any) {
-        setError(err.message || "No se pudo cargar el avance");
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "No se pudo cargar el avance");
       } finally {
         setLoading(false);
       }

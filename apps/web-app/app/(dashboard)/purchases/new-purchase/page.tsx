@@ -85,22 +85,22 @@ export default function NewPurchasePage() {
     }
   }, []);
 
-  const resetForm = () => {
-    setNewPurchase({
-      product: "",
-      description: "",
-      quantity: 1,
-      unity: "u",
-      price: 0,
-      supplier: "",
-      category: "",
-      priority: "normal",
-    });
-    setSelectedImages([]);
-    setPreviewUrls([]);
-    setError("");
-    setSuccess(false);
-  };
+  // const resetForm = () => {
+  //   setNewPurchase({
+  //     product: "",
+  //     description: "",
+  //     quantity: 1,
+  //     unity: "u",
+  //     price: 0,
+  //     supplier: "",
+  //     category: "",
+  //     priority: "normal",
+  //   });
+  //   setSelectedImages([]);
+  //   setPreviewUrls([]);
+  //   setError("");
+  //   setSuccess(false);
+  // };
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);

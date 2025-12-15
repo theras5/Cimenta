@@ -1,9 +1,6 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
 import {
-  PlusIcon,
-  LayoutGridIcon,
   CheckSquareIcon,
   RefreshCcwIcon,
   ShoppingCartIcon,
@@ -15,7 +12,6 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import Sidebar from "@/components/SideBar";
 import { useState, useEffect } from "react";
 import { useTasks } from "@/hooks/useTasks";
 import { usePurchases } from "@/hooks/usePurchases";

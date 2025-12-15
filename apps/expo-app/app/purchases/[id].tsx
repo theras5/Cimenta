@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Image } from 'react-native';
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -103,15 +103,7 @@ export default function PurchaseDetails() {
   const [deleting, setDeleting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  useEffect(() => {
-    loadPurchaseDetails();
-  }, [id]);
-
-  useEffect(() => {
-    console.log('Estado de images actualizado:', images.length, images);
-  }, [images]);
-
-  const loadPurchaseDetails = async () => {
+  const loadPurchaseDetails = useCallback(async () => {
     try {
       setLoading(true);
       const data = await getPurchaseById(id);
@@ -151,7 +143,15 @@ export default function PurchaseDetails() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    loadPurchaseDetails();
+  }, [loadPurchaseDetails]);
+
+  useEffect(() => {
+    console.log('Estado de images actualizado:', images.length, images);
+  }, [images]);
 
   const handleEdit = () => {
     router.push(`/purchases/edit-purchase?id=${id}`);

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronDown, Edit, Trash2, Upload, X } from "lucide-react";
 import {
@@ -16,18 +16,12 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
+
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+
 import {
   Dialog,
   DialogContent,
@@ -47,21 +41,7 @@ const categories = [
   { value: "otros", label: "OTROS", color: "bg-gray-500 hover:bg-gray-600" },
 ];
 
-const priorities = [
-  { value: "baja", label: "baja", color: "bg-green-500 hover:bg-green-600" },
-  { value: "normal", label: "normal", color: "bg-blue-500 hover:bg-blue-600" },
-  { value: "alta", label: "alta", color: "bg-orange-500 hover:bg-orange-600" },
-  { value: "urgente", label: "urgente", color: "bg-red-500 hover:bg-red-600" },
-];
 
-const units = [
-  { value: "u", label: "UNIDADES" },
-  { value: "m", label: "METROS" },
-  { value: "kg", label: "KG" },
-  { value: "l", label: "LITROS" },
-  { value: "m2", label: "M²" },
-  { value: "m3", label: "M³" },
-];
 
 // Definir colores por categoría (coinciden con calendar/TaskCard)
 const getCategoryColor = (category: string) => {
@@ -135,7 +115,7 @@ export const PurchaseCard = ({ purchase, onStatusChange, onEdit, onDelete }: Pur
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [editedPurchase, setEditedPurchase] = useState<Partial<Purchase>>({});
-  const [existingImages, setExistingImages] = useState<any[]>([]);
+  const [existingImages, setExistingImages] = useState<Array<{ id: string; image_url: string }>>([]);
   const [newImages, setNewImages] = useState<File[]>([]);
   const [newImagePreviews, setNewImagePreviews] = useState<string[]>([]);
   const [imagesToDelete, setImagesToDelete] = useState<string[]>([]);
@@ -204,11 +184,9 @@ const handleStatusChange = async (newStatus: Purchase['status']) => {
       product: purchase.product,
       description: purchase.description,
       quantity: purchase.quantity,
-      unity: purchase.unity,
       price: purchase.price,
       supplier: purchase.supplier,
       category: purchase.category,
-      priority: purchase.priority,
     });
     
     // Cargar imágenes existentes
@@ -293,7 +271,7 @@ const handleStatusChange = async (newStatus: Purchase['status']) => {
   };
 
   // Manejar cambios en el formulario
-  const handleChange = (field: keyof Purchase, value: any) => {
+  const handleChange = (field: keyof Purchase, value: string | number) => {
     setEditedPurchase(prev => ({ ...prev, [field]: value }));
   };
 
@@ -548,24 +526,6 @@ const handleStatusChange = async (newStatus: Purchase['status']) => {
                   placeholder="Ej: 50" 
                 />
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Unidad</label>
-                <Select 
-                  value={editedPurchase.unity || 'u'}
-                  onValueChange={(value) => handleChange('unity', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar unidad" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {units.map((unit) => (
-                      <SelectItem key={unit.value} value={unit.value}>
-                        {unit.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
             
             {/* Categoría */}
@@ -628,26 +588,7 @@ const handleStatusChange = async (newStatus: Purchase['status']) => {
               <p className="text-xs text-gray-500">Monto en pesos argentinos</p>
             </div>
             
-            {/* Prioridad */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Prioridad</label>
-              <div className="flex flex-wrap gap-2">
-                {priorities.map((pri) => (
-                  <Button
-                    key={pri.value}
-                    type="button"
-                    onClick={() => handleChange('priority', pri.value)}
-                    className={`px-3 py-1.5 text-xs font-medium capitalize ${
-                      editedPurchase.priority === pri.value
-                        ? pri.color + " text-white"
-                        : "bg-gray-200 hover:bg-gray-300 text-gray-800"
-                    }`}
-                  >
-                    {pri.label}
-                  </Button>
-                ))}
-              </div>
-            </div>
+
 
             {/* Imágenes adjuntas */}
             <div className="space-y-2">
