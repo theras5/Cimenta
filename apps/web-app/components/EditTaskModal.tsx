@@ -334,7 +334,6 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
                   <SelectItem value="in_progress">En progreso</SelectItem>
                   <SelectItem value="completed">Completada</SelectItem>
                   <SelectItem value="blocked">Bloqueada</SelectItem>
-                  <SelectItem value="changes">Cambios</SelectItem>
                 </SelectContent>
               </Select>
             )}
@@ -373,7 +372,7 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
           </div>
 
           {/* Trabajadores asignados - solo para tareas */}
-          {!isChange && (
+          {/* {!isChange && (
             <div>
               <label className="text-sm font-medium text-gray-700 mb-2 block">
                 Trabajadores asignados ({isAdmin ? selectedWorkersForEdit.length : assignedWorkerIds.length})
@@ -443,7 +442,7 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({
                 )
               )}
             </div>
-          )}
+          )} */}
 
           {/* Botones */}
           <div className="flex flex-col sm:flex-row gap-2 pt-4">

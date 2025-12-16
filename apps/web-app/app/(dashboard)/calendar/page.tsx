@@ -703,10 +703,10 @@ export default function CalendarPage() {
 
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-blue-600 hover:bg-blue-700">
+              {/* <Button className="bg-blue-600 hover:bg-blue-700">
                 <Plus size={20} className="mr-2" />
                 Nuevo Evento
-              </Button>
+              </Button> */}
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>

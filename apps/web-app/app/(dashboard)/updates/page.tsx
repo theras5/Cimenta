@@ -191,7 +191,6 @@ const AvancesScreen = () => {
         title: newUpdate.title,
         description: newUpdate.description || "",
         user_id: user?.id,
-        user_name: user?.name || "Usuario desconocido",
         site_id: selectedSiteId,
         image_url: newUpdate.image_url || "",
       });
@@ -357,7 +356,7 @@ const AvancesScreen = () => {
                 // Mostrar el nombre del usuario si es su propio update, o usar el user_name guardado, o "Usuario"
                 const authorName = update.user_id === user?.id
                   ? (user?.name || "Usuario")
-                  : (update.user_name || "Usuario");
+                  : "Usuario";
 
                 const safeTitle = normalizeText(update.title);
                 const safeDescription = normalizeText(update.description);

@@ -82,16 +82,22 @@ export default function NewChangePage() {
       return;
     }
 
+    // Obtener site_id directamente de localStorage (como en la APP)
+    const site_id = typeof window !== "undefined" ? localStorage.getItem("selectedSiteId") : null;
+    if (!site_id) {
+      setError("Debes seleccionar una obra antes de crear la solicitud");
+      return;
+    }
+
+    if (!user?.id) {
+      setError("Debes estar logueado para crear una solicitud de cambio");
+      return;
+    }
+
     try {
       setLoading(true);
       setError("");
       setSuccess(false);
-
-      // Validar que hay sitio seleccionado
-      if (!selectedSiteId) {
-        setError("No hay sitio seleccionado");
-        return;
-      }
 
       // Crear la solicitud de cambio usando la API real
       const changeData = {
@@ -99,8 +105,8 @@ export default function NewChangePage() {
         description: newChange.description,
         status: "changes" as Task["status"],
         category: newChange.category,
-        site_id: selectedSiteId,
-        user_id: user?.id,
+        site_id,
+        user_id: user.id,
       };
 
       await createTask(changeData);

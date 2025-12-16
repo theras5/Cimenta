@@ -111,6 +111,18 @@ export default function NewTaskPage() {
       return;
     }
 
+    // Obtener site_id directamente de localStorage (como en la APP)
+    const site_id = typeof window !== "undefined" ? localStorage.getItem("selectedSiteId") : null;
+    if (!site_id) {
+      setError("Debes seleccionar una obra antes de crear la tarea");
+      return;
+    }
+
+    if (!user?.id) {
+      setError("Debes estar logueado para crear una tarea");
+      return;
+    }
+
     try {
       setLoading(true);
       setError("");
@@ -120,12 +132,6 @@ export default function NewTaskPage() {
       const startIso = newTask.start_date ? new Date(newTask.start_date).toISOString() : undefined;
       const endIso = newTask.end_date ? new Date(newTask.end_date).toISOString() : undefined;
 
-      // Validar que hay sitio seleccionado
-      if (!selectedSiteId) {
-        setError("No hay sitio seleccionado");
-        return;
-      }
-
       // Crear la tarea usando la API real
       const taskData = {
         title: newTask.title,
@@ -134,8 +140,8 @@ export default function NewTaskPage() {
         category: newTask.category,
         start_date: startIso,
         end_date: endIso,
-        user_id: user?.id,
-        site_id: selectedSiteId,
+        user_id: user.id,
+        site_id,
       };
 
       await createTask(taskData);
@@ -337,37 +343,6 @@ export default function NewTaskPage() {
                     </div>
                   </div>
 
-                  {/* Miembros del equipo - Solo visual por ahora */}
-                  <div className="space-y-3">
-                    <label className="text-sm font-medium text-gray-700">
-                      Asignar miembros del equipo ({selectedMembers.length}{" "}
-                      seleccionados)
-                    </label>
-                    <p className="text-xs text-gray-500">
-                      Nota: La asignación de miembros se guardará cuando se implemente en el backend
-                    </p>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 p-4 border rounded-lg bg-gray-50 max-h-48 overflow-y-auto">
-                      {teamMembers.map((member) => (
-                        <div
-                          key={member}
-                          className={`cursor-pointer p-3 rounded-lg text-sm font-medium transition-all ${
-                            selectedMembers.includes(member)
-                              ? "bg-blue-500 text-white shadow-md"
-                              : "bg-white hover:bg-gray-100 border border-gray-200"
-                          } ${
-                            loading || tasksLoading
-                              ? "pointer-events-none opacity-50"
-                              : ""
-                          }`}
-                          onClick={() =>
-                            !loading && !tasksLoading && toggleMember(member)
-                          }
-                        >
-                          {member}
-                        </div>
-                      ))}
-                    </div>
-                    </div>
 
                   {/* Botones de acción */}
                   <div className="flex gap-3 pt-4">

@@ -22,10 +22,8 @@ export interface Update {
   description?: string;
   image_url?: string;
   user_id?: string;
-  user_name?: string;
   site_id: string | null;
   created_at: string;
-  updated_at?: string;
 }
 
 class ApiService {
