@@ -12,7 +12,12 @@ export async function GET(
     
     console.log(`Fetching sites for user: ${userId}`); // Este log aparecerá en la terminal
     
-    const response = await fetch(`${API_URL}/sites/user/${userId}`, {
+    // Normalizar la URL para evitar dobles barras
+    const baseUrl = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL;
+    const sitesUrl = `${baseUrl}/sites/user/${userId}`;
+    console.log(`Calling sites endpoint: ${sitesUrl}`);
+    
+    const response = await fetch(sitesUrl, {
       headers: {
         'Accept': 'application/json',
       },
@@ -20,20 +25,42 @@ export async function GET(
     });
     
     if (!response.ok) {
-      console.error(`Backend responded with status: ${response.status}`);
-      return NextResponse.json(
-        { error: 'Error al obtener sitios del usuario' },
-        { status: response.status }
-      );
+      // Intentar leer el cuerpo de error del backend
+      let serverBody: any;
+      const contentType = response.headers.get('content-type') || '';
+      try {
+        if (contentType.includes('application/json')) {
+          serverBody = await response.json();
+        } else {
+          serverBody = { error: await response.text() };
+        }
+      } catch (e) {
+        serverBody = { error: `Error del servidor: ${response.status}` };
+      }
+      
+      console.error(`Backend responded with status: ${response.status}`, serverBody);
+      return NextResponse.json(serverBody, { status: response.status });
     }
     
     const data = await response.json();
     console.log(`Successfully fetched ${data.length || 0} sites`);
     return NextResponse.json(data);
   } catch (error) {
+    // Handle connection errors separately
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      console.error('Error de conexión al backend:', error);
+      return NextResponse.json(
+        { error: 'No se pudo conectar con el servidor. Verifica que el servidor esté corriendo.' },
+        { status: 503 }
+      );
+    }
+    
     console.error(`Error al obtener sitios del usuario:`, error);
     return NextResponse.json(
-      { error: 'Error interno del servidor' },
+      { 
+        error: 'Error interno del servidor',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     );
   }

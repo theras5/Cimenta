@@ -15,19 +15,33 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const response = await fetch(
-      `${API_URL}/user-role?user_id=${userId}&site_id=${siteId}`,
-      {
-        headers: { Accept: "application/json" },
-        cache: "no-store",
-      }
-    );
+    // Normalizar la URL para evitar dobles barras
+    const baseUrl = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL;
+    const backendUrl = `${baseUrl}/user-role?user_id=${userId}&site_id=${siteId}`;
+    
+    console.log('📤 [user-role] Calling backend:', backendUrl);
+    
+    const response = await fetch(backendUrl, {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    });
 
     if (!response.ok) {
-      const body = await response.text();
-      console.error("Error backend user-role:", response.status, body);
+      let errorBody: any;
+      const contentType = response.headers.get('content-type') || '';
+      try {
+        if (contentType.includes('application/json')) {
+          errorBody = await response.json();
+        } else {
+          errorBody = { error: await response.text() };
+        }
+      } catch (e) {
+        errorBody = { error: `Error del servidor: ${response.status}` };
+      }
+      
+      console.error("❌ [user-role] Backend error:", response.status, errorBody);
       return NextResponse.json(
-        { error: "No se pudo obtener el rol" },
+        errorBody,
         { status: response.status }
       );
     }
@@ -35,9 +49,21 @@ export async function GET(request: NextRequest) {
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Error en API user-role:", error);
+    // Handle connection errors separately
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      console.error('❌ [user-role] Connection error:', error);
+      return NextResponse.json(
+        { error: 'No se pudo conectar con el servidor. Verifica que el servidor esté corriendo.' },
+        { status: 503 }
+      );
+    }
+    
+    console.error("❌ [user-role] Error:", error);
     return NextResponse.json(
-      { error: "Error interno del servidor" },
+      { 
+        error: "Error interno del servidor",
+        message: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     );
   }

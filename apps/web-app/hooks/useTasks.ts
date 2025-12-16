@@ -11,6 +11,7 @@ export function useTasks() {
   const fetchTasks = useCallback(async (siteId?: string) => {
     if (!siteId) {
       setError("No hay sitio seleccionado");
+      setLoading(false);
       return;
     }
 
@@ -139,8 +140,15 @@ export function useTasks() {
   const clearError = () => setError(null);
 
   useEffect(() => {
-    fetchTasks();
-  }, []);
+    // No llamar fetchTasks automáticamente sin siteId
+    // Las páginas que necesitan cargar tareas deben llamar fetchTasks con el siteId explícitamente
+    const siteId = typeof window !== 'undefined' ? localStorage.getItem("selectedSiteId") : null;
+    if (siteId) {
+      fetchTasks(siteId);
+    } else {
+      setLoading(false);
+    }
+  }, [fetchTasks]);
 
   return {
     tasks,

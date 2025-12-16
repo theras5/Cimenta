@@ -17,17 +17,34 @@ export async function GET(request: NextRequest) {
     
     console.log('📥 Obteniendo compras para site:', siteId);
     
+    // Normalizar la URL para evitar dobles barras
+    const baseUrl = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL;
+    const purchasesUrl = `${baseUrl}/purchases/site/${siteId}`;
+    console.log('Calling purchases endpoint:', purchasesUrl);
+    
     // Endpoint específico para filtrar por sitio
-    const response = await fetch(`${API_URL}/purchases/site/${siteId}`, {
+    const response = await fetch(purchasesUrl, {
       headers: {
         'Accept': 'application/json',
       },
     });
     
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Error del backend:', response.status, errorText);
-      throw new Error(`Error del servidor: ${response.status}`);
+      // Intentar leer el cuerpo de error del backend
+      let serverBody: any;
+      const contentType = response.headers.get('content-type') || '';
+      try {
+        if (contentType.includes('application/json')) {
+          serverBody = await response.json();
+        } else {
+          serverBody = { error: await response.text() };
+        }
+      } catch (e) {
+        serverBody = { error: `Error del servidor: ${response.status}` };
+      }
+      
+      console.error('❌ Error del backend:', response.status, serverBody);
+      return NextResponse.json(serverBody, { status: response.status });
     }
     
     const data = await response.json();
@@ -35,9 +52,21 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(data);
     
   } catch (error) {
+    // Handle connection errors separately
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      console.error('❌ Error de conexión al backend:', error);
+      return NextResponse.json(
+        { error: 'No se pudo conectar con el servidor. Verifica que el servidor esté corriendo.' },
+        { status: 503 }
+      );
+    }
+    
     console.error('❌ Error en GET /api/purchases:', error);
     return NextResponse.json(
-      { error: 'Error interno del servidor' },
+      { 
+        error: 'Error interno del servidor',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     );
   }
@@ -57,7 +86,11 @@ export async function POST(request: NextRequest) {
     
     console.log('📤 Creando compra:', body);
     
-    const response = await fetch(`${API_URL}/purchases`, {
+    // Normalizar la URL para evitar dobles barras
+    const baseUrl = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL;
+    const createPurchasesUrl = `${baseUrl}/purchases`;
+    
+    const response = await fetch(createPurchasesUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -51,12 +52,25 @@ const teamMembers = [
 
 export default function NewTaskPage() {
   const router = useRouter();
-  const { createTask, loading: tasksLoading, error: tasksError } = useTasks();
+  const { createTask } = useTasks();
+  const { user } = useAuth();
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
+  const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
+
+  // Cargar el sitio seleccionado de localStorage
+  useEffect(() => {
+    const siteId = localStorage.getItem("selectedSiteId");
+    if (siteId) {
+      setSelectedSiteId(siteId);
+    } else {
+      // Si no hay sitio seleccionado, redirigir
+      router.push("/select-site");
+    }
+  }, [router]);
   const [newTask, setNewTask] = useState({
     title: "",
     description: "",
@@ -106,6 +120,12 @@ export default function NewTaskPage() {
       const startIso = newTask.start_date ? new Date(newTask.start_date).toISOString() : undefined;
       const endIso = newTask.end_date ? new Date(newTask.end_date).toISOString() : undefined;
 
+      // Validar que hay sitio seleccionado
+      if (!selectedSiteId) {
+        setError("No hay sitio seleccionado");
+        return;
+      }
+
       // Crear la tarea usando la API real
       const taskData = {
         title: newTask.title,
@@ -114,11 +134,8 @@ export default function NewTaskPage() {
         category: newTask.category,
         start_date: startIso,
         end_date: endIso,
-        user_id: "ad4d74ba-beac-4741-9ec1-978d564a971c",
-        site_id: "e43d720c-8b2f-454f-8b41-55019ffef012",
-        // Podrías añadir estos campos según tu backend:
-        // assigned_members: selectedMembers.join(","), // Si tu backend los maneja
-        // site_id: "algún-site-id", // Si tienes sitios
+        user_id: user?.id,
+        site_id: selectedSiteId,
       };
 
       await createTask(taskData);
@@ -191,10 +208,10 @@ export default function NewTaskPage() {
               <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-6">
                   {/* Error Alert */}
-                  {(error || tasksError) && (
+                  {error && (
                     <Alert variant="destructive">
                       <AlertDescription>
-                        {error || tasksError}
+                        {error}
                       </AlertDescription>
                     </Alert>
                   )}
@@ -211,7 +228,7 @@ export default function NewTaskPage() {
                         setNewTask({ ...newTask, title: e.target.value })
                       }
                       className="h-12"
-                      disabled={loading || tasksLoading}
+                      disabled={loading}
                     />
                   </div>
 
@@ -227,7 +244,7 @@ export default function NewTaskPage() {
                         setNewTask({ ...newTask, description: e.target.value })
                       }
                       rows={4}
-                      disabled={loading || tasksLoading}
+                      disabled={loading}
                     />
                   </div>
 
@@ -242,7 +259,7 @@ export default function NewTaskPage() {
                         onValueChange={(value) =>
                           setNewTask({ ...newTask, category: value })
                         }
-                        disabled={loading || tasksLoading}
+                        disabled={loading}
                       >
                         <SelectTrigger className="h-12">
                           <SelectValue placeholder="Seleccionar categoría" />
@@ -272,7 +289,7 @@ export default function NewTaskPage() {
                             status: value as Task["status"],
                           })
                         }
-                        disabled={loading || tasksLoading}
+                        disabled={loading}
                       >
                         <SelectTrigger className="h-12">
                           <SelectValue placeholder="Estado inicial" />
@@ -300,7 +317,7 @@ export default function NewTaskPage() {
                           setNewTask({ ...newTask, start_date: e.target.value })
                         }
                         className="h-12"
-                        disabled={loading || tasksLoading}
+                        disabled={loading}
                       />
                     </div>
 
@@ -315,7 +332,7 @@ export default function NewTaskPage() {
                           setNewTask({ ...newTask, end_date: e.target.value })
                         }
                         className="h-12"
-                        disabled={loading || tasksLoading}
+                        disabled={loading}
                       />
                     </div>
                   </div>
@@ -358,7 +375,7 @@ export default function NewTaskPage() {
                       type="button"
                       variant="outline"
                       onClick={() => router.push("/dashboard")}
-                      disabled={loading || tasksLoading}
+                      disabled={loading}
                       className="flex-1"
                     >
                       Cancelar
@@ -367,7 +384,7 @@ export default function NewTaskPage() {
                       type="button"
                       variant="ghost"
                       onClick={resetForm}
-                      disabled={loading || tasksLoading}
+                      disabled={loading}
                     >
                       Limpiar
                     </Button>
@@ -376,12 +393,11 @@ export default function NewTaskPage() {
                       disabled={
                         !newTask.title ||
                         !newTask.category ||
-                        loading ||
-                        tasksLoading
+                        loading
                       }
                       className="flex-1"
                     >
-                      {loading || tasksLoading ? (
+                      {loading ? (
                         <>
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                           Creando...

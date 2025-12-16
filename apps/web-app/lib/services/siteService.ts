@@ -38,7 +38,9 @@ class SiteService {
   // Crear un nuevo sitio
   async createSite(siteData: CreateSiteParams): Promise<Site> {
     try {
-      const response = await fetch('/api/sites', { // ← Agregar /api/
+      console.log('📤 SiteService.createSite - Creating site with data:', siteData);
+      
+      const response = await fetch('/api/sites', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -46,13 +48,29 @@ class SiteService {
         body: JSON.stringify(siteData),
       });
       
+      console.log('📥 SiteService.createSite - Response status:', response.status, response.statusText);
+      
       if (!response.ok) {
-        throw new Error(`Error ${response.status}: ${response.statusText}`);
+        // Try to get error message from response
+        let errorMessage = `Error ${response.status}: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          if (errorData.error || errorData.message) {
+            errorMessage = errorData.error || errorData.message;
+          }
+        } catch (e) {
+          // If response is not JSON, use status text
+        }
+        
+        console.error('❌ SiteService.createSite - Error response:', errorMessage);
+        throw new Error(errorMessage);
       }
       
-      return response.json();
+      const data = await response.json();
+      console.log('✅ SiteService.createSite - Site created:', data);
+      return data;
     } catch (error) {
-      console.error("Error creating site:", error);
+      console.error("❌ SiteService.createSite - Exception:", error);
       throw error;
     }
   }

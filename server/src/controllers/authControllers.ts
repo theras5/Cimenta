@@ -16,7 +16,14 @@ export const signInWithPassword = async (req: Request, res: Response, next: Next
       throw new AppError("No se pudo crear el usuario en la tabla auth", 500);
     }
 
-    await createProfile(data.user.id, name);
+    // Intentar crear el perfil, pero no bloquear el registro si falla (como en el código antiguo)
+    try {
+      await createProfile(data.user.id, name, email);
+    } catch (profileError: any) {
+      console.log("Error al crear perfil:", profileError.message);
+      // No lanzamos error para no bloquear el registro
+      // El usuario ya está creado en auth, el perfil se puede crear después
+    }
 
     // Construir objeto user con la estructura correcta
     const user = {

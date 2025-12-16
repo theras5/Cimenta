@@ -1,16 +1,25 @@
 import { supabase } from "../config/supabase";
 import { AppError } from "../errors/AppError";
 
-export async function createProfile(userUid: string, name: string) {
-    if (!userUid || !name) {
-        throw new AppError("Se necesita un userUid y nombre para poder crear un profile", 400);
+export async function createProfile(userUid: string, name: string, email: string) {
+    if (!userUid || !name || !email) {
+        throw new AppError("Se necesita un userUid, nombre y email para poder crear un profile", 400);
+    }
+    
+    // Validar longitud mínima del nombre (el constraint de la BD requiere al menos 2 caracteres)
+    if (name.trim().length < 2) {
+        throw new AppError("El nombre debe tener al menos 2 caracteres.", 400);
     }
 
+    // Usar upsert en lugar de insert para evitar errores si el perfil ya existe
     const { data, error } = await supabase
         .from("profiles")
-        .insert({ id: userUid, name });
+        .upsert({ id: userUid, name: name.trim(), email }, { onConflict: 'id' });
 
-    if (error) throw new AppError(error.message, 500);
+    if (error) {
+        console.error("Error al crear/actualizar perfil:", error);
+        throw new AppError(error.message, 500);
+    }
 
     return data;
 }

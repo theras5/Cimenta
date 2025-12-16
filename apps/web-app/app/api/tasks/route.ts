@@ -15,24 +15,55 @@ export async function GET(request: NextRequest) {
       );
     }
     
+    // Normalizar la URL para evitar dobles barras
+    const baseUrl = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL;
+    const tasksUrl = `${baseUrl}/tasks/site/${siteId}`;
+    console.log('Calling tasks endpoint:', tasksUrl);
+    
     // Hacer la petición al backend filtrando por site_id
-    const response = await fetch(`${API_URL}/tasks/site/${siteId}`, {
+    const response = await fetch(tasksUrl, {
       headers: {
         'Accept': 'application/json',
       },
     });
     
     if (!response.ok) {
-      throw new Error(`Error del servidor: ${response.status}`);
+      // Intentar leer el cuerpo de error del backend
+      let serverBody: any;
+      const contentType = response.headers.get('content-type') || '';
+      try {
+        if (contentType.includes('application/json')) {
+          serverBody = await response.json();
+        } else {
+          serverBody = { error: await response.text() };
+        }
+      } catch (e) {
+        serverBody = { error: `Error del servidor: ${response.status}` };
+      }
+      
+      console.error('Backend /tasks/site returned error', response.status, serverBody);
+      return NextResponse.json(serverBody, { status: response.status });
     }
     
     const data = await response.json();
     return NextResponse.json(data);
     
   } catch (error) {
+    // Handle connection errors separately
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      console.error('Error de conexión al backend:', error);
+      return NextResponse.json(
+        { error: 'No se pudo conectar con el servidor. Verifica que el servidor esté corriendo.' },
+        { status: 503 }
+      );
+    }
+    
     console.error('Error en API de tareas:', error);
     return NextResponse.json(
-      { error: 'Error interno del servidor' },
+      { 
+        error: 'Error interno del servidor',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     );
   }
@@ -51,7 +82,11 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    const response = await fetch(`${API_URL}/tasks`, {
+    // Normalizar la URL para evitar dobles barras
+    const baseUrl = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL;
+    const createTasksUrl = `${baseUrl}/tasks`;
+    
+    const response = await fetch(createTasksUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

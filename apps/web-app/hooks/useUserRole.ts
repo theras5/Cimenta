@@ -76,9 +76,15 @@ export function useUserRole() {
 
         const apiUrl = process.env.NEXT_PUBLIC_API_URL;
         const baseUrl = apiUrl && apiUrl.length > 0 ? apiUrl : null;
-        const url = baseUrl
-          ? `${baseUrl}/user-role?user_id=${userId}&site_id=${siteId}`
-          : `/api/user-role?user_id=${userId}&site_id=${siteId}`;
+        
+        // Normalizar la URL para evitar dobles barras
+        let url: string;
+        if (baseUrl) {
+          const normalizedBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+          url = `${normalizedBase}/user-role?user_id=${userId}&site_id=${siteId}`;
+        } else {
+          url = `/api/user-role?user_id=${userId}&site_id=${siteId}`;
+        }
         
         console.log("🌐 [useUserRole] Llamando a:", url);
         

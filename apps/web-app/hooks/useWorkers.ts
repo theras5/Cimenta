@@ -42,11 +42,20 @@ export function useWorkers() {
       setLoading(true);
       setError(null);
 
-      // Usar query parameter en lugar de ruta dinámica
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/workers/employer/${employerId}`);
+      // Usar la ruta de Next.js API con query parameter
+      const response = await fetch(`/api/workers?employerId=${employerId}`);
 
       if (!response.ok) {
-        throw new Error(`Error ${response.status}: ${response.statusText}`);
+        let errorMessage = `Error ${response.status}: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          if (errorData.error) {
+            errorMessage = errorData.error;
+          }
+        } catch (e) {
+          // Si no es JSON, usar el mensaje por defecto
+        }
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
@@ -97,8 +106,26 @@ export function useWorkers() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Error ${response.status}`);
+        let errorMessage = `Error ${response.status}: ${response.statusText}`;
+        try {
+          const contentType = response.headers.get('content-type') || '';
+          if (contentType.includes('application/json')) {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorData.message || errorMessage;
+          } else {
+            const text = await response.text();
+            // Si es HTML, extraer solo un mensaje breve
+            if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+              errorMessage = `Error ${response.status}: El servidor respondió con HTML en lugar de JSON`;
+            } else {
+              errorMessage = text || errorMessage;
+            }
+          }
+        } catch (e) {
+          // Si falla el parseo, usar el mensaje por defecto
+          console.error('Error parsing error response:', e);
+        }
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();

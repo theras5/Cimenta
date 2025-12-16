@@ -7,8 +7,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     
     console.log('Logging in user:', body.email);
+    console.log('API_URL:', API_URL);
+    // Normalizar la URL para evitar dobles barras
+    const baseUrl = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL;
+    const loginUrl = `${baseUrl}/auth/login`;
+    console.log('Calling login endpoint:', loginUrl);
 
-    const response = await fetch(`${API_URL}/auth/login`, {
+    const response = await fetch(loginUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

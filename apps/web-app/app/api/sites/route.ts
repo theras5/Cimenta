@@ -34,17 +34,26 @@ export async function GET() {
 // POST - Crear un nuevo sitio
 export async function POST(request: NextRequest) {
   try {
+    console.log('📥 POST /api/sites - Request received');
+    
     const body = await request.json();
+    console.log('📥 POST /api/sites - Body:', body);
     
     // Validaciones básicas
     if (!body.address || !body.user_id) {
+      console.log('❌ POST /api/sites - Validation failed:', { address: body.address, user_id: body.user_id });
       return NextResponse.json(
         { error: 'Dirección y ID de usuario son obligatorios' },
         { status: 400 }
       );
     }
     
-    const response = await fetch(`${API_URL}/sites`, {
+    // Normalizar la URL para evitar dobles barras
+    const baseUrl = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL;
+    const sitesUrl = `${baseUrl}/sites`;
+    console.log('📤 POST /api/sites - Calling backend:', sitesUrl);
+    
+    const response = await fetch(sitesUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -53,20 +62,44 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(body),
     });
     
+    console.log('📥 POST /api/sites - Backend response status:', response.status);
+    
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: 'Error desconocido' }));
-      return NextResponse.json(
-        errorData,
-        { status: response.status }
-      );
+      let errorData: any;
+      const contentType = response.headers.get('content-type') || '';
+      try {
+        if (contentType.includes('application/json')) {
+          errorData = await response.json();
+        } else {
+          errorData = { error: await response.text() };
+        }
+      } catch (e) {
+        errorData = { error: `Error del servidor: ${response.status}` };
+      }
+      
+      console.error('❌ POST /api/sites - Backend error:', errorData);
+      return NextResponse.json(errorData, { status: response.status });
     }
     
     const data = await response.json();
+    console.log('✅ POST /api/sites - Site created successfully');
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
-    console.error('Error al crear sitio:', error);
+    // Handle connection errors separately
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      console.error('❌ POST /api/sites - Connection error:', error);
+      return NextResponse.json(
+        { error: 'No se pudo conectar con el servidor. Verifica que el servidor esté corriendo.' },
+        { status: 503 }
+      );
+    }
+    
+    console.error('❌ POST /api/sites - Error:', error);
     return NextResponse.json(
-      { error: 'Error interno del servidor' },
+      { 
+        error: 'Error interno del servidor',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     );
   }

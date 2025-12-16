@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -37,11 +38,25 @@ const categoryColors = {
 
 export default function NewChangePage() {
   const router = useRouter();
-  const { createTask, loading: tasksLoading, error: tasksError } = useTasks();
+  const { createTask } = useTasks();
+  const { user } = useAuth();
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
+
+  // Cargar el sitio seleccionado de localStorage
+  useEffect(() => {
+    const siteId = localStorage.getItem("selectedSiteId");
+    if (siteId) {
+      setSelectedSiteId(siteId);
+    } else {
+      // Si no hay sitio seleccionado, redirigir
+      router.push("/select-site");
+    }
+  }, [router]);
+
   const [newChange, setNewChange] = useState({
     title: "",
     description: "",
@@ -72,12 +87,20 @@ export default function NewChangePage() {
       setError("");
       setSuccess(false);
 
+      // Validar que hay sitio seleccionado
+      if (!selectedSiteId) {
+        setError("No hay sitio seleccionado");
+        return;
+      }
+
       // Crear la solicitud de cambio usando la API real
       const changeData = {
         title: newChange.title,
         description: newChange.description,
         status: "changes" as Task["status"],
         category: newChange.category,
+        site_id: selectedSiteId,
+        user_id: user?.id,
       };
 
       await createTask(changeData);
@@ -152,10 +175,10 @@ export default function NewChangePage() {
               <CardContent className="pt-6">
                 <form onSubmit={handleSubmit} className="space-y-6">
                   {/* Error Alert */}
-                  {(error || tasksError) && (
+                  {error && (
                     <Alert variant="destructive">
                       <AlertDescription>
-                        {error || tasksError}
+                        {error}
                       </AlertDescription>
                     </Alert>
                   )}
@@ -172,7 +195,7 @@ export default function NewChangePage() {
                         setNewChange({ ...newChange, title: e.target.value })
                       }
                       className="h-12"
-                      disabled={loading || tasksLoading}
+                      disabled={loading}
                     />
                   </div>
 
@@ -191,7 +214,7 @@ export default function NewChangePage() {
                         })
                       }
                       rows={4}
-                      disabled={loading || tasksLoading}
+                      disabled={loading}
                     />
                   </div>
 
@@ -206,7 +229,7 @@ export default function NewChangePage() {
                         onValueChange={(value) =>
                           setNewChange({ ...newChange, category: value })
                         }
-                        disabled={loading || tasksLoading}
+                        disabled={loading}
                       >
                         <SelectTrigger className="h-12">
                           <SelectValue placeholder="Seleccionar categoría" />
@@ -231,7 +254,7 @@ export default function NewChangePage() {
                       type="button"
                       variant="outline"
                       onClick={() => router.push("/dashboard")}
-                      disabled={loading || tasksLoading}
+                      disabled={loading}
                       className="flex-1"
                     >
                       Cancelar
@@ -240,7 +263,7 @@ export default function NewChangePage() {
                       type="button"
                       variant="ghost"
                       onClick={resetForm}
-                      disabled={loading || tasksLoading}
+                      disabled={loading}
                     >
                       Limpiar
                     </Button>
@@ -249,12 +272,11 @@ export default function NewChangePage() {
                       disabled={
                         !newChange.title ||
                         !newChange.category ||
-                        loading ||
-                        tasksLoading
+                        loading
                       }
                       className="flex-1 bg-orange-600 hover:bg-orange-700"
                     >
-                      {loading || tasksLoading ? (
+                      {loading ? (
                         <>
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                           Creando...
