@@ -230,6 +230,7 @@ export default function CimentaDashboard() {
               )}
 
               {/* Subir Avance - SIEMPRE VISIBLE */}
+              {!roleLoading && normalizedRole === "admin" && (
               <button
                 onClick={() => router.push("/updates/new-update")}
                 className="group flex flex-col items-center p-6 bg-white rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 transition-all duration-200 hover:shadow-md"
@@ -244,6 +245,7 @@ export default function CimentaDashboard() {
                   Registrar progreso del proyecto
                 </p>
               </button>
+              )}
 
               {/* Crear solicitud de compra - SIEMPRE VISIBLE */}
               <button
