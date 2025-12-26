@@ -95,7 +95,7 @@ export default function ChangeDetail() {
         status: task.status as any,
         images: task.mediaFiles || [],
         createdAt: task.start_date ? new Date(task.start_date) : new Date(),
-        taskId: task.id || undefined  // Usamos el ID de la tarea actual como relaciÃ³n
+        taskId: task.id || undefined  // Usamos el ID de la tarea actual como relación
       };
       
       setChangeRequest(change);
@@ -123,8 +123,7 @@ export default function ChangeDetail() {
     } */
   }, [id, task, taskLoading, taskError]);
   
-  // Helper para obtener el color de la categorÃ­a
-  // Helper para obtener el color de la categorÃ­a
+  // Helper para obtener el color de la categorí­a
   const getCategoryColor = (categoryName: string) => {
     const normalizedCategory = categoryName?.toUpperCase();
     const category = categories.find((cat) => cat.name.toUpperCase() === normalizedCategory);
@@ -173,7 +172,7 @@ export default function ChangeDetail() {
         description: description.trim(),
         category,
         // mediaFiles: images,  // Usando mediaFiles para compatibilidad con la API de tareas
-        // Mantener otros campos que podrÃ­an ser requeridos por la API
+        // Mantener otros campos que podrí­an ser requeridos por la API
         // status: taskStatus,
         // startDate: task?.startDate || new Date().toISOString(),
         // endDate: task?.endDate || new Date().toISOString(),
@@ -181,11 +180,11 @@ export default function ChangeDetail() {
 
 
 
-      // Si tenemos acceso a la API y el hook updateTask, Ãºsalo
+      // Si tenemos acceso a la API y el hook updateTask, pisalo
       if (id && updateTask) {
 
-        // En useTasks.ts el mÃ©todo updateTask ya recibe el ID como argumento cuando se crea el hook
-        // Por eso aquÃ­ solo pasamos los datos a actualizar
+        // En useTasks.ts el método updateTask ya recibe el ID como argumento cuando se crea el hook
+        // Por eso aquí­ solo pasamos los datos a actualizar
         const result = await updateTask(changeData);
         
         if (result) {
@@ -200,13 +199,13 @@ export default function ChangeDetail() {
             images
           });
           
-          // Actualizar los datos obteniendo la versiÃ³n mÃ¡s reciente de la API
+          // Actualizar los datos obteniendo la versión más reciente de la API
 
           await fetchTask();
 
           
           setIsEditing(false);
-          Alert.alert("Ã‰xito", "Solicitud de cambio guardada correctamente");
+          Alert.alert("Éxito", "Solicitud de cambio guardada correctamente");
         } else {
           throw new Error("No se pudo actualizar el cambio");
         }
@@ -222,7 +221,7 @@ export default function ChangeDetail() {
             images
           });
           setIsEditing(false);
-          Alert.alert("Ã‰xito", "Solicitud de cambio guardada correctamente (modo demo)");
+          Alert.alert("Éxito", "Solicitud de cambio guardada correctamente (modo demo)");
         }, 1000);
       }
     } catch (error) {
@@ -241,7 +240,7 @@ export default function ChangeDetail() {
 
     Alert.alert(
       "Aprobar cambio",
-      "Â¿EstÃ¡s seguro de que quieres aprobar esta solicitud de cambio? Se convertirÃ¡ en una tarea pendiente.",
+      "¿Estás seguro de que quieres aprobar esta solicitud de cambio? Se convertirá en una tarea pendiente.",
       [
         {
           text: "Cancelar",
@@ -263,7 +262,7 @@ export default function ChangeDetail() {
                 
                 if (result) {
 
-                  Alert.alert("Ã‰xito", "Solicitud de cambio aprobada y convertida a tarea pendiente");
+                  Alert.alert("Éxito", "Solicitud de cambio aprobada y convertida a tarea pendiente");
                   router.back();
                 } else {
                   throw new Error("No se pudo convertir el cambio a tarea pendiente");
@@ -272,7 +271,7 @@ export default function ChangeDetail() {
                 // Modo demo si no hay API
 
                 setTimeout(() => {
-                  Alert.alert("Ã‰xito", "Solicitud de cambio aprobada y convertida a tarea pendiente (modo demo)");
+                  Alert.alert("Éxito", "Solicitud de cambio aprobada y convertida a tarea pendiente (modo demo)");
                   router.back();
                 }, 1000);
               }
@@ -374,13 +373,13 @@ export default function ChangeDetail() {
     };
     loadReason();
   }, [id]);
-  // FunciÃ³n para alternar entre modos de ediciÃ³n y vista
+  // Función para alternar entre modos de edición y vista
   const toggleEditMode = () => {
     if (isAdmin && isChange) {
       Alert.alert("Solo aceptar/rechazar", "Como admin solo puedes aprobar o rechazar este cambio.");
       return;
     }
-    // Si estamos saliendo del modo de ediciÃ³n, restaurar valores originales
+    // Si estamos saliendo del modo de edición, restaurar valores originales
     if (isEditing && changeRequest) {
       setTitle(changeRequest.title);
       setDescription(changeRequest.description);
@@ -390,7 +389,7 @@ export default function ChangeDetail() {
     setIsEditing(!isEditing);
   };
   
-  // Esta es la funciÃ³n que renderiza todo el componente
+  // Esta es la función que renderiza todo el componente
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
       <StatusBar barStyle="dark-content" />
@@ -419,7 +418,7 @@ export default function ChangeDetail() {
         )}
       </View>
       
-      {/* Contenido principal - Renderizar segÃºn el estado */}
+      {/* Contenido principal - Renderizar según el estado */}
       {taskLoading ? (
         // Estado de carga
         <View className="flex-1 justify-center items-center">
@@ -463,9 +462,9 @@ export default function ChangeDetail() {
           </View>
         </View>
 
-        {/* TÃ­tulo */}
+        {/* Tí­tulo */}
         <View className="mb-4">
-          <Text className="text-gray-700 font-medium mb-2">TÃ­tulo</Text>
+          <Text className="text-gray-700 font-medium mb-2">Tí­tulo</Text>
           {isEditing ? (
             <TextInput
               value={title}
@@ -480,9 +479,9 @@ export default function ChangeDetail() {
           )}
         </View>
 
-        {/* DescripciÃ³n */}
+        {/* Descripción */}
         <View className="mb-4">
-          <Text className="text-gray-700 font-medium mb-2">DescripciÃ³n</Text>
+          <Text className="text-gray-700 font-medium mb-2">Descripción</Text>
           {isEditing ? (
             <TextInput
               value={description}
@@ -496,7 +495,7 @@ export default function ChangeDetail() {
           ) : (
             <View className="bg-white p-4 rounded-xl border border-gray-200 min-h-[96px]">
               <Text className="text-gray-800">
-                {description || "Sin descripciÃ³n"}
+                {description || "Sin descripción"}
               </Text>
             </View>
           )}
@@ -512,9 +511,9 @@ export default function ChangeDetail() {
           </View>
         ) : null}
 
-        {/* CategorÃ­a */}
+        {/* Categorí­a */}
         <View className="mb-4">
-          <Text className="text-gray-700 font-medium mb-2">CategorÃ­a</Text>
+          <Text className="text-gray-700 font-medium mb-2">Categorí­a</Text>
           {isEditing ? (
             <View className="flex-row flex-wrap gap-2">
               {categories.map((cat) => (
@@ -552,9 +551,9 @@ export default function ChangeDetail() {
           )}
         </View>
 
-        {/* ImÃ¡genes */}
+        {/* Imágenes */}
         <View className="mb-6">
-          <Text className="text-gray-700 font-medium mb-2">ImÃ¡genes</Text>
+          <Text className="text-gray-700 font-medium mb-2">Imágenes</Text>
           
           {isEditing ? (
             <View>
@@ -604,7 +603,7 @@ export default function ChangeDetail() {
               ) : (
                 <>
                   <Ionicons name="image-outline" size={48} color="#9CA3AF" />
-                  <Text className="text-gray-400 mt-2">Sin imÃ¡genes</Text>
+                  <Text className="text-gray-400 mt-2">Sin imágenes</Text>
                 </>
               )}
             </View>
